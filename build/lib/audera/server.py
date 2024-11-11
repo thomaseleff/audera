@@ -51,7 +51,7 @@ class App():
         """ Streams audio and handles ping-requests. """
 
         # Logging
-        print("Streaming audio...")
+        print("Streaming audio.")
 
         try:
             while True:

@@ -1,0 +1,2 @@
+[console_scripts]
+audera = audera.cli.audera:main

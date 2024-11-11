@@ -1,0 +1,23 @@
+Metadata-Version: 2.1
+Name: audera
+Version: 0.1.dev3+g9216f70.d20241111
+Summary: `audera` is an open-source multi-room audio streaming system in Python on Raspberry-pi architecture for DIY home entertainment enthusiasts.
+Author: Tom Eleff
+Project-URL: Issues, https://github.com/thomaseleff/audera/issues
+Project-URL: Releases, https://github.com/thomaseleff/audera/releases
+Classifier: Development Status :: 4 - Beta
+Classifier: Topic :: Database :: Front-Ends
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10.0
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyaudio==0.2.14
+
+# Audera
+
+`audera` is an open-source multi-room audio streaming system in Python on Raspberry-pi architecture for DIY home entertainment enthusiasts.
