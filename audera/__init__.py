@@ -1,4 +1,8 @@
-""" Audera """
+""" Audera
+
+`audera` is an open-source multi-room audio streaming system written in Python
+for DIY home entertainment enthusiasts.
+"""
 
 from typing import Union, List, Literal
 import pyaudio
@@ -17,6 +21,11 @@ LOGO: List[str] = [
     r"   \ \__\ \__\ \______/\ \______/\ \______\ \__\\ _\\ \__\ \__\ ",
     r"    \|__|\|__|\|______| \|______| \|______|\|__|\|__|\|__|\|__| "
 ]
+NAME: str = 'audera'
+DESCRIPTION: str = ''.join([
+    '`audera` is an open-source multi-room audio streaming system written in',
+    ' Python for DIY home entertainment enthusiasts.'
+])
 
 # Interface configuration
 CHUNK: int = 1024
