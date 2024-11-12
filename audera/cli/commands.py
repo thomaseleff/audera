@@ -38,7 +38,7 @@ def run(
         raise NotImplementedError
 
     if type_.strip().lower() == 'server':
-        return server.App().run()
+        return server.Service().run()
 
     if type_.strip().lower() == 'client':
-        raise client.App().run()
+        return client.Service().run()

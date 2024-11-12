@@ -1,7 +1,22 @@
 """ Audera """
 
-from typing import Union
+from typing import Union, List, Literal
 import pyaudio
+
+from audera import logging
+
+__all__ = ['logging']
+
+# Logo
+LOGO: List[str] = [
+    r" ________  ___  ___  ________  _______  ________  ________      ",
+    r"|\   __  \|\  \|\  \|\   ___ \|\   ___\|\   __  \|\   __  \     ",
+    r"\ \  \|\  \ \  \\\  \ \  \_|\ \ \  \__|\ \  \|\  \ \  \|\  \    ",
+    r" \ \   __  \ \  \\\  \ \  \ \\ \ \   __\\ \   _  _\ \   __  \   ",
+    r"  \ \  \ \  \ \  \\\  \ \  \_\\ \ \  \_|_\ \  \\  \\ \  \ \  \  ",
+    r"   \ \__\ \__\ \_______\ \_______\ \______\ \__\\ _\\ \__\ \__\ ",
+    r"    \|__|\|__|\|_______|\|_______|\|______|\|__|\|__|\|__|\|__| "
+]
 
 # Interface configuration
 CHUNK: int = 1024
@@ -11,6 +26,7 @@ RATE: int = 44100
 AUDIO_PORT: int = 5000
 PING_PORT: int = 5001  # Additional port for ping-pong
 DEVICE_INDEX: Union[int, None] = None
+TRANSMIT_MODE: Literal['TCP', 'UDP'] = 'TCP'
 
 # Server configuration
 SERVER_IP: str = "192.168.1.17"
