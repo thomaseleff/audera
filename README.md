@@ -18,14 +18,14 @@ The following example is a simple Raspberry-pi only based implementation with au
 ```
                            +------------+      +------------+                 
                            |       rp-i |      |     rp-i n |+       +---------+
-                           |            |      |            ||+      |       n |
-                           |   audera   | TCP  |   audera   |||      | active  |
-    Streamer ---->     AUX +  {server}  <------>  {client}  ||+ AUX -> speaker |
-                           |            |      |            |||      |         |
-                           |            |      |            |||      |         |
-                           +------------+      +------------+||      +---------+
-                                                 +-----------+|               
-                                                  +-----------+               
+                           |            |      |            ||+      |       n |+
+                           |   audera   | TCP  |   audera   |||      | active  ||+
+    Streamer ---->     AUX +  {server}  <------>  {client}  + AUX ---> speaker |||
+                           |            |      |            |||      |         |||
+                           |            |      |            |||      |         |||
+                           +------------+      +------------+||      +---------+||
+                                                 +-----------+|       +---------+|
+                                                  +-----------+        +---------+
 ```
 
 The Raspberry-pi hardware can be improved by add-on DACs and amplifiers (like those available from Hifiberry), which can offer additional audio input / output interfaces and higher quality audio capture, streaming and playback.
@@ -35,14 +35,14 @@ The following example extends the simple Raspberry-pi implementation with Hifibe
                            +-----------+                               
           TV ----> OPTICAL +           | +------------+      +------------+                                
                            | Hifiberry | |       rp-i |      |     rp-i n |+  +-----------+     +---------+
-                           | Digi+ I/O -->            |      |            ||+ |           |     |       n |
-                   COAXIAL +           | |   audera   | TCP  |   audera   ||| | Hifiberry |     | passive |
-                           +-----------+ |  {server}  <------>  {client}  ||-->   AMP2    ------> speaker |
-                                         |            |      |            ||| |           |     |         |
-          Streamer ----------------> AUX +            |      |            ||| +-----------+     |         |
-                                         +------------+      +------------+||                   +---------+
-                                                               +-----------+|                              
-                                                                +-----------+                              
+                           | Digi+ I/O -->            |      |            ||+ |         n |+    |       n |+
+                   COAXIAL +           | |   audera   | TCP  |   audera   ||| | Hifiberry ||+   | passive ||+
+                           +-----------+ |  {server}  <------>  {client}  ---->   AMP2    ------> speaker |||
+                                         |            |      |            ||| |           |||   |         |||
+          Streamer ----------------> AUX +            |      |            ||| +-----------+||   |         |||
+                                         +------------+      +------------+||  +-----------+|   +---------+||
+                                                               +-----------+|   +-----------+    +---------+|
+                                                                +-----------+                     +---------+
 ```
 
 ### Self-hosted with Home Assistant
@@ -52,15 +52,15 @@ The `audera` server can be deployed as a docker container on a home-server, whic
     |                             unraid {server} |
     |                                             |                                 
     |  +------------+             +------------+  |  +------------+                 
-    |  |     docker |             |     docker |  |  |     rp-i n |+       +-------+
-    |  |            |   virtual   |            |  |  |            ||+      |     n |
-    |  |    Home    |   line-out  |   audera   | TCP |   audera   |||      |       |
-    |  | Assisstant -------------->  {server}  <----->  {client}  ||------>|speaker|
-    |  |            |             |            |  |  |            |||      |       |
-    |  |            -------+      |            |  |  |            |||      |       |
-    |  +------------+      |      +------------+  |  +------------+||      +-------+
-    |                      |                      |    +-----------+|               
-    +----------------------|----------------------+     +-----------+               
+    |  |     docker |             |     docker |  |  |     rp-i n |+       +---------+
+    |  |            |   virtual   |            |  |  |            ||+      |       n |+
+    |  |    Home    |   line-out  |   audera   | TCP |   audera   |||      |         ||+
+    |  | Assisstant -------------->  {server}  <----->  {client}  -------- > speaker |||
+    |  |            |             |            |  |  |            |||      |         |||
+    |  |            -------+      |            |  |  |            |||      |         |||
+    |  +------------+      |      +------------+  |  +------------+||      +---------+||
+    |                      |                      |    +-----------+|       +---------+|
+    +----------------------|----------------------+     +-----------+        +---------+
                            |                                                        
                            |      +------------+                                    
                            |      |            |                                    
