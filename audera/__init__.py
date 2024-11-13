@@ -5,6 +5,7 @@ for DIY home entertainment enthusiasts.
 """
 
 from typing import Union, List, Literal
+import errno
 import pyaudio
 
 from audera import logging
@@ -35,10 +36,10 @@ RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 AUDIO_PORT: int = 5000
 PING_PORT: int = 5001
 DEVICE_INDEX: Union[int, None] = None
-TRANSMIT_MODE: Literal['TCP', 'UDP'] = 'TCP'
+# TRANSMIT_MODE: Literal['TCP', 'UDP'] = 'TCP'
 
 # Server configuration
-SERVER_IP: str = "192.168.1.17"
+SERVER_IP: str = "0.0.0.0"  # "192.168.1.17"
 
 # Client configuration
 BASE_BUFFER_TIME: float = 0.2  # Base buffer time
@@ -46,3 +47,9 @@ MAX_BUFFER_TIME: float = 0.5  # Maximum buffer in seconds for high jitter
 MIN_BUFFER_TIME: float = 0.1  # Minimum buffer time for low jitter
 PING_INTERVAL: float = 2.0  # Ping every 2 seconds
 RTT_HISTORY_SIZE: int = 10  # History size for RTT measurements
+
+
+# Errors
+class errors:
+    """ A `class` that represents static error codes. """
+    DEVICE_ERROR: int = errno.EIO
