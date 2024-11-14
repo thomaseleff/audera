@@ -1,4 +1,4 @@
-""" Audera command-line utility """
+""" Audera """
 
 from audera.cli import audera
 
