@@ -91,6 +91,7 @@ class Service():
                 await writer.drain()
 
         except (
+            asyncio.TimeoutError,  # When the client-communication times-out
             ConnectionResetError,  # When the client-disconnects
             ConnectionAbortedError,  # When the client-disconnects
         ):
@@ -166,6 +167,7 @@ class Service():
                 await writer.drain()
 
         except (
+            asyncio.TimeoutError,  # When the client-communication times-out
             asyncio.CancelledError,  # When the server-services are cancelled
             KeyboardInterrupt  # When the server-services are cancelled
         ):
@@ -272,12 +274,8 @@ class Service():
         # Run services
         try:
             loop.run_until_complete(self.start_services())
-            # asyncio.run(self.start_services())
 
-        except (
-            KeyboardInterrupt,
-            audera.exceptions.ServerError
-        ):
+        except KeyboardInterrupt:
 
             # Logging
             self.server_logger.info(

@@ -58,14 +58,3 @@ HIGH_RTT: float = 0.3  # The threshold for identifying high-RTT.
 class errors:
     """ A `class` that represents static error codes. """
     DEVICE_ERROR: int = errno.EIO
-
-
-# Exceptions
-class exceptions:
-    """ A `class` that represents exceptions. """
-
-    class ServerError(Exception):
-        pass
-
-    class ClientError(Exception):
-        pass
