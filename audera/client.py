@@ -233,7 +233,7 @@ class Service():
 
                     # Update the buffer-time and clear the RTT history
                     self.buffer_time = new_buffer_time
-                    self.rtt_history.clear()
+                    self.rtt_history.pop(0)
 
                     # Logging
                     self.client_logger.info(
