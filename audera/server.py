@@ -76,9 +76,9 @@ class Service():
             )
         )
 
-        # Handle client-connections
-        try:
-            while True:
+        # Serve audio stream
+        while True:
+            try:
 
                 # Read the next audio data chunk
                 chunk = self.stream.read(audera.CHUNK)
@@ -90,40 +90,48 @@ class Service():
                 writer.write(packet)
                 await writer.drain()
 
-        except (
-            asyncio.TimeoutError,  # When the client-communication times-out
-            ConnectionResetError,  # When the client-disconnects
-            ConnectionAbortedError,  # When the client-disconnects
-        ):
-
-            # Logging
-            self.server_logger.info(
-                'INFO: Client {%s} disconnected.' % (
-                    client_ip
-                )
-            )
-
-        except (
-            asyncio.CancelledError,  # When the server-services are cancelled
-            KeyboardInterrupt  # When the server-services are cancelled
-        ):
-
-            # Logging
-            self.server_logger.info(
-                'INFO: Audio stream to client {%s} cancelled.' % (
-                    client_ip
-                )
-            )
-
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
             except (
+                asyncio.TimeoutError,  # When the client-communication
+                                       #    times-out
                 ConnectionResetError,  # When the client-disconnects
                 ConnectionAbortedError,  # When the client-disconnects
             ):
-                pass
+
+                # Logging
+                self.server_logger.info(
+                    'INFO: Client {%s} disconnected.' % (
+                        client_ip
+                    )
+                )
+
+                # Exit the loop
+                break
+
+            except (
+                asyncio.CancelledError,  # When the server-services are
+                                         #    cancelled
+                KeyboardInterrupt  # When the server-services are cancelled
+            ):
+
+                # Logging
+                self.server_logger.info(
+                    'INFO: Audio stream to client {%s} cancelled.' % (
+                        client_ip
+                    )
+                )
+
+                # Exit the loop
+                break
+
+        # Close the connection
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except (
+            ConnectionResetError,  # When the client-disconnects
+            ConnectionAbortedError,  # When the client-disconnects
+        ):
+            pass
 
     async def serve_communication(
         self,
@@ -154,7 +162,7 @@ class Service():
             )
         )
 
-        # Handle ping-communication
+        # Communicate with the client
         try:
 
             # Read the ping-communication

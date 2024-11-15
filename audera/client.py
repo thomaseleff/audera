@@ -67,17 +67,17 @@ class Service():
         )
 
         # Receive audio stream
-        try:
-            while True:
+        while True:
+            try:
 
                 # Parse audio stream packet
                 packet = await reader.read(
                     audera.CHUNK * audera.CHANNELS * 2 + 8
                 )
 
-                # Check for an active audio stream
+                # Exit the loop when there is no active audio stream
                 if not packet:
-                    raise ConnectionAbortedError
+                    break
 
                 # Parse the time-stamp and audio data from the packet
                 receive_time = time.time()
@@ -104,40 +104,48 @@ class Service():
                         await asyncio.sleep(buffered_delay)
                         self.stream.write(buffered_data)
 
-        except (
-            asyncio.TimeoutError,  # When the server-communication times-out
-            ConnectionResetError,  # When the client-disconnects
-            ConnectionAbortedError,  # When the client-disconnects
-        ):
-
-            # Logging
-            self.client_logger.info(
-                'INFO: Server {%s} disconnected.' % (
-                    audera.SERVER_IP
-                )
-            )
-
-        except (
-            asyncio.CancelledError,  # When the client-services are cancelled
-            KeyboardInterrupt  # When the client-services are cancelled
-        ):
-
-            # Logging
-            self.client_logger.info(
-                'INFO: Audio stream from server {%s} cancelled.' % (
-                    audera.SERVER_IP
-                )
-            )
-
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
             except (
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
+                asyncio.TimeoutError,  # When the server-communication
+                                       #    times-out
+                ConnectionResetError,  # When the server-disconnects
+                ConnectionAbortedError,  # When the server-disconnects
             ):
-                pass
+
+                # Logging
+                self.client_logger.info(
+                    'INFO: Server {%s} disconnected.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Exit the loop
+                break
+
+            except (
+                asyncio.CancelledError,  # When the client-services are
+                                         #    cancelled
+                KeyboardInterrupt  # When the client-services are cancelled
+            ):
+
+                # Logging
+                self.client_logger.info(
+                    'INFO: Audio stream from server {%s} cancelled.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Exit the loop
+                break
+
+        # Close the connection
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except (
+            ConnectionResetError,  # When the server-disconnects
+            ConnectionAbortedError,  # When the server-disconnects
+        ):
+            pass
 
     async def receive_communication(self):
         """ Receives async server-communication, measures round-trip time (RTT)
@@ -148,7 +156,37 @@ class Service():
         while True:
 
             # Measure round-trip time (RTT)
-            rtt = await self.measure_rtt()
+            try:
+                rtt = await self.measure_rtt()
+
+            except (
+                asyncio.TimeoutError,  # When the server-communication
+                                       #    times-out
+                asyncio.CancelledError,  # When the client-services are
+                                         #    cancelled
+                KeyboardInterrupt  # When the client-services are cancelled
+            ):
+
+                # Logging
+                self.client_logger.info(
+                    'INFO: Communication with server {%s} cancelled.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Exit the loop
+                break
+
+            except OSError as e:
+
+                # Logging
+                self.client_logger.error(
+                    'ERROR:[%s] [measure_rtt()] %s' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+
+                rtt = None
 
             # Perform audio playback buffer-time adjustment
             if rtt:
@@ -212,103 +250,97 @@ class Service():
     async def measure_rtt(self):
         """ Measures round-trip time (RTT) """
 
-        # Handle ping-communication
-        try:
-
-            # Initialize the connection to the ping-communication server
-            reader, writer = await asyncio.open_connection(
+        # Initialize the connection to the ping-communication server
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(
                 audera.SERVER_IP,
                 audera.PING_PORT
-            )
+            ),
+            timeout=audera.TIME_OUT
+        )
 
-            # Record the start-time
-            start_time = time.time()
+        # Record the start-time
+        start_time = time.time()
 
-            # Ping the server
-            writer.write(b"ping")
-            await writer.drain()
+        # Ping the server
+        writer.write(b"ping")
+        await writer.drain()
 
-            # Wait for return response (4 bytes)
-            await reader.read(4)
+        # Wait for return response (4 bytes)
+        await reader.read(4)
 
-            # Calculate round-trip time
-            rtt = time.time() - start_time
+        # Calculate round-trip time
+        rtt = time.time() - start_time
 
-            # Logging
-            self.client_logger.info(
-                'INFO: Round-trip time (RTT) is %.4f [sec.].' % (rtt)
-            )
+        # Logging
+        self.client_logger.info(
+            'INFO: Round-trip time (RTT) is %.4f [sec.].' % (rtt)
+        )
 
-            # Close the connection
-            writer.close()
-            await writer.wait_closed()
-
-        except (
-            asyncio.TimeoutError,  # When the server-communication times-out
-            asyncio.CancelledError,  # When the client-services are cancelled
-            KeyboardInterrupt  # When the client-services are cancelled
-        ):
-
-            # Logging
-            self.client_logger.info(
-                'INFO: Communication with server {%s} cancelled.' % (
-                    audera.SERVER_IP
-                )
-            )
-
-            rtt = None
-
-        except OSError as e:
-
-            # Logging
-            self.client_logger.error(
-                'ERROR:[%s] [measure_rtt()] %s' % (
-                    type(e).__name__, str(e)
-                )
-            )
-
-            rtt = None
-
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except (
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
-            ):
-                pass
-
-            return rtt
+        # Close the connection
+        writer.close()
+        await writer.wait_closed()
 
     async def start_services(self):
         """ Starts the async services for audio streaming
         and client-communication.
         """
 
-        # Initialize the connection to the audio stream server
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(
-                audera.SERVER_IP,
-                audera.STREAM_PORT
-            ),
-            timeout=audera.TIME_OUT
-        )
+        # Handle server-availability
+        while True:
+            try:
 
-        # Initialize the audio stream coroutine
-        receive_stream = asyncio.create_task(
-            self.receive_stream(reader=reader, writer=writer)
-        )
+                # Initialize the connection to the audio stream server
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(
+                        audera.SERVER_IP,
+                        audera.STREAM_PORT
+                    ),
+                    timeout=audera.TIME_OUT
+                )
 
-        # Initialize the ping-communication coroutine
-        receive_communication = asyncio.create_task(
-            self.receive_communication()
-        )
+                # Initialize the audio stream coroutine
+                receive_stream = asyncio.create_task(
+                    self.receive_stream(reader=reader, writer=writer)
+                )
 
-        await asyncio.gather(
-            receive_stream,
-            receive_communication
-        )
+                # Initialize the ping-communication coroutine
+                receive_communication = asyncio.create_task(
+                    self.receive_communication()
+                )
+
+                await asyncio.gather(
+                    receive_stream,
+                    receive_communication
+                )
+
+            except (
+                asyncio.TimeoutError,  # When the server-communication is not
+                                       #    available
+                OSError  # All other server-communication I / O errors
+            ):
+
+                # Logging
+                self.client_logger.info(
+                    ''.join([
+                        "INFO: Waiting on a connection to the server,",
+                        " retrying in %.2f [sec.]." % (
+                            audera.TIME_OUT
+                        )
+                    ])
+                )
+
+            except KeyboardInterrupt:
+
+                # Logging
+                self.client_logger.info(
+                    'INFO: Audio stream from server {%s} cancelled.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Exit the loop when the services are cancelled
+                break
 
     def run(self):
         """ Starts the async services for audio streaming
@@ -337,7 +369,7 @@ class Service():
         self.client_logger.info(
             ''.join([
                 "INFO: Waiting on a connection to the server,",
-                " time-out in %.2f [sec.]." % (
+                " retrying in %.2f [sec.]." % (
                     audera.TIME_OUT
                 )
             ])
@@ -350,13 +382,6 @@ class Service():
         # Run services
         try:
             loop.run_until_complete(self.start_services())
-
-        except asyncio.TimeoutError:
-
-            # Logging
-            self.client_logger.error(
-                'ERROR: The client-connection timed-out.'
-            )
 
         except KeyboardInterrupt:
 
