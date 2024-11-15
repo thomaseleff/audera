@@ -281,6 +281,8 @@ class Service():
         writer.close()
         await writer.wait_closed()
 
+        return rtt
+
     async def start_services(self):
         """ Starts the async services for audio streaming
         and client-communication.
