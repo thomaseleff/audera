@@ -1,7 +1,8 @@
-""" Client-application """
+""" Client-service """
 
-import socket
 import pyaudio
+import asyncio
+import socket
 import time
 import struct
 from collections import deque
@@ -11,10 +12,10 @@ import audera
 
 
 class Service():
-    """ A `class` that represents the `audera` client application. """
+    """ A `class` that represents the `audera` client-service. """
 
     def __init__(self):
-        """ Initializes an instance of the `audera` client application. """
+        """ Initializes an instance of the `audera` client-service. """
 
         # Logging
         self.client_logger = audera.logging.get_client_logger()
@@ -22,32 +23,7 @@ class Service():
         # Initialize PyAudio
         self.audio = pyaudio.PyAudio()
 
-        #   Use socket.SOCK_STREAM for TCP, which helps keep the buffer size
-        #       small and avoids having to treat lost, out-of-order, or
-        #       incomplete packets.
-        if audera.TRANSMIT_MODE == 'TCP':
-            self.audio_socket = socket.socket(
-                socket.AF_INET,
-                socket.SOCK_STREAM
-            )
-
-        # Initialize socket for audio
-        #   Use socket.SOCK_DGRAM for UDP, which is faster but lacks delivery
-        #       guarantees.
-        if audera.TRANSMIT_MODE == 'UDP':
-            self.audio_socket = socket.socket(
-                socket.AF_INET,
-                socket.SOCK_DGRAM
-            )
-            self.audio_socket.bind(
-                ("", audera.AUDIO_PORT)
-            )
-
-        # Initialize socket for ping-requests
-        self.ping_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.ping_socket.settimeout(1)
-
-        # Start audio output stream
+        # Initialize audio stream-playback
         self.stream = self.audio.open(
             rate=audera.RATE,
             channels=audera.CHANNELS,
@@ -56,81 +32,32 @@ class Service():
             frames_per_buffer=audera.CHUNK
         )
 
-        # Buffer and variables for adaptive buffer management
+        # Initialize buffer and rtt-history
         self.buffer = deque()
-        self.buffer_time = audera.BASE_BUFFER_TIME
+        self.buffer_time = audera.BUFFER_TIME
         self.rtt_history = []
 
-    def measure_rtt(self):
-        """ Send a ping to the server and measure RTT. """
+    async def receive_stream(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter
+    ):
+        """ Receives the async audio stream from the server.
 
-        self.ping_socket.sendto(b'ping', (audera.SERVER_IP, audera.PING_PORT))
-        start_time = time.time()
-
-        # Logging
-        self.client_logger.info(
-            'INFO: Sent communication to {%s:%s}.' % (
-                audera.SERVER_IP,
-                audera.PING_PORT
-            )
-        )
-
-        try:
-            _, _ = self.ping_socket.recvfrom(8)  # Receive pong response
-            return time.time() - start_time
-
-        except socket.timeout:
-            return None
-
-    def adjust_buffer_time(self):
-        """ Adjust buffer time based on RTT and jitter. """
-
-        if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
-            mean_rtt = statistics.mean(self.rtt_history)
-            jitter = statistics.stdev(self.rtt_history)
-
-            # Adjust buffer based on RTT and jitter
-            if jitter < 0.01 and mean_rtt < 0.1:  # Low jitter and RTT
-                new_buffer_time = max(
-                    audera.MIN_BUFFER_TIME, self.buffer_time - 0.05
-                )
-            elif jitter > 0.05 or mean_rtt > 0.15:  # High jitter or RTT
-                new_buffer_time = min(
-                    audera.MAX_BUFFER_TIME, self.buffer_time + 0.05
-                )
-            else:
-                new_buffer_time = self.buffer_time  # Maintain current buffer
-
-            # Apply and clear RTT history
-            self.buffer_time = new_buffer_time
-            self.rtt_history.clear()
-
-    def run(self):
-        """ Streams audio and handles ping-requests. """
+        Parameters
+        ----------
+        reader: `asyncio.StreamReader`
+            The asynchronous network stream reader used to
+                receive the audio stream from the server.
+        writer: `asyncio.StreamWriter`
+            The unused asynchronous network stream writer.
+        """
 
         # Logging
-        for line in audera.LOGO:
-            self.client_logger.info(line)
-        self.client_logger.info('')
-        self.client_logger.info('')
-        self.client_logger.info('    Running the `audera` client application.')
-        self.client_logger.info('')
-        self.client_logger.info(
-            '    Server address: https://%s:%s' % (
-                audera.SERVER_IP,
-                audera.AUDIO_PORT
-            )
-        )
-        self.client_logger.info(
-            '    Client address: https://%s' % (
-                socket.gethostbyname(socket.gethostname())
-            )
-        )
-        self.client_logger.info('')
         self.client_logger.info(
             ' '.join([
                 "INFO: Receiving audio over PORT {%s} at RATE {%s}" % (
-                    audera.AUDIO_PORT,
+                    audera.STREAM_PORT,
                     audera.RATE
                 ),
                 "with {%s} CHANNEL(s)." % (
@@ -139,48 +66,266 @@ class Service():
             ])
         )
 
-        # Open connection
-        if audera.TRANSMIT_MODE == 'TCP':
-            self.audio_socket.connect(
-                (audera.SERVER_IP, audera.AUDIO_PORT)
-            )
-
+        # Receive audio stream
         try:
-            last_ping_time = 0
             while True:
 
-                # Periodically measure RTT
-                if time.time() - last_ping_time > audera.PING_INTERVAL:
-                    rtt = self.measure_rtt()
-                    if rtt is not None:
-                        self.rtt_history.append(rtt)
-                    self.adjust_buffer_time()
-                    last_ping_time = time.time()
-
-                # Receive and buffer audio
-                packet, _ = self.audio_socket.recvfrom(
+                # Parse audio stream packet
+                packet = await reader.read(
                     audera.CHUNK * audera.CHANNELS * 2 + 8
                 )
-                timestamp, data = struct.unpack("d", packet[:8])[0], packet[8:]
-                target_play_time = timestamp + self.buffer_time
-                current_time = time.time()
 
-                # Buffer and play packets on time
-                self.buffer.append((target_play_time, data))
-                while self.buffer and self.buffer[0][0] <= current_time:
-                    _, play_data = self.buffer.popleft()
-                    self.stream.write(play_data)
+                # Check for an active audio stream
+                if not packet:
+
+                    # Logging
+                    self.client_logger.error(
+                        'ERROR: The server is unavailable.'
+                    )
+                    break
+
+                # Parse the time-stamp and audio data from the packet
+                receive_time = time.time()
+                timestamp, data = (
+                    struct.unpack("d", packet[:8])[0],
+                    packet[8:]
+                )
+                target_play_time = timestamp + self.buffer_time
+
+                # Add audio data to the buffer
+                self.buffer.append(
+                    (
+                        max(0, target_play_time - receive_time),
+                        data
+                    )
+                )
+
+                # Playback buffered audio data
+                if len(self.buffer) >= audera.BUFFER_SIZE:
+                    for _ in range(len(self.buffer)):
+                        buffered_delay, buffered_data = (
+                            self.buffer.popleft()
+                        )
+                        await asyncio.sleep(buffered_delay)
+                        self.stream.write(buffered_data)
+
+        except asyncio.TimeoutError:
+
+            # Logging
+            self.client_logger.error(
+                'ERROR: The client-connection timed-out.'
+            )
+
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def receive_communication(self):
+        """ Receives async server-communication, measures round-trip time (RTT)
+        and adjusts the audio playback buffer-time.
+        """
+
+        # Communicate with the server
+        while True:
+
+            # Measure round-trip time (RTT)
+            rtt = await self.measure_rtt()
+
+            # Perform audio playback buffer-time adjustment
+            if rtt:
+
+                # Add the RTT measurement to the history
+                self.rtt_history.append(rtt)
+
+                # Adjust the buffer-time based on RTT and jitter
+                #   Only adjust after the RTT_HISTORY_SIZE is met
+                if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
+                    mean_rtt = statistics.mean(self.rtt_history)
+                    jitter = statistics.stdev(self.rtt_history)
+
+                    # Logging
+                    self.client_logger.info(
+                        ''.join([
+                            'INFO: Audio playback buffer-time statistics',
+                            ' (jitter {%.4f},' % (jitter),
+                            ' average-RTT {%.4f}).' % (mean_rtt)
+                        ])
+                    )
+
+                    # Decrease the buffer time for low jitter and RTT
+                    if (
+                        jitter < audera.LOW_JITTER
+                        and mean_rtt < audera.LOW_RTT
+                    ):
+                        new_buffer_time = max(
+                            audera.MIN_BUFFER_TIME, self.buffer_time - 0.05
+                        )
+
+                    # Increase the buffer-time for high jitter or RTT
+                    elif (
+                        jitter > audera.HIGH_JITTER
+                        or mean_rtt > audera.HIGH_RTT
+                    ):
+                        new_buffer_time = min(
+                            audera.MAX_BUFFER_TIME, self.buffer_time + 0.05
+                        )
+
+                    # Otherwise maintain the current buffer-time
+                    else:
+                        new_buffer_time = self.buffer_time
+
+                    # Update the buffer-time and clear the RTT history
+                    self.buffer_time = new_buffer_time
+                    self.rtt_history.clear()
+
+                    # Logging
+                    self.client_logger.info(
+                        ''.join([
+                            'INFO: Audio playback buffer-time adjusted',
+                            ' to %.2f [sec.].' % (
+                                self.buffer_time
+                            )
+                        ])
+                    )
+
+            await asyncio.sleep(audera.PING_INTERVAL)
+
+    async def measure_rtt(self):
+        """ Measures round-trip time (RTT) """
+
+        try:
+
+            # Initialize the connection to the ping-communication server
+            reader, writer = await asyncio.open_connection(
+                audera.SERVER_IP,
+                audera.PING_PORT
+            )
+
+            # Record the start-time
+            start_time = time.time()
+
+            # Ping the server
+            writer.write(b"ping")
+            await writer.drain()
+
+            # Wait for return response (4 bytes)
+            await reader.read(4)
+
+            # Calculate round-trip time
+            rtt = time.time() - start_time
+
+            # Logging
+            self.client_logger.info(
+                'INFO: Round-trip time (RTT) is %.4f [sec.].' % (rtt)
+            )
+
+            # Close the connection
+            writer.close()
+            await writer.wait_closed()
+
+            return rtt
+
+        except (asyncio.TimeoutError, OSError):
+
+            # Logging
+            self.client_logger.error(
+                'ERROR: The server is unavailable.'
+            )
+
+            return None
+
+    async def start_services(self):
+        """ Starts the async services for audio streaming
+        and client-communication.
+        """
+
+        # Initialize the connection to the audio stream server
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(
+                    audera.SERVER_IP,
+                    audera.STREAM_PORT
+                ),
+                timeout=audera.TIME_OUT
+            )
+
+        except asyncio.TimeoutError as e:
+            raise asyncio.TimeoutError(e)
+
+        # Initialize the audio stream coroutine
+        receive_stream = asyncio.create_task(
+            self.receive_stream(reader=reader, writer=writer)
+        )
+
+        # Initialize the ping-communication coroutine
+        receive_communication = asyncio.create_task(
+            self.receive_communication()
+        )
+
+        await asyncio.gather(
+            receive_stream,
+            receive_communication
+        )
+
+    def run(self):
+        """ Starts the async services for audio streaming
+        and server-communication.
+        """
+
+        # Logging
+        for line in audera.LOGO:
+            self.client_logger.info(line)
+        self.client_logger.info('')
+        self.client_logger.info('')
+        self.client_logger.info('    Running the client-service.')
+        self.client_logger.info('')
+        self.client_logger.info(
+            '    Audio stream address: {%s:%s}' % (
+                audera.SERVER_IP,
+                audera.STREAM_PORT
+            )
+        )
+        self.client_logger.info(
+            '    Client address: {%s}' % (
+                socket.gethostbyname(socket.gethostname()),
+            )
+        )
+        self.client_logger.info('')
+        self.client_logger.info(
+            ''.join([
+                "INFO: Waiting on a connection to the server,",
+                " time-out in %.2f [sec.]." % (
+                    audera.TIME_OUT
+                )
+            ])
+        )
+
+        # Run services
+        try:
+            asyncio.run(self.start_services())
+
+        except asyncio.TimeoutError:
+
+            # Logging
+            self.client_logger.error(
+                'ERROR: The client-connection timed-out.'
+            )
 
         except KeyboardInterrupt:
 
             # Logging
             self.client_logger.info(
-                'INFO: Audio receiving terminated successfully.'
+                "INFO: Shutting down the client-services."
             )
 
         finally:
+
+            # Logging
+            self.client_logger.info(
+                'INFO: The client-services exited successfully.'
+            )
+
+            # Close audio services
             self.stream.stop_stream()
             self.stream.close()
             self.audio.terminate()
-            self.audio_socket.close()
-            self.ping_socket.close()

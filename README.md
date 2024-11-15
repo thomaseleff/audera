@@ -6,7 +6,7 @@
        \ \__\ \__\ \______/\ \______/\ \______\ \__\\ _\\ \__\ \__\
         \|__|\|__|\|______| \|______| \|______|\|__|\|__|\|__|\|__|
 
-`audera` is an open-source multi-room audio streaming system written in Python for DIY home entertainment enthusiasts.
+`audera` is an open-source multi-room audio streaming system written in Python for DIY home audio enthusiasts.
 
 ## Implementation architecture
 The following section describes different options for deploying `audera`, either as a **standalone streaming system** or **self-hosted with Home Assistant**.
@@ -46,28 +46,21 @@ The following example extends the simple Raspberry-pi implementation with Hifibe
 ```
 
 ### Self-hosted with Home Assistant
-The `audera` server can be deployed as a docker container on a home-server, which adds a virtual line-out audio device into the Home Assistant ecosystem that can be used to direct audio to `audera` clients. The virtual line-out can be used with any Home Assistant media player, like Music Assistant, which offers connectivity to local media files, streaming services like Spotify and online radio.
+The `audera` clients are natively discoverable by audio source devices that can be integrated directly into Home Assistant and managed by media players, like Music Assistant, which offers the ability to stream audio from local media files, streaming services, like Spotify, and online radio.
 ```
-    +---------------------------------------------+                                 
-    |                             unraid {server} |
-    |                                             |                                 
-    |  +------------+             +------------+  |  +------------+                 
-    |  |     docker |             |     docker |  |  |     rp-i n |+       +---------+
-    |  |            |   virtual   |            |  |  |            ||+      |       n |+
-    |  |    Home    |   line-out  |   audera   | TCP |   audera   |||      |         ||+
-    |  | Assisstant -------------->  {server}  <----->  {client}  -------- > speaker |||
-    |  |            |             |            |  |  |            |||      |         |||
-    |  |            -------+      |            |  |  |            |||      |         |||
-    |  +------------+      |      +------------+  |  +------------+||      +---------+||
-    |                      |                      |    +-----------+|       +---------+|
-    +----------------------|----------------------+     +-----------+        +---------+
-                           |                                                        
-                           |      +------------+                                    
-                           |      |            |                                    
-                           |      |            |                                    
-                           |      |            |                                    
-                           +------> Chromecast |                                    
-                                  |            |                                    
-                                  |            |                                    
-                                  +------------+                                    
+    +---------------------------------------+                                 
+    |  unraid {server}                      |
+    |  +----------------------------------+ |                                 
+    |  |  Home Assistant   +------------+ | |  +------------+                 
+    |  |                   |            | | |  |     rp-i n |+       +---------+
+    |  |                   |            | | |  |            ||+      |       n |+
+    |  |                   |   Music    | | |  |   audera   |||      |         ||+
+    |  |                   |  Assistant ------->  {client}  -------- > speaker |||
+    |  |                   |            | | |  |            |||      |         |||
+    |  |                   |            | | |  |            |||      |         |||
+    |  |                   +------------+ | |  +------------+||      +---------+||
+    |  +----------------------------------+ |    +-----------+|       +---------+|
+    |                                       |     +-----------+        +---------+
+    +---------------------------------------+
+                                 
 ```

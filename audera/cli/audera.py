@@ -11,7 +11,7 @@ def main():
     """
     usage: audera [-h] {run} ...
 
-    CLI application for running `audera`.
+    CLI application for running `audera` services.
 
     options:
     -h, --help  show this help message and exit
@@ -20,7 +20,7 @@ def main():
     The `audera` command options.
 
     {run}
-        run       Runs an `audera` application.
+        run       Runs an `audera` service.
 
     Execute `audera {command} --help` for more help.
     """
@@ -28,7 +28,7 @@ def main():
     # Setup CLI argument option(s)
     _ARG_PARSER = argparse.ArgumentParser(
         prog='audera',
-        description='CLI application for running `audera`.',
+        description='CLI application for running `audera` services.',
         epilog="Execute `audera {command} --help` for more help."
     )
 
@@ -42,12 +42,12 @@ def main():
     # Setup `run` command CLI argument option(s)
     _RUN_ARG_PARSER = _ARG_SUBPARSER.add_parser(
         name='run',
-        help='Runs an `audera` application.',
+        help='Runs an `audera` service.',
         epilog="Execute `audera run --help` for help."
     )
     _RUN_ARG_PARSER.add_argument(
         'type_',
-        help="The type of `audera` application.",
+        help="The type of `audera` service.",
         type=str,
         choices=['server', 'client']
     )

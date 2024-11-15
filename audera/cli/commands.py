@@ -8,19 +8,19 @@ from audera import server, client
 def run(
     type_: Literal['server', 'client']
 ):
-    """ Runs an `audera` application.
+    """ Runs an `audera` service.
 
     Parameters
     ----------
     type_ : `Literal['server', 'client']`
-        The type of `audera` application.
+        The type of `audera` service.
 
     Help
     ----
     usage: audera run [-h] {server,client}
 
     positional arguments:
-    {server,client}  The type of `audera` application.
+    {server,client}  The type of `audera` service.
 
     options:
     -h, --help       show this help message and exit
