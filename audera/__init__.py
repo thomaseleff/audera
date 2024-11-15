@@ -43,10 +43,10 @@ PING_PORT: int = 5001
 # Client configuration
 BUFFER_SIZE: int = 5  # The number of audio packets to buffer before playback
 BUFFER_TIME: float = 1.0  # The initial buffer time
-MAX_BUFFER_TIME: float = 1.5  # The max. buffer-time in seconds for high jitter
+MAX_BUFFER_TIME: float = 2  # The max. buffer-time in seconds for high jitter
 MIN_BUFFER_TIME: float = 0.5  # The min. buffer-time in seconds for low jitter
 PING_INTERVAL: float = 5.0  # The time interval in seconds between pings
-RTT_HISTORY_SIZE: int = 10  # The history size for round-trip time measurements
+RTT_HISTORY_SIZE: int = 3  # The history size for round-trip time measurements
 TIME_OUT: float = 10  # The time-out in seconds of the server connection
 LOW_JITTER: float = 0.05  # The threshold for identifying low-jitter.
 HIGH_JITTER: float = 0.15  # The threshold for identifying high-jitter.

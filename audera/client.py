@@ -205,7 +205,7 @@ class Service():
                         ''.join([
                             'INFO: Audio playback buffer-time statistics',
                             ' (jitter {%.4f},' % (jitter),
-                            ' average-RTT {%.4f}).' % (mean_rtt)
+                            ' avg. rtt {%.4f}).' % (mean_rtt)
                         ])
                     )
 
@@ -274,7 +274,7 @@ class Service():
 
         # Logging
         self.client_logger.info(
-            'INFO: Round-trip time (RTT) is %.4f [sec.].' % (rtt)
+            'INFO: Round-trip time (rtt) is %.4f [sec.].' % (rtt)
         )
 
         # Close the connection
