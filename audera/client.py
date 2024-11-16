@@ -3,6 +3,7 @@
 import pyaudio
 import asyncio
 import socket
+import platform
 import time
 import struct
 from collections import deque
@@ -12,10 +13,10 @@ import audera
 
 
 class Service():
-    """ A `class` that represents the `audera` client-service. """
+    """ A `class` that represents the `audera` client-services. """
 
     def __init__(self):
-        """ Initializes an instance of the `audera` client-service. """
+        """ Initializes an instance of the `audera` client-services. """
 
         # Logging
         self.client_logger = audera.logging.get_client_logger()
@@ -123,15 +124,18 @@ class Service():
 
             except (
                 asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled
+                                         #    cancelled by the event-loop
                 KeyboardInterrupt  # When the client-services are cancelled
             ):
 
                 # Logging
                 self.client_logger.info(
-                    'INFO: Audio stream from server {%s} cancelled.' % (
-                        audera.SERVER_IP
-                    )
+                    ''.join([
+                        'INFO: The audio stream from server',
+                        ' {%s} was cancelled.' % (
+                            audera.SERVER_IP
+                        )
+                    ])
                 )
 
                 # Exit the loop
@@ -163,7 +167,7 @@ class Service():
                 asyncio.TimeoutError,  # When the server-communication
                                        #    times-out
                 asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled
+                                         #    cancelled by the event-loop
                 KeyboardInterrupt  # When the client-services are cancelled
             ):
 
@@ -283,6 +287,101 @@ class Service():
 
         return rtt
 
+    async def serve_shairport(self):
+        """ Handles async shairport connectivity to Airplay
+        streaming devices.
+        """
+
+        while True:
+
+            # Check the operating-system
+            operating_system = platform.system()
+            if operating_system not in ['Linux', 'Darwin']:
+
+                # Logging
+                self.client_logger.info(
+                    ''.join([
+                        'ERROR: The shairport-sync service is only available',
+                        ' on Linux and MacOS.'
+                    ])
+                )
+
+                # Exit the loop
+                break
+
+            # Start the shairport-sync service as a subprocess
+            process = await asyncio.create_subprocess_exec(
+                "sudo", "systemctl", "start", "shairport-sync",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            _, stderr = await process.communicate()
+
+            if process.returncode == 0:
+
+                # Logging
+                self.client_logger.info(
+                    'INFO: The shairport-sync service started successfully.'
+                )
+
+            else:
+
+                # Logging
+                self.client_logger.error(
+                    'INFO: The shairport-sync service failed to start.'
+                )
+
+                if stderr:
+
+                    # Logging
+                    self.client_logger.error(
+                        'ERROR:[%s] [serve_shairport()] %s' % (
+                            'CalledProcessError', stderr.decode().strip()
+                        )
+                    )
+
+                # Exit the loop
+                break
+
+            try:
+
+                # Monitor the status of the shairport-sync service subprocess
+                while True:
+
+                    status_process = await asyncio.create_subprocess_exec(
+                        "systemctl", "is-active", "--quiet", "shairport-sync"
+                    )
+                    await status_process.wait()
+
+                    if status_process.returncode != 0:
+
+                        # Logging
+                        self.client_logger.info(
+                            ''.join([
+                                "INFO: The shairport-sync service was",
+                                " cancelled, retrying in %.2f [sec.]." % (
+                                    audera.TIME_OUT
+                                )
+                            ])
+                        )
+
+                    # Timeout
+                    await asyncio.sleep(audera.TIME_OUT)
+
+            except (
+                asyncio.CancelledError,  # When the client-services are
+                                         #    cancelled by the event-loop
+                KeyboardInterrupt  # When the client-services are cancelled
+            ):
+
+                # Stop the shairport-sync service
+                await asyncio.create_subprocess_exec(
+                    "sudo", "systemctl", "stop", "shairport-sync"
+                )
+
+                # Exit the loop
+                break
+
     async def start_services(self):
         """ Starts the async services for audio streaming
         and client-communication.
@@ -301,12 +400,12 @@ class Service():
                     timeout=audera.TIME_OUT
                 )
 
-                # Initialize the audio stream coroutine
+                # Initialize the audio stream service coroutine
                 receive_stream = asyncio.create_task(
                     self.receive_stream(reader=reader, writer=writer)
                 )
 
-                # Initialize the ping-communication coroutine
+                # Initialize the ping-communication service coroutine
                 receive_communication = asyncio.create_task(
                     self.receive_communication()
                 )
@@ -315,6 +414,24 @@ class Service():
                     receive_stream,
                     receive_communication
                 )
+
+            except (
+                ConnectionRefusedError  # When the server refuses the
+                                        #    connection
+            ):
+
+                # Logging
+                self.client_logger.info(
+                    ''.join([
+                        "INFO: Waiting on a connection to the server,",
+                        " retrying in %.2f [sec.]." % (
+                            audera.TIME_OUT
+                        )
+                    ])
+                )
+
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
 
             except (
                 asyncio.TimeoutError,  # When the server-communication is not
@@ -332,13 +449,20 @@ class Service():
                     ])
                 )
 
-            except KeyboardInterrupt:
+            except (
+                asyncio.CancelledError,  # When the client-services are
+                                         #    cancelled by the event-loop
+                KeyboardInterrupt  # When the client-services are cancelled
+            ):
 
                 # Logging
                 self.client_logger.info(
-                    'INFO: Audio stream from server {%s} cancelled.' % (
-                        audera.SERVER_IP
-                    )
+                    ''.join([
+                        'INFO: The audio stream from server',
+                        ' {%s} was cancelled.' % (
+                            audera.SERVER_IP
+                        )
+                    ])
                 )
 
                 # Exit the loop when the services are cancelled
@@ -376,16 +500,46 @@ class Service():
                 )
             ])
         )
+        self.client_logger.info(
+            ''.join([
+                "INFO: Waiting on the shairport-sync service to begin,",
+                " retrying in %.2f [sec.]." % (
+                    audera.TIME_OUT
+                )
+            ])
+        )
 
-        # Create an event-loop for handling all services
+        # Create an event-loop for handling client services
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+
+        # Initialize the shairport-sync service subprocess
+
+        #   The shairport-sync service is independent of the
+        #       other `audera` client-services, and, is only
+        #       applicable when running on Linux or MacOS.
+        #   Creating the task outside of the `audera` start-
+        #       services loop will allow the shairport-sync
+        #       service task to run independently, and,
+        #       for the shairport-sync service to only run
+        #       on the applicable architecture.
+        #   Finally, by running the shairport-sync service
+        #       independently, the `audera` client can be used
+        #       for creating multi-room audio systems that are
+        #       compatible with Airplay without having to rely
+        #       on the `audera` streaming server.
+
+        loop.run_until_complete(self.serve_shairport())
 
         # Run services
         try:
             loop.run_until_complete(self.start_services())
 
-        except KeyboardInterrupt:
+        except (
+            asyncio.CancelledError,  # When the client-services are
+                                     #    cancelled by the event-loop
+            KeyboardInterrupt  # When the client-services are cancelled
+        ):
 
             # Logging
             self.client_logger.info(

@@ -10,10 +10,10 @@ import audera
 
 
 class Service():
-    """ A `class` that represents the `audera` server-service. """
+    """ A `class` that represents the `audera` server-services. """
 
     def __init__(self):
-        """ Initializes an instance of the `audera` server-service. """
+        """ Initializes an instance of the `audera` server-services. """
 
         # Logging
         self.server_logger = audera.logging.get_server_logger()
