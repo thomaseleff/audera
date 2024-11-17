@@ -6,7 +6,6 @@ import socket
 import sys
 import time
 import struct
-from collections import deque
 
 import audera
 
@@ -95,9 +94,6 @@ class Service():
                 )
             )
 
-        # Initialize a per-client packet buffer
-        buffer_queue = deque(maxlen=audera.BUFFER_SIZE)
-
         # Serve audio stream
         while True:
             try:
@@ -122,12 +118,8 @@ class Service():
                 timestamp = time.time()
                 packet = struct.pack("d", timestamp) + chunk
 
-                # Add the packet to the per-client packet buffer
-                buffer_queue.append(packet)
-
-                # Serve all packets in the packet buffer queue
-                for buffered_packet in list(buffer_queue):
-                    writer.write(buffered_packet)
+                # Serve the timestamped packet
+                writer.write(packet)
 
                 # Drain the writer with timeout for flow control,
                 #    disconnecting any client that is too slow
