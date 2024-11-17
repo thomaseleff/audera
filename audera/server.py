@@ -17,7 +17,7 @@ class Service():
         """ Initializes an instance of the `audera` server-services. """
 
         # Logging
-        self.server_logger = audera.logging.get_server_logger()
+        self.logger = audera.logging.get_server_logger()
 
         # Initialize PyAudio
         self.audio = pyaudio.PyAudio()
@@ -35,7 +35,7 @@ class Service():
         if audera.DEVICE_INDEX is None:
 
             # Logging
-            self.server_logger.error(
+            self.logger.error(
                 "ERROR: No input audio device found."
             )
 
@@ -71,7 +71,7 @@ class Service():
         client_ip, _ = writer.get_extra_info('peername')
 
         # Logging
-        self.server_logger.info(
+        self.logger.info(
             'INFO: Client {%s} connected.' % (
                 client_ip
             )
@@ -88,7 +88,7 @@ class Service():
         except Exception:
 
             # Logging
-            self.server_logger.warning(
+            self.logger.warning(
                 'WARNING: Client {%s} unable to operate with TCP_NODELAY.' % (
                     client_ip
                 )
@@ -104,11 +104,10 @@ class Service():
                         audera.CHUNK,
                         exception_on_overflow=False
                     )
-
                 except OSError as e:
 
                     # Logging
-                    self.server_logger.error(
+                    self.logger.error(
                         'ERROR:[%s] [serve_stream()] %s' % (
                             type(e).__name__, str(e)
                         )
@@ -131,7 +130,7 @@ class Service():
                 except asyncio.TimeoutError:
 
                     # Logging
-                    self.server_logger.error(
+                    self.logger.error(
                         'ERROR: Client {%s} disconnected due to flow control.' % (
                             client_ip
                         )
@@ -147,7 +146,7 @@ class Service():
             ):
 
                 # Logging
-                self.server_logger.info(
+                self.logger.info(
                     'INFO: Client {%s} disconnected.' % (
                         client_ip
                     )
@@ -162,7 +161,7 @@ class Service():
             ):
 
                 # Logging
-                self.server_logger.info(
+                self.logger.info(
                     'INFO: Audio stream to client {%s} cancelled.' % (
                         client_ip
                     )
@@ -204,7 +203,7 @@ class Service():
         client_ip, _ = writer.get_extra_info('peername')
 
         # Logging
-        self.server_logger.info(
+        self.logger.info(
             'INFO: Received communication from client {%s}.' % (
                 client_ip
             )
@@ -229,7 +228,7 @@ class Service():
         ):
 
             # Logging
-            self.server_logger.info(
+            self.logger.info(
                 'INFO: Communication with client {%s} cancelled.' % (
                     client_ip
                 )
@@ -238,7 +237,7 @@ class Service():
         except OSError as e:
 
             # Logging
-            self.server_logger.error(
+            self.logger.error(
                 'ERROR:[%s] [handle_communication()] %s' % (
                     type(e).__name__, str(e)
                 )
@@ -289,28 +288,66 @@ class Service():
                 communication_server.serve_forever()
             )
 
-    def run(self):
+    async def start_services(self):
+        """ Runs multiple async services independently.
+        """
+
+        # Initialize the `audera` clients-services
+        start_audera = asyncio.create_task(
+            self.start_audera_services()
+        )
+
+        tasks = [
+            start_audera
+        ]
+
+        # Run services
+        while tasks:
+            done, tasks = await asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            done: set[asyncio.Future]
+            tasks: set[asyncio.Future]
+
+            for task in done:
+                if task.exception():
+
+                    # Logging
+                    self.logger.error(
+                        'ERROR: An unhandled exception was raised. %s.' % (
+                            task.exception()
+                        )
+                    )
+
+        await asyncio.gather(
+            *tasks,
+            return_exceptions=True
+        )
+
+    async def run(self):
         """ Runs the async server-services. """
 
         # Logging
         for line in audera.LOGO:
-            self.server_logger.info(line)
-        self.server_logger.info('')
-        self.server_logger.info('')
-        self.server_logger.info('    Running the server-service.')
-        self.server_logger.info('')
-        self.server_logger.info(
+            self.logger.info(line)
+        self.logger.info('')
+        self.logger.info('')
+        self.logger.info('    Running the server-service.')
+        self.logger.info('')
+        self.logger.info(
             '    Audio stream address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.STREAM_PORT
             ))
-        self.server_logger.info(
+        self.logger.info(
             '    Client-communication address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.PING_PORT
             ))
-        self.server_logger.info('')
-        self.server_logger.info(
+        self.logger.info('')
+        self.logger.info(
             ' '.join([
                 "INFO: Streaming audio over PORT {%s} at RATE {%s}" % (
                     audera.STREAM_PORT,
@@ -323,44 +360,5 @@ class Service():
             ])
         )
 
-        # Create an event-loop for handling all services
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         # Run services
-        try:
-            loop.run_until_complete(self.start_audera_services())
-
-        except KeyboardInterrupt:
-
-            # Logging
-            self.server_logger.info(
-                "INFO: Shutting down the server-services."
-            )
-
-            # Cancel any / all remaining running services
-            services = asyncio.all_tasks(loop=loop)
-            for service in services:
-                service.cancel()
-            loop.run_until_complete(
-                asyncio.gather(
-                    *services,
-                    return_exceptions=True
-                )
-            )
-
-        finally:
-
-            # Close the event-loop
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
-
-            # Logging
-            self.server_logger.info(
-                'INFO: The server-services exited successfully.'
-            )
-
-            # Close audio services
-            self.stream.stop_stream()
-            self.stream.close()
-            self.audio.terminate()
+        await self.start_services()

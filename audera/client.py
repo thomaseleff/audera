@@ -19,7 +19,7 @@ class Service():
         """ Initializes an instance of the `audera` client-services. """
 
         # Logging
-        self.client_logger = audera.logging.get_client_logger()
+        self.logger = audera.logging.get_client_logger()
 
         # Initialize PyAudio
         self.audio = pyaudio.PyAudio()
@@ -55,7 +55,7 @@ class Service():
         """
 
         # Logging
-        self.client_logger.info(
+        self.logger.info(
             ' '.join([
                 "INFO: Receiving audio over PORT {%s} at RATE {%s}" % (
                     audera.STREAM_PORT,
@@ -113,7 +113,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     'INFO: Server {%s} disconnected.' % (
                         audera.SERVER_IP
                     )
@@ -129,7 +129,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     ''.join([
                         'INFO: The audio stream from server',
                         ' {%s} was cancelled.' % (
@@ -172,7 +172,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     'INFO: Communication with server {%s} cancelled.' % (
                         audera.SERVER_IP
                     )
@@ -184,7 +184,7 @@ class Service():
             except OSError as e:
 
                 # Logging
-                self.client_logger.error(
+                self.logger.error(
                     'ERROR: [%s] [measure_rtt()] %s' % (
                         type(e).__name__, str(e)
                     )
@@ -205,7 +205,7 @@ class Service():
                     jitter = statistics.stdev(self.rtt_history)
 
                     # Logging
-                    self.client_logger.info(
+                    self.logger.info(
                         ''.join([
                             'INFO: Audio playback buffer-time statistics',
                             ' (jitter {%.4f},' % (jitter),
@@ -240,7 +240,7 @@ class Service():
                     self.rtt_history.pop(0)
 
                     # Logging
-                    self.client_logger.info(
+                    self.logger.info(
                         ''.join([
                             'INFO: Audio playback buffer-time adjusted',
                             ' to %.2f [sec.].' % (
@@ -277,7 +277,7 @@ class Service():
         rtt = time.time() - start_time
 
         # Logging
-        self.client_logger.info(
+        self.logger.info(
             'INFO: Round-trip time (rtt) is %.4f [sec.].' % (rtt)
         )
 
@@ -299,7 +299,7 @@ class Service():
             if operating_system not in ['Linux', 'Darwin']:
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     ''.join([
                         'ERROR: The shairport-sync service is only available',
                         ' on Linux and MacOS.'
@@ -320,21 +320,21 @@ class Service():
             if process.returncode == 0:
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     'INFO: The shairport-sync service started successfully.'
                 )
 
             else:
 
                 # Logging
-                self.client_logger.error(
+                self.logger.error(
                     'INFO: The shairport-sync service failed to start.'
                 )
 
                 if stderr:
 
                     # Logging
-                    self.client_logger.error(
+                    self.logger.error(
                         'ERROR: [%s] [serve_shairport()] %s.' % (
                             'CalledProcessError', stderr.decode().strip()
                         )
@@ -356,7 +356,7 @@ class Service():
                     if status_process.returncode != 0:
 
                         # Logging
-                        self.client_logger.info(
+                        self.logger.info(
                             ''.join([
                                 "INFO: The shairport-sync service was",
                                 " cancelled, retrying in %.2f [sec.]." % (
@@ -422,7 +422,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     ''.join([
                         "INFO: Waiting on a connection to the server,",
                         " retrying in %.2f [sec.]." % (
@@ -441,7 +441,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     ''.join([
                         "INFO: Waiting on a connection to the server,",
                         " retrying in %.2f [sec.]." % (
@@ -457,7 +457,7 @@ class Service():
             ):
 
                 # Logging
-                self.client_logger.info(
+                self.logger.info(
                     ''.join([
                         'INFO: The audio stream from server',
                         ' {%s} was cancelled.' % (
@@ -518,7 +518,7 @@ class Service():
                 if task.exception():
 
                     # Logging
-                    self.client_logger.error(
+                    self.logger.error(
                         'ERROR: An unhandled exception was raised. %s.' % (
                             task.exception()
                         )
@@ -529,31 +529,31 @@ class Service():
             return_exceptions=True
         )
 
-    def run(self):
+    async def run(self):
         """ Starts the async services for audio streaming
         and server-communication.
         """
 
         # Logging
         for line in audera.LOGO:
-            self.client_logger.info(line)
-        self.client_logger.info('')
-        self.client_logger.info('')
-        self.client_logger.info('    Running the client-service.')
-        self.client_logger.info('')
-        self.client_logger.info(
+            self.logger.info(line)
+        self.logger.info('')
+        self.logger.info('')
+        self.logger.info('    Running the client-service.')
+        self.logger.info('')
+        self.logger.info(
             '    Audio stream address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.STREAM_PORT
             )
         )
-        self.client_logger.info(
+        self.logger.info(
             '    Client address: {%s}' % (
                 socket.gethostbyname(socket.gethostname()),
             )
         )
-        self.client_logger.info('')
-        self.client_logger.info(
+        self.logger.info('')
+        self.logger.info(
             ''.join([
                 "INFO: Waiting on a connection to the server,",
                 " retrying in %.2f [sec.]." % (
@@ -561,7 +561,7 @@ class Service():
                 )
             ])
         )
-        self.client_logger.info(
+        self.logger.info(
             ''.join([
                 "INFO: Waiting on the shairport-sync service to begin,",
                 " retrying in %.2f [sec.]." % (
@@ -570,48 +570,5 @@ class Service():
             ])
         )
 
-        # Create an event-loop for handling client services
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         # Run services
-        try:
-            loop.run_until_complete(self.start_services())
-
-        except (
-            asyncio.CancelledError,  # When the client-services are
-                                     #    cancelled by the event-loop
-            KeyboardInterrupt  # When the client-services are cancelled
-        ):
-
-            # Logging
-            self.client_logger.info(
-                "INFO: Shutting down the client-services."
-            )
-
-            # Cancel any / all remaining running services
-            services = asyncio.all_tasks(loop=loop)
-            for service in services:
-                service.cancel()
-            loop.run_until_complete(
-                asyncio.gather(
-                    *services,
-                    return_exceptions=True
-                )
-            )
-
-        finally:
-
-            # Close the event-loop
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
-
-            # Logging
-            self.client_logger.info(
-                'INFO: The client-services exited successfully.'
-            )
-
-            # Close audio services
-            self.stream.stop_stream()
-            self.stream.close()
-            self.audio.terminate()
+        await self.start_services()
