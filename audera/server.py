@@ -133,7 +133,7 @@ class Service():
         ):
             pass
 
-    async def serve_communication(
+    async def handle_communication(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
@@ -191,7 +191,7 @@ class Service():
 
             # Logging
             self.server_logger.error(
-                'ERROR:[%s] [serve_communication()] %s' % (
+                'ERROR:[%s] [handle_communication()] %s' % (
                     type(e).__name__, str(e)
                 )
             )
@@ -206,7 +206,7 @@ class Service():
             ):
                 pass
 
-    async def start_services(self):
+    async def start_audera_services(self):
         """ Starts the async services for audio streaming
         and client-communication.
         """
@@ -225,7 +225,7 @@ class Service():
         # Initialize the ping-communication server
         communication_server = await asyncio.start_server(
             client_connected_cb=(
-                lambda reader, writer: self.serve_communication(
+                lambda reader, writer: self.handle_communication(
                     reader=reader,
                     writer=writer
                 )
@@ -281,7 +281,7 @@ class Service():
 
         # Run services
         try:
-            loop.run_until_complete(self.start_services())
+            loop.run_until_complete(self.start_audera_services())
 
         except KeyboardInterrupt:
 

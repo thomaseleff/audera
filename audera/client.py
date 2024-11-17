@@ -151,7 +151,7 @@ class Service():
         ):
             pass
 
-    async def receive_communication(self):
+    async def handle_communication(self):
         """ Receives async server-communication, measures round-trip time (RTT)
         and adjusts the audio playback buffer-time.
         """
@@ -185,7 +185,7 @@ class Service():
 
                 # Logging
                 self.client_logger.error(
-                    'ERROR:[%s] [measure_rtt()] %s' % (
+                    'ERROR: [%s] [measure_rtt()] %s' % (
                         type(e).__name__, str(e)
                     )
                 )
@@ -287,7 +287,7 @@ class Service():
 
         return rtt
 
-    async def serve_shairport(self):
+    async def start_shairport_services(self):
         """ Handles async shairport connectivity to Airplay
         streaming devices.
         """
@@ -335,7 +335,7 @@ class Service():
 
                     # Logging
                     self.client_logger.error(
-                        'ERROR:[%s] [serve_shairport()] %s' % (
+                        'ERROR: [%s] [serve_shairport()] %s' % (
                             'CalledProcessError', stderr.decode().strip()
                         )
                     )
@@ -382,7 +382,7 @@ class Service():
                 # Exit the loop
                 break
 
-    async def start_services(self):
+    async def start_audera_services(self):
         """ Starts the async services for audio streaming
         and client-communication.
         """
@@ -406,13 +406,14 @@ class Service():
                 )
 
                 # Initialize the ping-communication service coroutine
-                receive_communication = asyncio.create_task(
-                    self.receive_communication()
+                handle_communication = asyncio.create_task(
+                    self.handle_communication()
                 )
 
                 await asyncio.gather(
                     receive_stream,
-                    receive_communication
+                    handle_communication,
+                    return_exceptions=True
                 )
 
             except (
@@ -468,6 +469,57 @@ class Service():
                 # Exit the loop when the services are cancelled
                 break
 
+    async def start_services(self):
+
+        # Initialize the shairport-sync service
+        start_shairport = asyncio.create_task(
+            self.start_shairport_services()
+        )
+
+        # Initialize the `audera` clients-services
+        start_audera = asyncio.create_task(
+            self.start_audera_services()
+        )
+
+        tasks = [
+            start_shairport,
+            start_audera
+        ]
+
+        # Run services
+
+        #   The shairport-sync service is independent of the
+        #       other `audera` client-services, and, is only
+        #       applicable when running on Linux or MacOS.
+        #   Creating the task outside of the `audera` start-
+        #       services loop will allow the shairport-sync
+        #       service task to run independently, and,
+        #       for the shairport-sync service to only run
+        #       on the applicable architecture.
+        #   Finally, by running the shairport-sync service
+        #       independently, the `audera` client can be used
+        #       for creating multi-room audio systems that are
+        #       compatible with Airplay without having to rely
+        #       on the `audera` streaming server.
+
+        while tasks:
+            done, tasks = await asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            done: set[asyncio.Future]
+            tasks: set[asyncio.Future]
+
+            for task in done:
+                if task.exception():
+                    print(f"An error occurred: {task.exception()}")
+
+        await asyncio.gather(
+            *tasks,
+            return_exceptions=True
+        )
+
     def run(self):
         """ Starts the async services for audio streaming
         and server-communication.
@@ -512,24 +564,6 @@ class Service():
         # Create an event-loop for handling client services
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
-        # Initialize the shairport-sync service subprocess
-
-        #   The shairport-sync service is independent of the
-        #       other `audera` client-services, and, is only
-        #       applicable when running on Linux or MacOS.
-        #   Creating the task outside of the `audera` start-
-        #       services loop will allow the shairport-sync
-        #       service task to run independently, and,
-        #       for the shairport-sync service to only run
-        #       on the applicable architecture.
-        #   Finally, by running the shairport-sync service
-        #       independently, the `audera` client can be used
-        #       for creating multi-room audio systems that are
-        #       compatible with Airplay without having to rely
-        #       on the `audera` streaming server.
-
-        loop.run_until_complete(self.serve_shairport())
 
         # Run services
         try:
