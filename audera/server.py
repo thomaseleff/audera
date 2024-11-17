@@ -1,10 +1,12 @@
 """ Server-service """
 
 import pyaudio
-import sys
 import asyncio
+import socket
+import sys
 import time
 import struct
+from collections import deque
 
 import audera
 
@@ -76,25 +78,80 @@ class Service():
             )
         )
 
+        # Configure the client socket options for low-latency communication
+        try:
+            client_socket: socket.socket = writer.get_extra_info('socket')
+            client_socket.setsockopt(
+                socket.IPPROTO_TCP,
+                socket.TCP_NODELAY,
+                1
+            )
+        except Exception:
+
+            # Logging
+            self.server_logger.warning(
+                'WARNING: Client {%s} unable to operate with TCP_NODELAY.' % (
+                    client_ip
+                )
+            )
+
+        # Initialize a per-client packet buffer
+        buffer_queue = deque(maxlen=audera.BUFFER_SIZE)
+
         # Serve audio stream
         while True:
             try:
 
                 # Read the next audio data chunk
-                chunk = self.stream.read(audera.CHUNK)
+                try:
+                    chunk = self.stream.read(
+                        audera.CHUNK,
+                        exception_on_overflow=False
+                    )
+
+                except OSError as e:
+
+                    # Logging
+                    self.server_logger.error(
+                        'ERROR:[%s] [serve_stream()] %s' % (
+                            type(e).__name__, str(e)
+                        )
+                    )
+
+                # Convert the audio data chunk to a timestamped packet
                 timestamp = time.time()
                 packet = struct.pack("d", timestamp) + chunk
 
-                # Serve the audio data chunk as a timestamped packet
-                #   and wait for the packet to be received
-                writer.write(packet)
-                await writer.drain()
+                # Add the packet to the per-client packet buffer
+                buffer_queue.append(packet)
+
+                # Serve all packets in the packet buffer queue
+                for buffered_packet in list(buffer_queue):
+                    writer.write(buffered_packet)
+
+                # Drain the writer with timeout for flow control,
+                #    disconnecting any client that is too slow
+                try:
+                    await asyncio.wait_for(
+                        writer.drain(),
+                        timeout=audera.TIME_OUT
+                    )
+                except asyncio.TimeoutError:
+
+                    # Logging
+                    self.server_logger.error(
+                        'ERROR: Client {%s} disconnected due to flow control.' % (
+                            client_ip
+                        )
+                    )
+
+                    # Exit the loop
+                    break
 
             except (
-                asyncio.TimeoutError,  # When the client-communication
-                                       #    times-out
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
+                asyncio.TimeoutError,  # Client-communication timed-out
+                ConnectionResetError,  # Client disconnected
+                ConnectionAbortedError,  # Client aborted the connection
             ):
 
                 # Logging
@@ -108,9 +165,8 @@ class Service():
                 break
 
             except (
-                asyncio.CancelledError,  # When the server-services are
-                                         #    cancelled
-                KeyboardInterrupt  # When the server-services are cancelled
+                asyncio.CancelledError,  # Server-services cancelled
+                KeyboardInterrupt  # Server-services cancelled manually
             ):
 
                 # Logging
@@ -128,8 +184,8 @@ class Service():
         try:
             await writer.wait_closed()
         except (
-            ConnectionResetError,  # When the client-disconnects
-            ConnectionAbortedError,  # When the client-disconnects
+            ConnectionResetError,  # Client disconnected
+            ConnectionAbortedError,  # Client aborted the connection
         ):
             pass
 
@@ -175,9 +231,9 @@ class Service():
                 await writer.drain()
 
         except (
-            asyncio.TimeoutError,  # When the client-communication times-out
-            asyncio.CancelledError,  # When the server-services are cancelled
-            KeyboardInterrupt  # When the server-services are cancelled
+            asyncio.TimeoutError,  # Client-communication timed-out
+            asyncio.CancelledError,  # Server-services cancelled
+            KeyboardInterrupt  # Server-services cancelled manually
         ):
 
             # Logging
@@ -201,8 +257,8 @@ class Service():
             try:
                 await writer.wait_closed()
             except (
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
+                ConnectionResetError,  # Client disconnected
+                ConnectionAbortedError,  # Client aborted the connection
             ):
                 pass
 
