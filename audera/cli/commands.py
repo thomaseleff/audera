@@ -84,8 +84,3 @@ def run(
         service.logger.info(
             'INFO: The services exited successfully.'
         )
-
-        # Close audio services
-        service.stream.stop_stream()
-        service.stream.close()
-        service.audio.terminate()

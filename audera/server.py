@@ -19,40 +19,6 @@ class Service():
         # Logging
         self.logger = audera.logging.get_server_logger()
 
-        # Initialize PyAudio
-        self.audio = pyaudio.PyAudio()
-
-        # Assign device-index
-        # --TODO: The name of the device should be set dynamically
-        # --TODO: This should wait until an audio device is found
-
-        for i in range(self.audio.get_device_count()):
-            device_info = self.audio.get_device_info_by_index(i)
-            if "Line 1" in device_info.get("name", ""):
-                audera.DEVICE_INDEX = i
-                break
-
-        if audera.DEVICE_INDEX is None:
-
-            # Logging
-            self.logger.error(
-                "ERROR: No input audio device found."
-            )
-
-            # Exit
-            self.audio.terminate()
-            sys.exit(audera.errors.DEVICE_ERROR)
-
-        # Initialize audio stream-capture
-        self.stream = self.audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            input=True,
-            input_device_index=audera.DEVICE_INDEX,
-            frames_per_buffer=audera.CHUNK
-        )
-
     async def serve_stream(
         self,
         writer: asyncio.StreamWriter
@@ -94,13 +60,47 @@ class Service():
                 )
             )
 
+        # Initialize PyAudio
+        audio = pyaudio.PyAudio()
+
+        # Assign device-index
+        # --TODO: The name of the device should be set dynamically
+        # --TODO: This should wait until an audio device is found
+
+        for i in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(i)
+            if "Line 1" in device_info.get("name", ""):
+                audera.DEVICE_INDEX = i
+                break
+
+        if audera.DEVICE_INDEX is None:
+
+            # Logging
+            self.logger.error(
+                "ERROR: No input audio device found."
+            )
+
+            # Exit
+            audio.terminate()
+            sys.exit(audera.errors.DEVICE_ERROR)
+
+        # Initialize audio stream-capture
+        stream = audio.open(
+            rate=audera.RATE,
+            channels=audera.CHANNELS,
+            format=audera.FORMAT,
+            input=True,
+            input_device_index=audera.DEVICE_INDEX,
+            frames_per_buffer=audera.CHUNK
+        )
+
         # Serve audio stream
         while True:
             try:
 
                 # Read the next audio data chunk
                 try:
-                    chunk = self.stream.read(
+                    chunk = stream.read(
                         audera.CHUNK,
                         exception_on_overflow=False
                     )
@@ -179,6 +179,11 @@ class Service():
             ConnectionAbortedError,  # Client aborted the connection
         ):
             pass
+
+        # Close the audio services
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
     async def handle_communication(
         self,

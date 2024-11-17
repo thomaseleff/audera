@@ -21,18 +21,6 @@ class Service():
         # Logging
         self.logger = audera.logging.get_client_logger()
 
-        # Initialize PyAudio
-        self.audio = pyaudio.PyAudio()
-
-        # Initialize audio stream-playback
-        self.stream = self.audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            output=True,
-            frames_per_buffer=audera.CHUNK
-        )
-
         # Initialize buffer and rtt-history
         self.buffer = deque()
         self.buffer_time = audera.BUFFER_TIME
@@ -65,6 +53,18 @@ class Service():
                     audera.CHANNELS
                 )
             ])
+        )
+
+        # Initialize PyAudio
+        audio = pyaudio.PyAudio()
+
+        # Initialize audio stream-playback
+        stream = audio.open(
+            rate=audera.RATE,
+            channels=audera.CHANNELS,
+            format=audera.FORMAT,
+            output=True,
+            frames_per_buffer=audera.CHUNK
         )
 
         # Receive audio stream
@@ -103,13 +103,12 @@ class Service():
                             self.buffer.popleft()
                         )
                         await asyncio.sleep(buffered_delay)
-                        self.stream.write(buffered_data)
+                        stream.write(buffered_data)
 
             except (
-                asyncio.TimeoutError,  # When the server-communication
-                                       #    times-out
-                ConnectionResetError,  # When the server-disconnects
-                ConnectionAbortedError,  # When the server-disconnects
+                asyncio.TimeoutError,  # Server-communication timed-out
+                ConnectionResetError,  # Server disconnected
+                ConnectionAbortedError,  # Server aborted the connection
             ):
 
                 # Logging
@@ -123,9 +122,8 @@ class Service():
                 break
 
             except (
-                asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled by the event-loop
-                KeyboardInterrupt  # When the client-services are cancelled
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
             ):
 
                 # Logging
@@ -146,10 +144,15 @@ class Service():
         try:
             await writer.wait_closed()
         except (
-            ConnectionResetError,  # When the server-disconnects
-            ConnectionAbortedError,  # When the server-disconnects
+            ConnectionResetError,  # Server disconnected
+            ConnectionAbortedError,  # Server aborted the connection
         ):
             pass
+
+        # Close the audio services
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
     async def handle_communication(self):
         """ Receives async server-communication, measures round-trip time (RTT)
@@ -164,11 +167,9 @@ class Service():
                 rtt = await self.measure_rtt()
 
             except (
-                asyncio.TimeoutError,  # When the server-communication
-                                       #    times-out
-                asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled by the event-loop
-                KeyboardInterrupt  # When the client-services are cancelled
+                asyncio.TimeoutError,  # Server-communication timed-out
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
             ):
 
                 # Logging
@@ -369,9 +370,8 @@ class Service():
                     await asyncio.sleep(audera.TIME_OUT)
 
             except (
-                asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled by the event-loop
-                KeyboardInterrupt  # When the client-services are cancelled
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
             ):
 
                 # Stop the shairport-sync service
@@ -417,8 +417,7 @@ class Service():
                 )
 
             except (
-                ConnectionRefusedError  # When the server refuses the
-                                        #    connection
+                ConnectionRefusedError  # Server refused the connection
             ):
 
                 # Logging
@@ -435,8 +434,7 @@ class Service():
                 await asyncio.sleep(audera.TIME_OUT)
 
             except (
-                asyncio.TimeoutError,  # When the server-communication is not
-                                       #    available
+                asyncio.TimeoutError,  # Server-communication timed-out
                 OSError  # All other server-communication I / O errors
             ):
 
@@ -451,9 +449,8 @@ class Service():
                 )
 
             except (
-                asyncio.CancelledError,  # When the client-services are
-                                         #    cancelled by the event-loop
-                KeyboardInterrupt  # When the client-services are cancelled
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
             ):
 
                 # Logging
@@ -466,7 +463,7 @@ class Service():
                     ])
                 )
 
-                # Exit the loop when the services are cancelled
+                # Exit the loop
                 break
 
     async def start_services(self):
