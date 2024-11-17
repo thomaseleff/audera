@@ -289,7 +289,7 @@ class Service():
         return rtt
 
     async def start_shairport_services(self):
-        """ Handles async shairport-sync connectivity to Airplay
+        """ Starts async shairport-sync connectivity to Airplay
         streaming devices.
         """
 
@@ -359,8 +359,8 @@ class Service():
                         # Logging
                         self.logger.info(
                             ''.join([
-                                "INFO: The shairport-sync service was",
-                                " cancelled, retrying in %.2f [sec.]." % (
+                                "INFO: The shairport-sync service encountered",
+                                " an error, retrying in %.2f [sec.]." % (
                                     audera.TIME_OUT
                                 )
                             ])
@@ -382,9 +382,9 @@ class Service():
                 # Exit the loop
                 break
 
-    async def start_audera_services(self):
+    async def start_client_services(self):
         """ Starts the async services for audio streaming
-        and client-communication.
+        and client-communication with the server.
         """
 
         # Handle server-availability
@@ -472,18 +472,18 @@ class Service():
         """
 
         # Initialize the shairport-sync service
-        start_shairport = asyncio.create_task(
+        start_shairport_services = asyncio.create_task(
             self.start_shairport_services()
         )
 
         # Initialize the `audera` clients-services
-        start_audera = asyncio.create_task(
-            self.start_audera_services()
+        start_client_services = asyncio.create_task(
+            self.start_client_services()
         )
 
         tasks = [
-            start_shairport,
-            start_audera
+            start_shairport_services,
+            start_client_services
         ]
 
         # Run services

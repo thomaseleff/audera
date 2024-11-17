@@ -19,11 +19,111 @@ class Service():
         # Logging
         self.logger = audera.logging.get_server_logger()
 
+        # Initialize buffer
+        self.buffer = asyncio.Queue(maxsize=audera.BUFFER_SIZE)
+
+    async def start_stream_capture(
+        self
+    ):
+        """ Starts async audio stream capture, creating an audio
+        packet buffer queue for handling async audio streams to
+        clients. """
+
+        # Initialize PyAudio
+        audio = pyaudio.PyAudio()
+
+        # Assign device-index
+        # --TODO: The name of the device should be set dynamically
+        # --TODO: This should wait until an audio device is found
+
+        for i in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(i)
+            if "Line 1" in device_info.get("name", ""):
+                audera.DEVICE_INDEX = i
+                break
+
+        if audera.DEVICE_INDEX is None:
+
+            # Logging
+            self.logger.error(
+                "ERROR: No input audio device found."
+            )
+
+            # Exit
+            audio.terminate()
+            sys.exit(audera.errors.DEVICE_ERROR)
+
+        # Initialize audio stream-capture
+        stream = audio.open(
+            rate=audera.RATE,
+            channels=audera.CHANNELS,
+            format=audera.FORMAT,
+            input=True,
+            input_device_index=audera.DEVICE_INDEX,
+            frames_per_buffer=audera.CHUNK
+        )
+
+        # Capture audio stream
+        while True:
+
+            # Read the next audio data chunk
+            try:
+                chunk = stream.read(
+                    audera.CHUNK,
+                    exception_on_overflow=False
+                )
+
+                # Convert the audio data chunk to a timestamped packet
+                packet = struct.pack("d", time.time()) + chunk
+
+                # Append the packet to the buffer queue
+                #   If the buffer queue is full, the operation
+                #       waits until a new slot is available in the queue.
+                await self.buffer.put(packet)
+
+            except IOError as e:
+
+                # Logging
+                self.logger.error(
+                    'ERROR: [%s] %s.' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+                self.logger.info(
+                    ''.join([
+                        "INFO: The audio stream capture encountered",
+                        " an error, retrying in %.2f [sec.]." % (
+                            audera.TIME_OUT
+                        )
+                    ])
+                )
+
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
+
+            except (
+                asyncio.CancelledError,  # Server-services cancelled
+                KeyboardInterrupt  # Server-services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    'INFO: The audio stream capture was cancelled.'
+                )
+
+                # Exit the loop
+                break
+
+        # Close the audio services
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+
     async def serve_stream(
         self,
         writer: asyncio.StreamWriter
     ):
-        """ Handles async audio-streams to clients.
+        """ Handles async audio streams to clients.
 
         Parameters
         ----------
@@ -60,64 +160,12 @@ class Service():
                 )
             )
 
-        # Initialize PyAudio
-        audio = pyaudio.PyAudio()
-
-        # Assign device-index
-        # --TODO: The name of the device should be set dynamically
-        # --TODO: This should wait until an audio device is found
-
-        for i in range(audio.get_device_count()):
-            device_info = audio.get_device_info_by_index(i)
-            if "Line 1" in device_info.get("name", ""):
-                audera.DEVICE_INDEX = i
-                break
-
-        if audera.DEVICE_INDEX is None:
-
-            # Logging
-            self.logger.error(
-                "ERROR: No input audio device found."
-            )
-
-            # Exit
-            audio.terminate()
-            sys.exit(audera.errors.DEVICE_ERROR)
-
-        # Initialize audio stream-capture
-        stream = audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            input=True,
-            input_device_index=audera.DEVICE_INDEX,
-            frames_per_buffer=audera.CHUNK
-        )
-
         # Serve audio stream
         while True:
             try:
 
-                # Read the next audio data chunk
-                try:
-                    chunk = stream.read(
-                        audera.CHUNK,
-                        exception_on_overflow=False
-                    )
-                except OSError as e:
-
-                    # Logging
-                    self.logger.error(
-                        'ERROR:[%s] [serve_stream()] %s' % (
-                            type(e).__name__, str(e)
-                        )
-                    )
-
-                # Convert the audio data chunk to a timestamped packet
-                timestamp = time.time()
-                packet = struct.pack("d", timestamp) + chunk
-
-                # Serve the timestamped packet
+                # Serve each / every timestamped packet in the packet buffer queue
+                packet = await self.buffer.get()
                 writer.write(packet)
 
                 # Drain the writer with timeout for flow control,
@@ -180,11 +228,6 @@ class Service():
         ):
             pass
 
-        # Close the audio services
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
     async def handle_communication(
         self,
         reader: asyncio.StreamReader,
@@ -243,7 +286,7 @@ class Service():
 
             # Logging
             self.logger.error(
-                'ERROR:[%s] [handle_communication()] %s' % (
+                'ERROR: [%s] [handle_communication()] %s.' % (
                     type(e).__name__, str(e)
                 )
             )
@@ -258,9 +301,9 @@ class Service():
             ):
                 pass
 
-    async def start_audera_services(self):
+    async def start_server_services(self):
         """ Starts the async services for audio streaming
-        and client-communication.
+        and client-communication with client(s).
         """
 
         # Initialize the audio stream server
@@ -298,15 +341,30 @@ class Service():
         """
 
         # Initialize the `audera` clients-services
-        start_audera = asyncio.create_task(
-            self.start_audera_services()
+        start_stream_capture = asyncio.create_task(
+            self.start_stream_capture()
+        )
+        start_server_services = asyncio.create_task(
+            self.start_server_services()
         )
 
         tasks = [
-            start_audera
+            start_stream_capture,
+            start_server_services
         ]
 
         # Run services
+
+        #   The stream-capture service is independent of the
+        #       other `audera` server-services.
+        #   The stream-capture service reads audio chunks from
+        #       the audio-input device and creates a time-stamped
+        #       audio packet buffer queue that is shared across all
+        #       client-connections.
+        #   When a client connects, the `audera` server-services
+        #       read audio packets from the packet buffer queue and
+        #       serve them to the client for playback.
+
         while tasks:
             done, tasks = await asyncio.wait(
                 tasks,
