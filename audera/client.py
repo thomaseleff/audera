@@ -288,7 +288,7 @@ class Service():
         return rtt
 
     async def start_shairport_services(self):
-        """ Handles async shairport connectivity to Airplay
+        """ Handles async shairport-sync connectivity to Airplay
         streaming devices.
         """
 
@@ -335,7 +335,7 @@ class Service():
 
                     # Logging
                     self.client_logger.error(
-                        'ERROR: [%s] [serve_shairport()] %s' % (
+                        'ERROR: [%s] [serve_shairport()] %s.' % (
                             'CalledProcessError', stderr.decode().strip()
                         )
                     )
@@ -470,6 +470,9 @@ class Service():
                 break
 
     async def start_services(self):
+        """ Runs the async shairport-sync service independently of the
+        async services for audio streaming and client-communication.
+        """
 
         # Initialize the shairport-sync service
         start_shairport = asyncio.create_task(
@@ -513,7 +516,13 @@ class Service():
 
             for task in done:
                 if task.exception():
-                    print(f"An error occurred: {task.exception()}")
+
+                    # Logging
+                    self.client_logger.error(
+                        'ERROR: An unhandled exception was raised. %s.' % (
+                            task.exception()
+                        )
+                    )
 
         await asyncio.gather(
             *tasks,
