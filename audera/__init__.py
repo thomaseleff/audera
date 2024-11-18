@@ -41,7 +41,7 @@ STREAM_PORT: int = 5000
 PING_PORT: int = 5001
 
 # Client configuration
-BUFFER_SIZE: int = 5  # The number of audio packets to buffer before playback
+BUFFER_SIZE: int = 10  # The number of audio packets to buffer before playback
 BUFFER_TIME: float = 0.2  # The initial buffer time
 MAX_BUFFER_TIME: float = 0.5  # The max. buffer-time in seconds for high jitter
 MIN_BUFFER_TIME: float = 0.1  # The min. buffer-time in seconds for low jitter
@@ -50,8 +50,8 @@ RTT_HISTORY_SIZE: int = 10  # The history size for round-trip time measurements
 TIME_OUT: float = 5  # The time-out in seconds of the server connection
 LOW_JITTER: float = 0.01  # The threshold for identifying low-jitter.
 HIGH_JITTER: float = 0.05  # The threshold for identifying high-jitter.
-LOW_RTT: float = 0.1  # The threshold for identifying low-RTT.
-HIGH_RTT: float = 0.15  # The threshold for identifying high-RTT.
+LOW_RTT: float = 0.1  # The threshold for identifying low-rtt.
+HIGH_RTT: float = 0.15  # The threshold for identifying high-rtt.
 
 
 # Errors

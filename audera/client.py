@@ -22,9 +22,9 @@ class Service():
         self.logger = audera.logging.get_client_logger()
 
         # Initialize buffer and rtt-history
-        self.buffer = deque()
-        self.buffer_time = audera.BUFFER_TIME
-        self.rtt_history = []
+        self.buffer: deque = deque()
+        self.buffer_time: float = audera.BUFFER_TIME
+        self.rtt_history: list[float] = []
 
     async def receive_stream(
         self,
@@ -249,6 +249,9 @@ class Service():
                             )
                         ])
                     )
+
+                    # Reset the history
+                    self.rtt_history.clear()
 
             await asyncio.sleep(audera.PING_INTERVAL)
 
