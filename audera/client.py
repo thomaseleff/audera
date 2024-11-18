@@ -1,6 +1,7 @@
 """ Client-service """
 
 import pyaudio
+import ntplib
 import asyncio
 import socket
 import platform
@@ -21,17 +22,157 @@ class Service():
         # Logging
         self.logger = audera.logging.get_client_logger()
 
+        # Initialize time synchronization
+        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
+        self.offset: float = 0.0
+
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
         self.buffer_time: float = audera.BUFFER_TIME
+        self.buffer_event: asyncio.Event = asyncio.Event()
         self.rtt_history: list[float] = []
+
+        # Initialize silent packet
+        self.silent_data: bytes = b'\x00' * (
+            audera.CHUNK * audera.CHANNELS * 2
+        )
+
+    async def start_shairport_services(self):
+        """ Starts async shairport-sync connectivity to Airplay
+        streaming devices.
+        """
+
+        while True:
+
+            # Check the operating-system
+            operating_system = platform.system()
+            if operating_system not in ['Linux', 'Darwin']:
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'ERROR: The shairport-sync service is only available',
+                        ' on Linux and MacOS.'
+                    ])
+                )
+
+                # Exit the loop
+                break
+
+            # Start the shairport-sync service as a subprocess
+            process = await asyncio.create_subprocess_exec(
+                "sudo", "systemctl", "start", "shairport-sync",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            _, stderr = await process.communicate()
+
+            if process.returncode == 0:
+
+                # Logging
+                self.logger.info(
+                    'INFO: The shairport-sync service started successfully.'
+                )
+
+            else:
+
+                # Logging
+                self.logger.error(
+                    'INFO: The shairport-sync service failed to start.'
+                )
+
+                if stderr:
+
+                    # Logging
+                    self.logger.error(
+                        'ERROR: [%s] [serve_shairport()] %s.' % (
+                            'CalledProcessError', stderr.decode().strip()
+                        )
+                    )
+
+                # Exit the loop
+                break
+
+            try:
+
+                # Monitor the status of the shairport-sync service subprocess
+                while True:
+
+                    status_process = await asyncio.create_subprocess_exec(
+                        "systemctl", "is-active", "--quiet", "shairport-sync"
+                    )
+                    await status_process.wait()
+
+                    if status_process.returncode != 0:
+
+                        # Logging
+                        self.logger.info(
+                            ''.join([
+                                "INFO: The shairport-sync service encountered",
+                                " an error, retrying in %.2f [sec.]." % (
+                                    audera.TIME_OUT
+                                )
+                            ])
+                        )
+
+                    # Timeout
+                    await asyncio.sleep(audera.TIME_OUT)
+
+            except (
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
+            ):
+
+                # Stop the shairport-sync service
+                await asyncio.create_subprocess_exec(
+                    "sudo", "systemctl", "stop", "shairport-sync"
+                )
+
+                # Exit the loop
+                break
+
+    async def start_time_synchonization(self):
+        """ Starts the async service for time-synchronization. """
+
+        # Communicate with the server
+        while True:
+
+            try:
+
+                # Update the server local machine time offset from the network
+                #   time protocol (ntp) server
+                self.offset = self.ntp.offset()
+
+                # Logging
+                self.logger.info(
+                    'INFO: The server time offset is {%.7f}.' % (
+                        self.offset
+                    )
+                )
+
+            except ntplib.NTPException:
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'INFO: Communication with the network time protocol (ntp) server {%s} failed,' % (
+                            self.ntp.server
+                        ),
+                        ' retrying in %.2f [min.].' % (
+                            audera.SYNC_INTERVAL / 60
+                        )
+                    ])
+                )
+
+            await asyncio.sleep(audera.SYNC_INTERVAL)
 
     async def receive_stream(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
     ):
-        """ Receives the async audio stream from the server.
+        """ Receives the async audio stream from the server and
+        adds on-time packets into the playback buffer queue.
 
         Parameters
         ----------
@@ -55,18 +196,6 @@ class Service():
             ])
         )
 
-        # Initialize PyAudio
-        audio = pyaudio.PyAudio()
-
-        # Initialize audio stream-playback
-        stream = audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            output=True,
-            frames_per_buffer=audera.CHUNK
-        )
-
         # Receive audio stream
         while True:
             try:
@@ -81,29 +210,30 @@ class Service():
                     break
 
                 # Parse the time-stamp and audio data from the packet
-                receive_time = time.time()
+                receive_time = time.time() + self.offset
                 timestamp, data = (
                     struct.unpack("d", packet[:8])[0],
                     packet[8:]
                 )
                 target_play_time = timestamp + self.buffer_time
 
-                # Add audio data to the buffer
-                self.buffer.append(
-                    (
-                        max(0, target_play_time - receive_time),
-                        data
-                    )
-                )
+                # Discard late packets
+                if receive_time > target_play_time:
 
-                # Playback buffered audio data
-                if len(self.buffer) >= audera.BUFFER_SIZE:
-                    for _ in range(len(self.buffer)):
-                        buffered_delay, buffered_data = (
-                            self.buffer.popleft()
+                    # Logging
+                    self.logger.warning(
+                        'WARNING: Discarded late packet with timestamp {%.6f}.' % (
+                            timestamp
                         )
-                        await asyncio.sleep(buffered_delay)
-                        stream.write(buffered_data)
+                    )
+                    continue
+
+                # Add audio data to the buffer
+                self.buffer.append((target_play_time, data))
+
+                # Trigger playback
+                if len(self.buffer) >= audera.BUFFER_SIZE:
+                    self.buffer_event.set()
 
             except (
                 asyncio.TimeoutError,  # Server-communication timed-out
@@ -149,7 +279,59 @@ class Service():
         ):
             pass
 
-        # Close the audio services
+    async def playback_stream(self):
+        """ Continuously play audio stream data from the playback buffer
+        queue, handling gaps or missing audio stream data. """
+
+        # Initialize PyAudio
+        audio = pyaudio.PyAudio()
+
+        # Initialize audio stream-playback
+        stream = audio.open(
+            rate=audera.RATE,
+            channels=audera.CHANNELS,
+            format=audera.FORMAT,
+            output=True,
+            frames_per_buffer=audera.CHUNK
+        )
+
+        # Play audio stream data
+        while True:
+            try:
+                # Wait for enough packets in the buffer queue
+                await self.buffer_event.wait()
+
+                # Parse the time-stamp and audio data from the buffer queue
+                while self.buffer:
+                    target_play_time, data = self.buffer.popleft()
+                    sleep_time = target_play_time - time.time()
+
+                    # Sleep until the target playback time
+                    if sleep_time > 0:
+                        await asyncio.sleep(sleep_time)
+
+                    # Play the audio stream data
+                    stream.write(data)
+
+                # Play silence when the buffer is empty
+                stream.write(self.silent_data)
+
+                # Reset the buffer event when the buffer is empty
+                if not self.buffer:
+                    self.buffer_event.clear()
+
+            except OSError as e:
+
+                # Logging
+                self.logger.error(
+                    'ERROR: [%s] [playback()] %s' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+
+                break
+
+        # Close audio services
         stream.stop_stream()
         stream.close()
         audio.terminate()
@@ -291,100 +473,6 @@ class Service():
 
         return rtt
 
-    async def start_shairport_services(self):
-        """ Starts async shairport-sync connectivity to Airplay
-        streaming devices.
-        """
-
-        while True:
-
-            # Check the operating-system
-            operating_system = platform.system()
-            if operating_system not in ['Linux', 'Darwin']:
-
-                # Logging
-                self.logger.info(
-                    ''.join([
-                        'ERROR: The shairport-sync service is only available',
-                        ' on Linux and MacOS.'
-                    ])
-                )
-
-                # Exit the loop
-                break
-
-            # Start the shairport-sync service as a subprocess
-            process = await asyncio.create_subprocess_exec(
-                "sudo", "systemctl", "start", "shairport-sync",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            _, stderr = await process.communicate()
-
-            if process.returncode == 0:
-
-                # Logging
-                self.logger.info(
-                    'INFO: The shairport-sync service started successfully.'
-                )
-
-            else:
-
-                # Logging
-                self.logger.error(
-                    'INFO: The shairport-sync service failed to start.'
-                )
-
-                if stderr:
-
-                    # Logging
-                    self.logger.error(
-                        'ERROR: [%s] [serve_shairport()] %s.' % (
-                            'CalledProcessError', stderr.decode().strip()
-                        )
-                    )
-
-                # Exit the loop
-                break
-
-            try:
-
-                # Monitor the status of the shairport-sync service subprocess
-                while True:
-
-                    status_process = await asyncio.create_subprocess_exec(
-                        "systemctl", "is-active", "--quiet", "shairport-sync"
-                    )
-                    await status_process.wait()
-
-                    if status_process.returncode != 0:
-
-                        # Logging
-                        self.logger.info(
-                            ''.join([
-                                "INFO: The shairport-sync service encountered",
-                                " an error, retrying in %.2f [sec.]." % (
-                                    audera.TIME_OUT
-                                )
-                            ])
-                        )
-
-                    # Timeout
-                    await asyncio.sleep(audera.TIME_OUT)
-
-            except (
-                asyncio.CancelledError,  # Client-services cancelled
-                KeyboardInterrupt  # Client-services cancelled manually
-            ):
-
-                # Stop the shairport-sync service
-                await asyncio.create_subprocess_exec(
-                    "sudo", "systemctl", "stop", "shairport-sync"
-                )
-
-                # Exit the loop
-                break
-
     async def start_client_services(self):
         """ Starts the async services for audio streaming
         and client-communication with the server.
@@ -403,9 +491,14 @@ class Service():
                     timeout=audera.TIME_OUT
                 )
 
-                # Initialize the audio stream service coroutine
+                # Initialize the audio stream capture service coroutine
                 receive_stream = asyncio.create_task(
                     self.receive_stream(reader=reader, writer=writer)
+                )
+
+                # Initialize the audio stream playback service coroutine
+                playback_stream = asyncio.create_task(
+                    self.playback_stream()
                 )
 
                 # Initialize the ping-communication service coroutine
@@ -415,6 +508,7 @@ class Service():
 
                 await asyncio.gather(
                     receive_stream,
+                    playback_stream,
                     handle_communication,
                     return_exceptions=True
                 )
@@ -480,12 +574,16 @@ class Service():
         )
 
         # Initialize the `audera` clients-services
+        start_time_synchonization_services = asyncio.create_task(
+            self.start_time_synchonization()
+        )
         start_client_services = asyncio.create_task(
             self.start_client_services()
         )
 
         tasks = [
             start_shairport_services,
+            start_time_synchonization_services,
             start_client_services
         ]
 

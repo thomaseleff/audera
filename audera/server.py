@@ -2,6 +2,7 @@
 
 from typing import Dict
 import pyaudio
+import ntplib
 import asyncio
 import socket
 import sys
@@ -21,8 +22,47 @@ class Service():
         # Logging
         self.logger = audera.logging.get_server_logger()
 
+        # Initialize time synchronization
+        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
+        self.offset: float = 0.0
+
         # Initialize clients for broadcasting the audio stream
         self.clients: Dict[str, asyncio.StreamWriter] = {}
+
+    async def start_time_synchonization(self):
+        """ Starts the async service for time-synchronization. """
+
+        # Communicate with the server
+        while True:
+
+            try:
+
+                # Update the server local machine time offset from the network
+                #   time protocol (ntp) server
+                self.offset = self.ntp.offset()
+
+                # Logging
+                self.logger.info(
+                    'INFO: The server time offset is {%.7f}.' % (
+                        self.offset
+                    )
+                )
+
+            except ntplib.NTPException:
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'INFO: Communication with the network time protocol (ntp) server {%s} failed,' % (
+                            self.ntp.server
+                        ),
+                        ' retrying in %.2f [min.].' % (
+                            audera.SYNC_INTERVAL / 60
+                        )
+                    ])
+                )
+
+            await asyncio.sleep(audera.SYNC_INTERVAL)
 
     async def start_stream_service(
         self
@@ -76,7 +116,8 @@ class Service():
                 )
 
                 # Convert the audio data chunk to a timestamped packet
-                packet = struct.pack("d", time.time()) + chunk
+                captured_time = time.time() + self.offset
+                packet = struct.pack("d", captured_time) + chunk
 
                 # Retain the list of client-connections
                 clients = copy.copy(self.clients)
@@ -381,6 +422,9 @@ class Service():
         """
 
         # Initialize the `audera` server-services
+        start_time_synchonization_services = asyncio.create_task(
+            self.start_time_synchonization()
+        )
         start_stream_services = asyncio.create_task(
             self.start_stream_service()
         )
@@ -389,6 +433,7 @@ class Service():
         )
 
         tasks = [
+            start_time_synchonization_services,
             start_stream_services,
             start_server_services
         ]

@@ -1,4 +1,4 @@
-""" Audera
+""" audera
 
 `audera` is an open-source multi-room audio streaming system written in Python
 for DIY home audio enthusiasts.
@@ -8,9 +8,9 @@ from typing import Union, List, Literal
 import errno
 import pyaudio
 
-from audera import logging
+from audera import logging, ntp
 
-__all__ = ['logging']
+__all__ = ['logging', 'ntp']
 
 # Logo
 LOGO: List[str] = [
@@ -40,10 +40,13 @@ SERVER_IP: str = "192.168.1.17"
 STREAM_PORT: int = 5000
 PING_PORT: int = 5001
 
+# Network time protocol (ntp) configuration
+SYNC_INTERVAL: int = 600  # The time interval in seconds between time synchonization
+
 # Client configuration
 BUFFER_SIZE: int = 10  # The number of audio packets to buffer before playback
-BUFFER_TIME: float = 0.2  # The initial buffer time
-MAX_BUFFER_TIME: float = 0.5  # The max. buffer-time in seconds for high jitter
+BUFFER_TIME: float = 0.5  # The initial buffer time
+MAX_BUFFER_TIME: float = 0.9  # The max. buffer-time in seconds for high jitter
 MIN_BUFFER_TIME: float = 0.1  # The min. buffer-time in seconds for low jitter
 PING_INTERVAL: float = 2  # The time interval in seconds between pings
 RTT_HISTORY_SIZE: int = 10  # The history size for round-trip time measurements
