@@ -155,14 +155,14 @@ class Service():
         audio.terminate()
 
     async def handle_communication(self):
-        """ Receives async server-communication, measures round-trip time (RTT)
+        """ Receives async server-communication, measures round-trip time (rtt)
         and adjusts the audio playback buffer-time.
         """
 
         # Communicate with the server
         while True:
 
-            # Measure round-trip time (RTT)
+            # Measure round-trip time (rtt)
             try:
                 rtt = await self.measure_rtt()
 
@@ -196,10 +196,10 @@ class Service():
             # Perform audio playback buffer-time adjustment
             if rtt:
 
-                # Add the RTT measurement to the history
+                # Add the rtt measurement to the history
                 self.rtt_history.append(rtt)
 
-                # Adjust the buffer-time based on RTT and jitter
+                # Adjust the buffer-time based on rtt and jitter
                 #   Only adjust after the RTT_HISTORY_SIZE is met
                 if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
                     mean_rtt = statistics.mean(self.rtt_history)
@@ -214,7 +214,7 @@ class Service():
                         ])
                     )
 
-                    # Decrease the buffer time for low jitter and RTT
+                    # Decrease the buffer time for low jitter and rtt
                     if (
                         jitter < audera.LOW_JITTER
                         and mean_rtt < audera.LOW_RTT
@@ -223,7 +223,7 @@ class Service():
                             audera.MIN_BUFFER_TIME, self.buffer_time - 0.05
                         )
 
-                    # Increase the buffer-time for high jitter or RTT
+                    # Increase the buffer-time for high jitter or rtt
                     elif (
                         jitter > audera.HIGH_JITTER
                         or mean_rtt > audera.HIGH_RTT
@@ -236,7 +236,7 @@ class Service():
                     else:
                         new_buffer_time = self.buffer_time
 
-                    # Update the buffer-time and clear the RTT history
+                    # Update the buffer-time and clear the rtt history
                     self.buffer_time = new_buffer_time
                     self.rtt_history.pop(0)
 
@@ -253,7 +253,7 @@ class Service():
             await asyncio.sleep(audera.PING_INTERVAL)
 
     async def measure_rtt(self):
-        """ Measures round-trip time (RTT) """
+        """ Measures round-trip time (rtt) """
 
         # Initialize the connection to the ping-communication server
         reader, writer = await asyncio.wait_for(
