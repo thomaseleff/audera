@@ -175,7 +175,7 @@ class Service():
         writer: asyncio.StreamWriter,
         packet: bytes
     ) -> bool:
-        """ Broadcasts the audio packet to all clients concurrently.
+        """ Broadcasts the audio packet to the client.
 
         Parameters
         ----------
@@ -400,7 +400,7 @@ class Service():
         #   The stream service reads audio chunks from
         #       the audio-input device and creates a time-stamped
         #       audio packet that is broadcasted to all connected
-        #       clients.
+        #       clients concurrently.
 
         while tasks:
             done, tasks = await asyncio.wait(
