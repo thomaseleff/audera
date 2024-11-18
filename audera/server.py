@@ -132,8 +132,8 @@ class Service():
                     try:
                         await client_writer.wait_closed()
                     except (
-                        ConnectionResetError,  # When the client-disconnects
-                        ConnectionAbortedError,  # When the client-disconnects
+                        ConnectionResetError,  # Client disconnected
+                        ConnectionAbortedError,  # Client aborted the connection
                     ):
                         pass
 
@@ -216,8 +216,8 @@ class Service():
             try:
                 await writer.wait_closed()
             except (
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
+                ConnectionResetError,  # Client disconnected
+                ConnectionAbortedError,  # Client aborted the connection
             ):
                 pass
 
