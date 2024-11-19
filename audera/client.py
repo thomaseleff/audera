@@ -480,8 +480,8 @@ class Service():
                     )
                 )
 
-                # Timeout
-                await asyncio.sleep(audera.TIME_OUT)
+                # Exit the loop
+                break
 
             except (
                 asyncio.CancelledError,  # Client-services cancelled
