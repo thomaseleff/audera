@@ -43,7 +43,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The server time offset is {%.7f}.' % (
+                    'INFO: The server time offset is %.7f [sec.].' % (
                         self.offset
                     )
                 )

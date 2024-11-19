@@ -85,7 +85,7 @@ class Service():
 
                     # Logging
                     self.logger.error(
-                        'ERROR: [%s] [serve_shairport()] %s.' % (
+                        'ERROR: [%s] [start_shairport_services()] %s.' % (
                             'CalledProcessError', stderr.decode().strip()
                         )
                     )
@@ -131,7 +131,7 @@ class Service():
                 # Exit the loop
                 break
 
-    async def start_time_synchonization(self):
+    async def start_time_synchronization(self):
         """ Starts the async service for time-synchronization. """
 
         # Communicate with the server
@@ -145,7 +145,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The server time offset is {%.7f}.' % (
+                    'INFO: The server time offset is %.7f [sec.].' % (
                         self.offset
                     )
                 )
@@ -324,7 +324,7 @@ class Service():
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] [playback()] %s' % (
+                    'ERROR: [%s] [playback_stream()] %s' % (
                         type(e).__name__, str(e)
                     )
                 )
@@ -574,8 +574,8 @@ class Service():
         )
 
         # Initialize the `audera` clients-services
-        start_time_synchonization_services = asyncio.create_task(
-            self.start_time_synchonization()
+        start_time_synchronization_services = asyncio.create_task(
+            self.start_time_synchronization()
         )
         start_client_services = asyncio.create_task(
             self.start_client_services()
@@ -583,7 +583,7 @@ class Service():
 
         tasks = [
             start_shairport_services,
-            start_time_synchonization_services,
+            start_time_synchronization_services,
             start_client_services
         ]
 
