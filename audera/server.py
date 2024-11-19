@@ -1,32 +1,45 @@
 """ Server-service """
 
+from typing import Dict
 import pyaudio
-import sys
 import asyncio
+import socket
+import sys
 import time
 import struct
+import copy
 
 import audera
 
 
 class Service():
-    """ A `class` that represents the `audera` server-service. """
+    """ A `class` that represents the `audera` server-services. """
 
     def __init__(self):
-        """ Initializes an instance of the `audera` server-service. """
+        """ Initializes an instance of the `audera` server-services. """
 
         # Logging
-        self.server_logger = audera.logging.get_server_logger()
+        self.logger = audera.logging.get_server_logger()
+
+        # Initialize clients for broadcasting the audio stream
+        self.clients: Dict[str, asyncio.StreamWriter] = {}
+
+    async def start_stream_service(
+        self
+    ):
+        """ Starts async audio stream capture, broadcasting the audio stream
+        to all connected clients.
+        """
 
         # Initialize PyAudio
-        self.audio = pyaudio.PyAudio()
+        audio = pyaudio.PyAudio()
 
         # Assign device-index
         # --TODO: The name of the device should be set dynamically
         # --TODO: This should wait until an audio device is found
 
-        for i in range(self.audio.get_device_count()):
-            device_info = self.audio.get_device_info_by_index(i)
+        for i in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(i)
             if "Line 1" in device_info.get("name", ""):
                 audera.DEVICE_INDEX = i
                 break
@@ -34,16 +47,16 @@ class Service():
         if audera.DEVICE_INDEX is None:
 
             # Logging
-            self.server_logger.error(
+            self.logger.error(
                 "ERROR: No input audio device found."
             )
 
             # Exit
-            self.audio.terminate()
+            audio.terminate()
             sys.exit(audera.errors.DEVICE_ERROR)
 
         # Initialize audio stream-capture
-        self.stream = self.audio.open(
+        stream = audio.open(
             rate=audera.RATE,
             channels=audera.CHANNELS,
             format=audera.FORMAT,
@@ -52,11 +65,170 @@ class Service():
             frames_per_buffer=audera.CHUNK
         )
 
-    async def serve_stream(
+        # Serve audio stream
+        while True:
+            try:
+
+                # Read the next audio data chunk
+                chunk = stream.read(
+                    audera.CHUNK,
+                    exception_on_overflow=False
+                )
+
+                # Convert the audio data chunk to a timestamped packet
+                packet = struct.pack("d", time.time()) + chunk
+
+                # Retain the list of client-connections
+                clients = copy.copy(self.clients)
+
+                # Broadcast the packet to the clients concurrently and drain
+                #    the writer with timeout for flow control, disconnecting
+                #    any client that is too slow
+
+                results = await asyncio.gather(
+                    *[
+                        self.broadcast_to_clients(
+                            client_ip=client_ip,
+                            writer=writer,
+                            packet=packet
+                        ) for (client_ip, writer) in clients.items()
+                    ],
+                    return_exceptions=True
+                )
+
+                # Remove disconnected clients
+                for client_ip, result in zip(clients.keys(), results):
+                    if result is False and client_ip in self.clients:
+                        del self.clients[client_ip]
+
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
+
+            except (
+                asyncio.CancelledError,  # Server-services cancelled
+                KeyboardInterrupt  # Server-services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    'INFO: The audio stream was cancelled.'
+                )
+
+                # Retain list of client-connections
+                clients = copy.copy(self.clients)
+
+                # Cleanup any / all remaining clients
+                for client_ip, client_writer in clients.items():
+
+                    # Logging
+                    self.logger.info(
+                        'INFO: Client {%s} disconnected.' % (
+                            client_ip
+                        )
+                    )
+
+                    # Close the connection
+                    client_writer.close()
+                    try:
+                        await client_writer.wait_closed()
+                    except (
+                        ConnectionResetError,  # Client disconnected
+                        ConnectionAbortedError,  # Client aborted the connection
+                    ):
+                        pass
+
+                    # Disconnect the client
+                    if client_ip in self.clients:
+                        del self.clients[client_ip]
+
+                # Exit the loop
+                break
+
+            except IOError as e:
+
+                # Logging
+                self.logger.error(
+                    'ERROR: [%s] %s.' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+                self.logger.info(
+                    ''.join([
+                        "INFO: The audio stream capture encountered",
+                        " an error, retrying in %.2f [sec.]." % (
+                            audera.TIME_OUT
+                        )
+                    ])
+                )
+
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
+
+        # Close the audio services
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+
+    async def broadcast_to_clients(
+        self,
+        client_ip: str,
+        writer: asyncio.StreamWriter,
+        packet: bytes
+    ) -> bool:
+        """ Broadcasts the audio packet to the client.
+
+        Parameters
+        ----------
+        client_ip: `str`
+            The ip-address of the client.
+        writer: `asyncio.StreamWriter`
+            The asynchronous network stream writer registered to the
+                client used to write the audio stream to the
+                client over a TCP connection.
+        packet: `bytes`
+            The timestamped audio data chunk.
+        """
+
+        # Broadcast the packet to the client and drain the writer
+        #    with timeout for flow control, disconnecting the client
+        #    if it is too slow
+        try:
+            writer.write(packet)
+            await asyncio.wait_for(
+                writer.drain(),
+                timeout=audera.TIME_OUT
+            )
+        except (
+            asyncio.TimeoutError,  # Client-communication timed-out
+            ConnectionResetError,  # Client disconnected
+            ConnectionAbortedError,  # Client aborted the connection
+        ):
+
+            # Logging
+            self.logger.info(
+                'INFO: Client {%s} disconnected.' % (
+                    client_ip
+                )
+            )
+
+            # Close the connection
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (
+                ConnectionResetError,  # Client disconnected
+                ConnectionAbortedError,  # Client aborted the connection
+            ):
+                pass
+
+            return False
+        return True
+
+    async def register_client(
         self,
         writer: asyncio.StreamWriter
     ):
-        """ Handles async audio-streams to clients.
+        """ Handles async client-registration.
 
         Parameters
         ----------
@@ -66,74 +238,37 @@ class Service():
                 audio stream to the client over a TCP connection.
         """
 
-        # Retrieve the client ip address and port
+        # Retrieve the client ip-address and port
         client_ip, _ = writer.get_extra_info('peername')
 
         # Logging
-        self.server_logger.info(
+        self.logger.info(
             'INFO: Client {%s} connected.' % (
                 client_ip
             )
         )
 
-        # Serve audio stream
-        while True:
-            try:
-
-                # Read the next audio data chunk
-                chunk = self.stream.read(audera.CHUNK)
-                timestamp = time.time()
-                packet = struct.pack("d", timestamp) + chunk
-
-                # Serve the audio data chunk as a timestamped packet
-                #   and wait for the packet to be received
-                writer.write(packet)
-                await writer.drain()
-
-            except (
-                asyncio.TimeoutError,  # When the client-communication
-                                       #    times-out
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
-            ):
-
-                # Logging
-                self.server_logger.info(
-                    'INFO: Client {%s} disconnected.' % (
-                        client_ip
-                    )
-                )
-
-                # Exit the loop
-                break
-
-            except (
-                asyncio.CancelledError,  # When the server-services are
-                                         #    cancelled
-                KeyboardInterrupt  # When the server-services are cancelled
-            ):
-
-                # Logging
-                self.server_logger.info(
-                    'INFO: Audio stream to client {%s} cancelled.' % (
-                        client_ip
-                    )
-                )
-
-                # Exit the loop
-                break
-
-        # Close the connection
-        writer.close()
+        # Configure the client socket options for low-latency communication
         try:
-            await writer.wait_closed()
-        except (
-            ConnectionResetError,  # When the client-disconnects
-            ConnectionAbortedError,  # When the client-disconnects
-        ):
-            pass
+            client_socket: socket.socket = writer.get_extra_info('socket')
+            client_socket.setsockopt(
+                socket.IPPROTO_TCP,
+                socket.TCP_NODELAY,
+                1
+            )
+        except Exception:
 
-    async def serve_communication(
+            # Logging
+            self.logger.warning(
+                'WARNING: Client {%s} unable to operate with TCP_NODELAY.' % (
+                    client_ip
+                )
+            )
+
+        # Register client
+        self.clients[client_ip] = writer
+
+    async def handle_communication(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
@@ -152,11 +287,11 @@ class Service():
                 response to the client.
         """
 
-        # Retrieve the client ip address and port
+        # Retrieve the client ip-address and port
         client_ip, _ = writer.get_extra_info('peername')
 
         # Logging
-        self.server_logger.info(
+        self.logger.info(
             'INFO: Received communication from client {%s}.' % (
                 client_ip
             )
@@ -175,13 +310,13 @@ class Service():
                 await writer.drain()
 
         except (
-            asyncio.TimeoutError,  # When the client-communication times-out
-            asyncio.CancelledError,  # When the server-services are cancelled
-            KeyboardInterrupt  # When the server-services are cancelled
+            asyncio.TimeoutError,  # Client-communication timed-out
+            asyncio.CancelledError,  # Server-services cancelled
+            KeyboardInterrupt  # Server-services cancelled manually
         ):
 
             # Logging
-            self.server_logger.info(
+            self.logger.info(
                 'INFO: Communication with client {%s} cancelled.' % (
                     client_ip
                 )
@@ -190,8 +325,8 @@ class Service():
         except OSError as e:
 
             # Logging
-            self.server_logger.error(
-                'ERROR:[%s] [serve_communication()] %s' % (
+            self.logger.error(
+                'ERROR: [%s] [handle_communication()] %s.' % (
                     type(e).__name__, str(e)
                 )
             )
@@ -201,20 +336,20 @@ class Service():
             try:
                 await writer.wait_closed()
             except (
-                ConnectionResetError,  # When the client-disconnects
-                ConnectionAbortedError,  # When the client-disconnects
+                ConnectionResetError,  # Client disconnected
+                ConnectionAbortedError,  # Client aborted the connection
             ):
                 pass
 
-    async def start_services(self):
-        """ Starts the async services for audio streaming
-        and client-communication.
+    async def start_server_services(self):
+        """ Starts the async services for client-registration
+        and server-communication with client(s).
         """
 
-        # Initialize the audio stream server
-        stream_server = await asyncio.start_server(
+        # Initialize the client-registration server
+        registration_server = await asyncio.start_server(
             client_connected_cb=(
-                lambda _, writer: self.serve_stream(
+                lambda _, writer: self.register_client(
                     writer=writer
                 )
             ),
@@ -225,7 +360,7 @@ class Service():
         # Initialize the ping-communication server
         communication_server = await asyncio.start_server(
             client_connected_cb=(
-                lambda reader, writer: self.serve_communication(
+                lambda reader, writer: self.handle_communication(
                     reader=reader,
                     writer=writer
                 )
@@ -235,34 +370,85 @@ class Service():
         )
 
         # Serve client-connections and communication
-        async with stream_server, communication_server:
+        async with registration_server, communication_server:
             await asyncio.gather(
-                stream_server.serve_forever(),
+                registration_server.serve_forever(),
                 communication_server.serve_forever()
             )
 
-    def run(self):
+    async def start_services(self):
+        """ Runs multiple async services independently.
+        """
+
+        # Initialize the `audera` server-services
+        start_stream_services = asyncio.create_task(
+            self.start_stream_service()
+        )
+        start_server_services = asyncio.create_task(
+            self.start_server_services()
+        )
+
+        tasks = [
+            start_stream_services,
+            start_server_services
+        ]
+
+        # Run services
+
+        #   The stream service is independent of the
+        #       other `audera` server-services.
+        #   The stream service reads audio chunks from
+        #       the audio-input device and creates a time-stamped
+        #       audio packet that is broadcasted to all connected
+        #       clients concurrently.
+
+        while tasks:
+            done, tasks = await asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            done: set[asyncio.Future]
+            tasks: set[asyncio.Future]
+
+            for task in done:
+                if task.exception():
+
+                    # Logging
+                    self.logger.error(
+                        'ERROR: [%s] An unhandled exception was raised. %s.' % (
+                            type(task.exception()).__name__,
+                            task.exception()
+                        )
+                    )
+
+        await asyncio.gather(
+            *tasks,
+            return_exceptions=True
+        )
+
+    async def run(self):
         """ Runs the async server-services. """
 
         # Logging
         for line in audera.LOGO:
-            self.server_logger.info(line)
-        self.server_logger.info('')
-        self.server_logger.info('')
-        self.server_logger.info('    Running the server-service.')
-        self.server_logger.info('')
-        self.server_logger.info(
+            self.logger.info(line)
+        self.logger.info('')
+        self.logger.info('')
+        self.logger.info('    Running the server-service.')
+        self.logger.info('')
+        self.logger.info(
             '    Audio stream address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.STREAM_PORT
             ))
-        self.server_logger.info(
+        self.logger.info(
             '    Client-communication address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.PING_PORT
             ))
-        self.server_logger.info('')
-        self.server_logger.info(
+        self.logger.info('')
+        self.logger.info(
             ' '.join([
                 "INFO: Streaming audio over PORT {%s} at RATE {%s}" % (
                     audera.STREAM_PORT,
@@ -275,44 +461,5 @@ class Service():
             ])
         )
 
-        # Create an event-loop for handling all services
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         # Run services
-        try:
-            loop.run_until_complete(self.start_services())
-
-        except KeyboardInterrupt:
-
-            # Logging
-            self.server_logger.info(
-                "INFO: Shutting down the server-services."
-            )
-
-            # Cancel any / all remaining running services
-            services = asyncio.all_tasks(loop=loop)
-            for service in services:
-                service.cancel()
-            loop.run_until_complete(
-                asyncio.gather(
-                    *services,
-                    return_exceptions=True
-                )
-            )
-
-        finally:
-
-            # Close the event-loop
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
-
-            # Logging
-            self.server_logger.info(
-                'INFO: The server-services exited successfully.'
-            )
-
-            # Close audio services
-            self.stream.stop_stream()
-            self.stream.close()
-            self.audio.terminate()
+        await self.start_services()
