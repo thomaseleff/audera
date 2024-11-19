@@ -115,9 +115,13 @@ class Service():
                     exception_on_overflow=False
                 )
 
-                # Convert the audio data chunk to a timestamped packet
+                # Convert the audio data chunk to a timestamped packet,
+                #   including the length of the packet as well as the
+                #   packet terminator.
                 captured_time = time.time() + self.offset
-                packet = struct.pack("d", captured_time) + chunk
+                prefix = struct.pack(">I", len(chunk))
+                timestamp = struct.pack("d", captured_time)
+                packet = prefix + timestamp + chunk + audera.PACKET_TERMINATOR
 
                 # Retain the list of client-connections
                 clients = copy.copy(self.clients)
@@ -235,10 +239,7 @@ class Service():
         #    if it is too slow
         try:
             writer.write(packet)
-            await asyncio.wait_for(
-                writer.drain(),
-                timeout=audera.TIME_OUT
-            )
+            await writer.drain()
         except (
             asyncio.TimeoutError,  # Client-communication timed-out
             ConnectionResetError,  # Client disconnected

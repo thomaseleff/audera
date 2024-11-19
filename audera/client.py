@@ -201,21 +201,25 @@ class Service():
             try:
 
                 # Parse audio stream packet
-                packet = await reader.read(
-                    audera.CHUNK * audera.CHANNELS * 2 + 8
-                )
-
-                # Exit the loop when there is no active audio stream
-                if not packet:
-                    break
+                packet = await reader.readuntil(separator=audera.PACKET_TERMINATOR)
 
                 # Parse the time-stamp and audio data from the packet
                 receive_time = time.time() + self.offset
-                timestamp, data = (
-                    struct.unpack("d", packet[:8])[0],
-                    packet[8:]
-                )
+                expected_length = struct.unpack(">I", packet[:4])[0]
+                timestamp = struct.unpack("d", packet[4:12])[0]
+                data = packet[12:-4]
                 target_play_time = timestamp + self.buffer_time
+
+                # Discard incomplete packets
+                if len(data) != expected_length:
+
+                    # Logging
+                    self.logger.error(
+                        'ERROR: Incomplete packet with timestamp {%.6f}.' % (
+                            timestamp
+                        )
+                    )
+                    continue
 
                 # Discard late packets
                 if receive_time > target_play_time:
@@ -235,6 +239,9 @@ class Service():
                 if len(self.buffer) >= audera.BUFFER_SIZE:
                     self.buffer_event.set()
 
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
+
             except (
                 asyncio.TimeoutError,  # Server-communication timed-out
                 ConnectionResetError,  # Server disconnected
@@ -253,6 +260,7 @@ class Service():
 
             except (
                 asyncio.CancelledError,  # Client-services cancelled
+                asyncio.IncompleteReadError,  # Client incomplete read
                 KeyboardInterrupt  # Client-services cancelled manually
             ):
 
