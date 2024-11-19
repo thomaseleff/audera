@@ -145,7 +145,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The server time offset is %.7f [sec.].' % (
+                    'INFO: The client time offset is %.7f [sec.].' % (
                         self.offset
                     )
                 )
@@ -201,13 +201,20 @@ class Service():
             try:
 
                 # Parse audio stream packet
-                packet = await reader.readuntil(separator=audera.PACKET_TERMINATOR)
+                packet = await reader.readuntil(
+                    separator=(
+                        audera.PACKET_TERMINATOR  # 4 bytes
+                        + audera.NAME.encode()  # 6 bytes
+                        + audera.PACKET_ESCAPE  # 1 byte
+                        + audera.PACKET_ESCAPE  # 1 byte
+                    )
+                )
 
                 # Parse the time-stamp and audio data from the packet
                 receive_time = time.time() + self.offset
                 expected_length = struct.unpack(">I", packet[:4])[0]
                 timestamp = struct.unpack("d", packet[4:12])[0]
-                data = packet[12:-4]
+                data = packet[12:-12]
                 target_play_time = timestamp + self.buffer_time
 
                 # Discard incomplete packets

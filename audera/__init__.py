@@ -45,6 +45,7 @@ SYNC_INTERVAL: int = 600  # The time interval in seconds between time synchoniza
 
 # Client configuration
 PACKET_TERMINATOR: bytes = b'\xFF\xFE\xFD\xFC'  # The bytes suffix that indicates the end of a packet
+PACKET_ESCAPE: bytes = b'\x00'  # The bytes escape character to avoid false packet terminator sequences
 BUFFER_SIZE: int = 10  # The number of audio packets to buffer before playback
 BUFFER_TIME: float = 2.0  # The initial buffer time in seconds to delay playback
 MAX_BUFFER_TIME: float = 5  # The max. buffer-time in seconds for high jitter

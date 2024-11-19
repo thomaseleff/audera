@@ -121,7 +121,15 @@ class Service():
                 captured_time = time.time() + self.offset
                 prefix = struct.pack(">I", len(chunk))
                 timestamp = struct.pack("d", captured_time)
-                packet = prefix + timestamp + chunk + audera.PACKET_TERMINATOR
+                packet = (
+                    prefix  # 4 bytes
+                    + timestamp  # 8 bytes
+                    + chunk
+                    + audera.PACKET_TERMINATOR  # 4 bytes
+                    + audera.NAME.encode()  # 6 bytes
+                    + audera.PACKET_ESCAPE  # 1 byte
+                    + audera.PACKET_ESCAPE  # 1 byte
+                )
 
                 # Retain the list of client-connections
                 clients = copy.copy(self.clients)
