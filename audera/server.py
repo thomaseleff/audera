@@ -30,7 +30,13 @@ class Service():
         self.clients: Dict[str, asyncio.StreamWriter] = {}
 
     async def start_time_synchonization(self):
-        """ Starts the async service for time-synchronization. """
+        """ Starts the async service for time-synchronization.
+
+        The `server` attempts to start the time-synchronization service
+        as an _independent_ task, restarting the service forever until
+        the task is either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
+        """
 
         # Communicate with the server
         while True:
@@ -48,6 +54,9 @@ class Service():
                     )
                 )
 
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
+
             except ntplib.NTPException:
 
                 # Logging
@@ -62,13 +71,36 @@ class Service():
                     ])
                 )
 
+            except (
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    'INFO: Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                        self.ntp.server
+                    )
+                )
+
+                # Exit the loop
+                break
+
             await asyncio.sleep(audera.SYNC_INTERVAL)
 
     async def start_stream_service(
         self
     ):
-        """ Starts async audio stream capture, broadcasting the audio stream
-        to all connected clients.
+        """ Starts the async audio stream service, capturing audio data from
+        the input device and broadcasts the audio stream to all connected clients
+        as timestamped packets.
+
+        The `server` attempts to start the stream service as an _independent_ task,
+        restarting the service forever with `audera.TIME_OUT` until the task is
+        either cancelled by the event loop or cancelled manually through
+        `KeyboardInterrupt`.
+
+        When cancelled, the service disconnects any / all connected clients.
         """
 
         # Initialize PyAudio
@@ -136,11 +168,11 @@ class Service():
 
                 # Broadcast the packet to the clients concurrently and drain
                 #    the writer with timeout for flow control, disconnecting
-                #    any client that is too slow
+                #    any / all clients that are too slow
 
                 results = await asyncio.gather(
                     *[
-                        self.broadcast_to_clients(
+                        self.broadcast(
                             client_ip=client_ip,
                             writer=writer,
                             packet=packet
@@ -197,7 +229,7 @@ class Service():
                 # Exit the loop
                 break
 
-            except IOError as e:
+            except OSError as e:  # All other server-communication I / O errors
 
                 # Logging
                 self.logger.error(
@@ -222,13 +254,13 @@ class Service():
         stream.close()
         audio.terminate()
 
-    async def broadcast_to_clients(
+    async def broadcast(
         self,
         client_ip: str,
         writer: asyncio.StreamWriter,
         packet: bytes
     ) -> bool:
-        """ Broadcasts the audio packet to the client.
+        """ Broadcasts the audio stream to all connected clients as timestamped packets.
 
         Parameters
         ----------
@@ -278,7 +310,8 @@ class Service():
         self,
         writer: asyncio.StreamWriter
     ):
-        """ Handles async client-registration.
+        """ The async client-registration task that is started when a client
+        connects to `0.0.0.0:audera.STREAM_PORT`.
 
         Parameters
         ----------
@@ -323,7 +356,8 @@ class Service():
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
     ):
-        """ Handles async ping-communication from clients.
+        """ The async client-communication task that is started when a client
+        connects to `0.0.0.0:audera.PING_PORT`.
 
         Parameters
         ----------
@@ -392,8 +426,13 @@ class Service():
                 pass
 
     async def start_server_services(self):
-        """ Starts the async services for client-registration
-        and server-communication with client(s).
+        """ Starts the async servers for client-registration
+        and client-communication with client(s).
+
+        The `server` attempts to start the servers as _dependent_
+        tasks, each serving continuous connections with client(s) forever until
+        the tasks complete, are cancelled by the event loop or are cancelled
+        manually through `KeyboardInterrupt`.
         """
 
         # Initialize the client-registration server
@@ -427,16 +466,32 @@ class Service():
             )
 
     async def start_services(self):
-        """ Runs multiple async services independently.
+        """ Runs the async time-synchronization service, audio stream service,
+        and client-communication server independently.
+
+        The `client` attempts to start the time-synchronization service,
+        the audio stream service and the bundle of servers as _independent_ tasks.
         """
 
-        # Initialize the `audera` server-services
+        # Initialize the time-synchronization
         start_time_synchonization_services = asyncio.create_task(
             self.start_time_synchonization()
         )
+
+        # Initialize the audio stream service
+
+        #   The audio stream service is independent of the
+        #       other `audera` server-services.
+        #   The audio stream service reads audio chunks from
+        #       the audio-input device and creates a time-stamped
+        #       audio packet that is broadcasted to all connected
+        #       clients concurrently.
+
         start_stream_services = asyncio.create_task(
             self.start_stream_service()
         )
+
+        # Initialize the `audera` servers
         start_server_services = asyncio.create_task(
             self.start_server_services()
         )
@@ -448,14 +503,6 @@ class Service():
         ]
 
         # Run services
-
-        #   The stream service is independent of the
-        #       other `audera` server-services.
-        #   The stream service reads audio chunks from
-        #       the audio-input device and creates a time-stamped
-        #       audio packet that is broadcasted to all connected
-        #       clients concurrently.
-
         while tasks:
             done, tasks = await asyncio.wait(
                 tasks,
@@ -482,7 +529,7 @@ class Service():
         )
 
     async def run(self):
-        """ Runs the async server-services. """
+        """ Starts all async server-services. """
 
         # Logging
         for line in audera.LOGO:
