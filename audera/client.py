@@ -40,6 +40,17 @@ class Service():
     async def start_shairport_services(self):
         """ Starts async shairport-sync connectivity to Airplay
         streaming devices.
+
+        The `client` attempts to start the shairport-sync service
+        as an _independent_ task once. If the operating system of the
+        `client` is not compatible or the service fails to start, then
+        the task completes without starting the shairport-sync service.
+
+        If the shairport-sync service is started successfully,
+        then the task periodically checks the status of the service,
+        restarting the service continously with `audera.TIME_OUT` until
+        the task is either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
         """
 
         while True:
@@ -132,7 +143,13 @@ class Service():
                 break
 
     async def start_time_synchronization(self):
-        """ Starts the async service for time-synchronization. """
+        """ Starts the async service for time-synchronization.
+
+        The `client` attempts to start the time-synchronization service
+        as an _independent_ task, restarting the service forever until
+        the task is either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
+        """
 
         # Communicate with the server
         while True:
@@ -150,6 +167,9 @@ class Service():
                     )
                 )
 
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
+
             except ntplib.NTPException:
 
                 # Logging
@@ -164,6 +184,21 @@ class Service():
                     ])
                 )
 
+            except (
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    'INFO: Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                        self.ntp.server
+                    )
+                )
+
+                # Exit the loop
+                break
+
             await asyncio.sleep(audera.SYNC_INTERVAL)
 
     async def receive_stream(
@@ -172,7 +207,18 @@ class Service():
         writer: asyncio.StreamWriter
     ):
         """ Receives the async audio stream from the server and
-        adds on-time packets into the playback buffer queue.
+        adds on-time packets into the playback buffer queue,
+        discarding late or incomplete packets.
+
+        The `client` attempts to start the receive stream service
+        as a _dependent_ task along with the playback stream and
+        the handle communication service.
+
+        If all services complete successfully or lose connection to
+        the server, then the event loop periodically attempts to reconnect
+        to the server, restarting the services continously with `audera.TIME_OUT`
+        until the tasks are either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
 
         Parameters
         ----------
@@ -221,8 +267,8 @@ class Service():
                 if len(data) != expected_length:
 
                     # Logging
-                    self.logger.error(
-                        'ERROR: Incomplete packet with timestamp {%.6f}.' % (
+                    self.logger.warning(
+                        'WARNING: Incomplete packet with timestamp {%.6f}.' % (
                             timestamp
                         )
                     )
@@ -296,7 +342,18 @@ class Service():
 
     async def playback_stream(self):
         """ Continuously play audio stream data from the playback buffer
-        queue, handling gaps or missing audio stream data. """
+        queue.
+
+        The `client` attempts to start the playback stream service
+        as a _dependent_ task along with the receive stream service and
+        the handle communication service.
+
+        If all services complete successfully or lose connection to
+        the server, then the event loop periodically attempts to reconnect
+        to the server, restarting the services continously with `audera.TIME_OUT`
+        until the tasks are either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
+        """
 
         # Initialize PyAudio
         audio = pyaudio.PyAudio()
@@ -313,8 +370,14 @@ class Service():
         # Play audio stream data
         while True:
             try:
-                # Wait for enough packets in the buffer queue
-                await self.buffer_event.wait()
+
+                # Wait for enough packets in the buffer queue,
+                #   timeout if the buffer is not populating to
+                #   yield to other tasks in the event loop
+                await asyncio.wait_for(
+                    self.buffer_event.wait(),
+                    timeout=audera.TIME_OUT
+                )
 
                 # Parse the time-stamp and audio data from the buffer queue
                 while self.buffer:
@@ -335,15 +398,50 @@ class Service():
                 if not self.buffer:
                     self.buffer_event.clear()
 
-            except OSError as e:
+            except asyncio.TimeoutError:  # Audio playback buffer queue is empty
+
+                # Logging
+                self.logger.info(
+                    'INFO: Server {%s} disconnected.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Reset the buffer and the buffer event
+                self.buffer.clear()
+                self.buffer_event.clear()
+
+                # Exit the loop
+                break
+
+            except (
+                asyncio.CancelledError,  # Client-services cancelled
+                KeyboardInterrupt  # Client-services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'INFO: The audio stream from server',
+                        ' {%s} was cancelled.' % (
+                            audera.SERVER_IP
+                        )
+                    ])
+                )
+
+                # Exit the loop
+                break
+
+            except OSError as e:  # All other server-communication I / O errors
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] [playback_stream()] %s' % (
+                    'ERROR: [%s] [playback_stream()] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
 
+                # Exit the loop
                 break
 
         # Close audio services
@@ -354,6 +452,16 @@ class Service():
     async def handle_communication(self):
         """ Receives async server-communication, measures round-trip time (rtt)
         and adjusts the audio playback buffer-time.
+
+        The `client` attempts to start the handle communication service
+        as a _dependent_ task along with the receive stream service and the
+        playback stream service.
+
+        If all services complete successfully or lose connection to
+        the server, then the event loop periodically attempts to reconnect
+        to the server, restarting the services continously with `audera.TIME_OUT`
+        until the tasks are either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
         """
 
         # Communicate with the server
@@ -363,8 +471,19 @@ class Service():
             try:
                 rtt = await self.measure_rtt()
 
+            except asyncio.TimeoutError:  # Server-communication timed-out
+
+                # Logging
+                self.logger.info(
+                    'INFO: Server {%s} disconnected.' % (
+                        audera.SERVER_IP
+                    )
+                )
+
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
+
             except (
-                asyncio.TimeoutError,  # Server-communication timed-out
                 asyncio.CancelledError,  # Client-services cancelled
                 KeyboardInterrupt  # Client-services cancelled manually
             ):
@@ -379,11 +498,11 @@ class Service():
                 # Exit the loop
                 break
 
-            except OSError as e:
+            except OSError as e:  # All other server-communication I / O errors
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] [measure_rtt()] %s' % (
+                    'ERROR: [%s] [handle_communication()] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
@@ -491,6 +610,16 @@ class Service():
     async def start_client_services(self):
         """ Starts the async services for audio streaming
         and client-communication with the server.
+
+        The `client` attempts to start the receive stream service,
+        playback stream service and handle communication service
+        as _dependent_ tasks together.
+
+        If all services complete successfully or lose connection to
+        the server, then the event loop periodically attempts to reconnect
+        to the server, restarting the services continously with `audera.TIME_OUT`
+        until the tasks are either cancelled by the event loop or cancelled
+        manually through `KeyboardInterrupt`.
         """
 
         # Handle server-availability
@@ -529,6 +658,7 @@ class Service():
                 )
 
             except (
+                asyncio.TimeoutError,  # Server-communication timed-out
                 ConnectionRefusedError  # Server refused the connection
             ):
 
@@ -545,20 +675,22 @@ class Service():
                 # Timeout
                 await asyncio.sleep(audera.TIME_OUT)
 
-            except (
-                asyncio.TimeoutError,  # Server-communication timed-out
-                OSError  # All other server-communication I / O errors
-            ):
+            except OSError as e:  # All other server-communication I / O errors
 
                 # Logging
-                self.logger.info(
+                self.logger.error(
                     ''.join([
-                        "INFO: Waiting on a connection to the server,",
+                        'ERROR: [%s] [start_client_services()] %s,' % (
+                            type(e).__name__, str(e)
+                        ),
                         " retrying in %.2f [sec.]." % (
                             audera.TIME_OUT
                         )
                     ])
                 )
+
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
 
             except (
                 asyncio.CancelledError,  # Client-services cancelled
@@ -581,28 +713,14 @@ class Service():
     async def start_services(self):
         """ Runs the async shairport-sync service independently of the
         async services for audio streaming and client-communication.
+
+        The `client` attempts to start the shairport-sync service,
+        the time-synchronization service and the bundle of client
+        services (receive stream service, playback stream service
+        and handle communication service) as _independent_ tasks.
         """
 
         # Initialize the shairport-sync service
-        start_shairport_services = asyncio.create_task(
-            self.start_shairport_services()
-        )
-
-        # Initialize the `audera` clients-services
-        start_time_synchronization_services = asyncio.create_task(
-            self.start_time_synchronization()
-        )
-        start_client_services = asyncio.create_task(
-            self.start_client_services()
-        )
-
-        tasks = [
-            start_shairport_services,
-            start_time_synchronization_services,
-            start_client_services
-        ]
-
-        # Run services
 
         #   The shairport-sync service is independent of the
         #       other `audera` client-services, and, is only
@@ -618,6 +736,27 @@ class Service():
         #       compatible with Airplay without having to rely
         #       on the `audera` streaming server.
 
+        start_shairport_services = asyncio.create_task(
+            self.start_shairport_services()
+        )
+
+        # Initialize the time-synchronization services
+        start_time_synchronization_services = asyncio.create_task(
+            self.start_time_synchronization()
+        )
+
+        # Initialize the `audera` clients services
+        start_client_services = asyncio.create_task(
+            self.start_client_services()
+        )
+
+        tasks = [
+            start_shairport_services,
+            start_time_synchronization_services,
+            start_client_services
+        ]
+
+        # Run services
         while tasks:
             done, tasks = await asyncio.wait(
                 tasks,
@@ -643,8 +782,7 @@ class Service():
         )
 
     async def run(self):
-        """ Starts the async services for audio streaming
-        and server-communication.
+        """ Starts all async client-services.
         """
 
         # Logging
