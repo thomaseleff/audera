@@ -740,12 +740,12 @@ class Service():
             self.start_shairport_services()
         )
 
-        # Initialize the time-synchronization services
+        # Initialize the time-synchronization service
         start_time_synchronization_services = asyncio.create_task(
             self.start_time_synchronization()
         )
 
-        # Initialize the `audera` clients services
+        # Initialize the `audera` client-services
         start_client_services = asyncio.create_task(
             self.start_client_services()
         )
@@ -771,7 +771,8 @@ class Service():
 
                     # Logging
                     self.logger.error(
-                        'ERROR: An unhandled exception was raised. %s.' % (
+                        'ERROR: [%s] An unhandled exception was raised. %s.' % (
+                            type(task.exception()).__name__,
                             task.exception()
                         )
                     )

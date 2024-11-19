@@ -473,7 +473,7 @@ class Service():
         the audio stream service and the bundle of servers as _independent_ tasks.
         """
 
-        # Initialize the time-synchronization
+        # Initialize the time-synchronization service
         start_time_synchonization_services = asyncio.create_task(
             self.start_time_synchonization()
         )
