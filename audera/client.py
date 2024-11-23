@@ -601,6 +601,11 @@ class Service():
         self.logger.info(
             'INFO: Round-trip time (rtt) is %.4f [sec.].' % (rtt)
         )
+        self.logger.info(
+            'INFO: The client time offset is %.7f [sec.].' % (
+                self.offset
+            )
+        )
 
         # Close the connection
         writer.close()
