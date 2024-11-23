@@ -155,7 +155,7 @@ class Service():
 
             try:
 
-                # Update the server local machine time offset from the network
+                # Update the client local machine time offset from the network
                 #   time protocol (ntp) server
                 self.offset = self.ntp.offset()
 
@@ -585,11 +585,17 @@ class Service():
         writer.write(b"ping")
         await writer.drain()
 
-        # Wait for return response (4 bytes)
-        await reader.read(4)
+        # Wait for return response containing the current
+        #   time on the server for calculating time offset
+        packet = await reader.read(8)  # 8 bytes
+        timestamp = struct.unpack("d", packet)[0]
+        current_time = time.time()
+
+        # Update the client local machine time offset from the server
+        self.offset = timestamp - current_time
 
         # Calculate round-trip time
-        rtt = time.time() - start_time
+        rtt = current_time - start_time
 
         # Logging
         self.logger.info(
@@ -736,9 +742,9 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        start_time_synchronization_services = asyncio.create_task(
-            self.start_time_synchronization()
-        )
+        # start_time_synchronization_services = asyncio.create_task(
+        #     self.start_time_synchronization()
+        # )
 
         # Initialize the `audera` client-services
         start_client_services = asyncio.create_task(
@@ -747,7 +753,7 @@ class Service():
 
         tasks = [
             start_shairport_services,
-            start_time_synchronization_services,
+            # start_time_synchronization_services,
             start_client_services
         ]
 

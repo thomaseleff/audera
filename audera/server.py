@@ -397,9 +397,16 @@ class Service():
             message = await reader.read(4)
             if message == b"ping":
 
-                # Serve the pong-communication
+                # Serve the response-communication containing
+                #   the current time on the server for the client
+                #   to calculate the time offset
                 #   and wait for the response to be received
-                writer.write(b"pong")
+                writer.write(
+                    struct.pack(
+                        "d",
+                        time.time()
+                    )
+                )  # 8 bytes
                 await writer.drain()
 
         except (
@@ -483,9 +490,9 @@ class Service():
         """
 
         # Initialize the time-synchronization service
-        start_time_synchonization_services = asyncio.create_task(
-            self.start_time_synchonization()
-        )
+        # start_time_synchonization_services = asyncio.create_task(
+        #     self.start_time_synchonization()
+        # )
 
         # Initialize the audio stream service
 
@@ -506,7 +513,7 @@ class Service():
         )
 
         tasks = [
-            start_time_synchonization_services,
+            # start_time_synchonization_services,
             start_stream_services,
             start_server_services
         ]
