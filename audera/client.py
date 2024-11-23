@@ -28,7 +28,7 @@ class Service():
 
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
-        self.buffer_time: float = audera.BUFFER_TIME
+        self.playback_delay: float = audera.PLAYBACK_DELAY
         self.buffer_event: asyncio.Event = asyncio.Event()
         self.rtt_history: list[float] = []
 
@@ -48,7 +48,7 @@ class Service():
 
         If the shairport-sync service is started successfully,
         then the task periodically checks the status of the service,
-        restarting the service continously with `audera.TIME_OUT` until
+        restarting the service continuously with `audera.TIME_OUT` until
         the task is either cancelled by the event loop or cancelled
         manually through `KeyboardInterrupt`.
         """
@@ -216,7 +216,7 @@ class Service():
 
         If all services complete successfully or lose connection to
         the server, then the event loop periodically attempts to reconnect
-        to the server, restarting the services continously with `audera.TIME_OUT`
+        to the server, restarting the services continuously with `audera.TIME_OUT`
         until the tasks are either cancelled by the event loop or cancelled
         manually through `KeyboardInterrupt`.
 
@@ -261,7 +261,7 @@ class Service():
                 expected_length = struct.unpack(">I", packet[:4])[0]
                 timestamp = struct.unpack("d", packet[4:12])[0]
                 data = packet[12:-12]
-                target_play_time = timestamp + self.buffer_time
+                target_play_time = timestamp + self.playback_delay
 
                 # Discard incomplete packets
                 if len(data) != expected_length:
@@ -350,7 +350,7 @@ class Service():
 
         If all services complete successfully or lose connection to
         the server, then the event loop periodically attempts to reconnect
-        to the server, restarting the services continously with `audera.TIME_OUT`
+        to the server, restarting the services continuously with `audera.TIME_OUT`
         until the tasks are either cancelled by the event loop or cancelled
         manually through `KeyboardInterrupt`.
         """
@@ -451,7 +451,7 @@ class Service():
 
     async def handle_communication(self):
         """ Receives async server-communication, measures round-trip time (rtt)
-        and adjusts the audio playback buffer-time.
+        and adjusts the audio playback playback delay.
 
         The `client` attempts to start the handle communication service
         as a _dependent_ task along with the receive stream service and the
@@ -459,7 +459,7 @@ class Service():
 
         If all services complete successfully or lose connection to
         the server, then the event loop periodically attempts to reconnect
-        to the server, restarting the services continously with `audera.TIME_OUT`
+        to the server, restarting the services continuously with `audera.TIME_OUT`
         until the tasks are either cancelled by the event loop or cancelled
         manually through `KeyboardInterrupt`.
         """
@@ -469,7 +469,7 @@ class Service():
 
             # Measure round-trip time (rtt)
             try:
-                rtt = await self.measure_rtt()
+                rtt = await self.communicate()
 
             except asyncio.TimeoutError:  # Server-communication timed-out
 
@@ -509,13 +509,13 @@ class Service():
 
                 rtt = None
 
-            # Perform audio playback buffer-time adjustment
+            # Perform audio playback playback delay adjustment
             if rtt:
 
                 # Add the rtt measurement to the history
                 self.rtt_history.append(rtt)
 
-                # Adjust the buffer-time based on rtt and jitter
+                # Adjust the playback delay based on rtt and jitter
                 #   Only adjust after the RTT_HISTORY_SIZE is met
                 if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
                     mean_rtt = statistics.mean(self.rtt_history)
@@ -524,55 +524,52 @@ class Service():
                     # Logging
                     self.logger.info(
                         ''.join([
-                            'INFO: Audio playback buffer-time statistics',
+                            'INFO: Latency statistics',
                             ' (jitter {%.4f},' % (jitter),
                             ' avg. rtt {%.4f}).' % (mean_rtt)
                         ])
                     )
 
-                    # Decrease the buffer time for low jitter and rtt
+                    # Decrease the playback delay for low jitter and rtt
                     if (
                         jitter < audera.LOW_JITTER
                         and mean_rtt < audera.LOW_RTT
                     ):
                         new_buffer_time = max(
-                            audera.MIN_BUFFER_TIME, self.buffer_time - 0.05
+                            audera.MIN_PLAYBACK_DELAY, self.playback_delay - 0.05
                         )
 
-                    # Increase the buffer-time for high jitter or rtt
+                    # Increase the playback delay for high jitter or rtt
                     elif (
                         jitter > audera.HIGH_JITTER
                         or mean_rtt > audera.HIGH_RTT
                     ):
                         new_buffer_time = min(
-                            audera.MAX_BUFFER_TIME, self.buffer_time + 0.05
+                            audera.MAX_PLAYBACK_DELAY, self.playback_delay + 0.05
                         )
 
-                    # Otherwise maintain the current buffer-time
+                    # Otherwise maintain the current playback delay
                     else:
-                        new_buffer_time = self.buffer_time
+                        new_buffer_time = self.playback_delay
 
-                    # Update the buffer-time and clear the rtt history
-                    self.buffer_time = new_buffer_time
-                    self.rtt_history.pop(0)
+                    # Update the playback delay and clear the rtt history
+                    self.playback_delay = new_buffer_time
+                    self.rtt_history.clear()
 
                     # Logging
                     self.logger.info(
                         ''.join([
-                            'INFO: Audio playback buffer-time adjusted',
+                            'INFO: Audio playback playback delay adjusted',
                             ' to %.2f [sec.].' % (
-                                self.buffer_time
+                                self.playback_delay
                             )
                         ])
                     )
 
-                    # Reset the history
-                    self.rtt_history.clear()
-
             await asyncio.sleep(audera.PING_INTERVAL)
 
-    async def measure_rtt(self):
-        """ Measures round-trip time (rtt) """
+    async def communicate(self):
+        """ Communicates with the server and measures round-trip time (rtt). """
 
         # Initialize the connection to the ping-communication server
         reader, writer = await asyncio.wait_for(
@@ -617,7 +614,7 @@ class Service():
 
         If all services complete successfully or lose connection to
         the server, then the event loop periodically attempts to reconnect
-        to the server, restarting the services continously with `audera.TIME_OUT`
+        to the server, restarting the services continuously with `audera.TIME_OUT`
         until the tasks are either cancelled by the event loop or cancelled
         manually through `KeyboardInterrupt`.
         """
