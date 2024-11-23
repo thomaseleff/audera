@@ -28,7 +28,6 @@ class Service():
 
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
-        self.playback_delay: float = audera.PLAYBACK_DELAY
         self.buffer_event: asyncio.Event = asyncio.Event()
         self.rtt_history: list[float] = []
 
@@ -258,18 +257,17 @@ class Service():
 
                 # Parse the time-stamp and audio data from the packet
                 receive_time = time.time() + self.offset
-                expected_length = struct.unpack(">I", packet[:4])[0]
-                timestamp = struct.unpack("d", packet[4:12])[0]
-                data = packet[12:-12]
-                target_play_time = timestamp + self.playback_delay
+                length = struct.unpack(">I", packet[:4])[0]
+                target_play_time = struct.unpack("d", packet[4:12])[0]
+                chunk = packet[12:-12]
 
                 # Discard incomplete packets
-                if len(data) != expected_length:
+                if len(chunk) != length:
 
                     # Logging
                     self.logger.warning(
-                        'WARNING: Incomplete packet with timestamp {%.6f}.' % (
-                            timestamp
+                        'WARNING: Incomplete packet with target playback time {%.6f}.' % (
+                            target_play_time
                         )
                     )
                     continue
@@ -279,14 +277,14 @@ class Service():
 
                     # Logging
                     self.logger.warning(
-                        'WARNING: Discarded late packet with timestamp {%.6f}.' % (
-                            timestamp
+                        'WARNING: Discarded late packet with target playback time {%.6f}.' % (
+                            target_play_time
                         )
                     )
                     continue
 
                 # Add audio data to the buffer
-                self.buffer.append((target_play_time, data))
+                self.buffer.append((target_play_time, chunk))
 
                 # Trigger playback
                 if len(self.buffer) >= audera.BUFFER_SIZE:

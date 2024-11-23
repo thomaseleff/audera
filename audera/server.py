@@ -26,6 +26,9 @@ class Service():
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
         self.offset: float = 0.0
 
+        # Initialize playback delay
+        self.playback_delay: float = audera.PLAYBACK_DELAY
+
         # Initialize clients for broadcasting the audio stream
         self.clients: Dict[str, asyncio.StreamWriter] = {}
 
@@ -150,12 +153,18 @@ class Service():
                 # Convert the audio data chunk to a timestamped packet,
                 #   including the length of the packet as well as the
                 #   packet terminator.
-                captured_time = time.time() + self.offset
-                prefix = struct.pack(">I", len(chunk))
-                timestamp = struct.pack("d", captured_time)
+
+                # Assign the timestamp as the target playback time
+                #   accounting for a fixed playback delay from the
+                #   current time on the server
+                length = struct.pack(">I", len(chunk))
+                target_play_time = struct.pack(
+                    "d",
+                    time.time() + self.playback_delay + self.offset
+                )
                 packet = (
-                    prefix  # 4 bytes
-                    + timestamp  # 8 bytes
+                    length  # 4 bytes
+                    + target_play_time  # 8 bytes
                     + chunk
                     + audera.PACKET_TERMINATOR  # 4 bytes
                     + audera.NAME.encode()  # 6 bytes
