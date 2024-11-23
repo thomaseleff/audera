@@ -8,7 +8,7 @@ import platform
 import time
 import struct
 from collections import deque
-import statistics
+# import statistics
 
 import audera
 
@@ -467,7 +467,7 @@ class Service():
 
             # Measure round-trip time (rtt)
             try:
-                rtt = await self.communicate()
+                await self.communicate()
 
             except asyncio.TimeoutError:  # Server-communication timed-out
 
@@ -505,64 +505,64 @@ class Service():
                     )
                 )
 
-                rtt = None
+                # rtt = None
 
-            # Perform audio playback playback delay adjustment
-            if rtt:
+            # # Perform audio playback playback delay adjustment
+            # if rtt:
 
-                # Add the rtt measurement to the history
-                self.rtt_history.append(rtt)
+            #     # Add the rtt measurement to the history
+            #     self.rtt_history.append(rtt)
 
-                # Adjust the playback delay based on rtt and jitter
-                #   Only adjust after the RTT_HISTORY_SIZE is met
-                if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
-                    mean_rtt = statistics.mean(self.rtt_history)
-                    jitter = statistics.stdev(self.rtt_history)
+            #     # Adjust the playback delay based on rtt and jitter
+            #     #   Only adjust after the RTT_HISTORY_SIZE is met
+            #     if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
+            #         mean_rtt = statistics.mean(self.rtt_history)
+            #         jitter = statistics.stdev(self.rtt_history)
 
-                    # Logging
-                    self.logger.info(
-                        ''.join([
-                            'INFO: Latency statistics',
-                            ' (jitter {%.4f},' % (jitter),
-                            ' avg. rtt {%.4f}).' % (mean_rtt)
-                        ])
-                    )
+            #         # Logging
+            #         self.logger.info(
+            #             ''.join([
+            #                 'INFO: Latency statistics',
+            #                 ' (jitter {%.4f},' % (jitter),
+            #                 ' avg. rtt {%.4f}).' % (mean_rtt)
+            #             ])
+            #         )
 
-                    # Decrease the playback delay for low jitter and rtt
-                    if (
-                        jitter < audera.LOW_JITTER
-                        and mean_rtt < audera.LOW_RTT
-                    ):
-                        new_buffer_time = max(
-                            audera.MIN_PLAYBACK_DELAY, self.playback_delay - 0.05
-                        )
+            #         # Decrease the playback delay for low jitter and rtt
+            #         if (
+            #             jitter < audera.LOW_JITTER
+            #             and mean_rtt < audera.LOW_RTT
+            #         ):
+            #             new_buffer_time = max(
+            #                 audera.MIN_PLAYBACK_DELAY, self.playback_delay - 0.05
+            #             )
 
-                    # Increase the playback delay for high jitter or rtt
-                    elif (
-                        jitter > audera.HIGH_JITTER
-                        or mean_rtt > audera.HIGH_RTT
-                    ):
-                        new_buffer_time = min(
-                            audera.MAX_PLAYBACK_DELAY, self.playback_delay + 0.05
-                        )
+            #         # Increase the playback delay for high jitter or rtt
+            #         elif (
+            #             jitter > audera.HIGH_JITTER
+            #             or mean_rtt > audera.HIGH_RTT
+            #         ):
+            #             new_buffer_time = min(
+            #                 audera.MAX_PLAYBACK_DELAY, self.playback_delay + 0.05
+            #             )
 
-                    # Otherwise maintain the current playback delay
-                    else:
-                        new_buffer_time = self.playback_delay
+            #         # Otherwise maintain the current playback delay
+            #         else:
+            #             new_buffer_time = self.playback_delay
 
-                    # Update the playback delay and clear the rtt history
-                    self.playback_delay = new_buffer_time
-                    self.rtt_history.clear()
+            #         # Update the playback delay and clear the rtt history
+            #         self.playback_delay = new_buffer_time
+            #         self.rtt_history.clear()
 
-                    # Logging
-                    self.logger.info(
-                        ''.join([
-                            'INFO: Audio playback playback delay adjusted',
-                            ' to %.2f [sec.].' % (
-                                self.playback_delay
-                            )
-                        ])
-                    )
+            #         # Logging
+            #         self.logger.info(
+            #             ''.join([
+            #                 'INFO: Audio playback playback delay adjusted',
+            #                 ' to %.2f [sec.].' % (
+            #                     self.playback_delay
+            #                 )
+            #             ])
+            #         )
 
             await asyncio.sleep(audera.PING_INTERVAL)
 
@@ -606,7 +606,7 @@ class Service():
         writer.close()
         await writer.wait_closed()
 
-        return rtt
+        # return rtt
 
     async def start_client_services(self):
         """ Starts the async services for audio streaming
