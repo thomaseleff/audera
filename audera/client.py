@@ -591,9 +591,6 @@ class Service():
         timestamp = struct.unpack("d", packet)[0]
         current_time = time.time()
 
-        # Update the client local machine time offset from the server
-        self.offset = timestamp - current_time
-
         # Calculate round-trip time
         rtt = current_time - start_time
 
@@ -601,6 +598,10 @@ class Service():
         self.logger.info(
             'INFO: Round-trip time (rtt) is %.4f [sec.].' % (rtt)
         )
+
+        # Update the client local machine time offset from the server
+        self.offset = timestamp - current_time - rtt
+
         self.logger.info(
             'INFO: The client time offset is %.7f [sec.].' % (
                 self.offset
