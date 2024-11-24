@@ -52,7 +52,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The server time offset is %.7f [sec.].' % (
+                    'The server time offset is %.7f [sec.].' % (
                         self.offset
                     )
                 )
@@ -65,7 +65,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'INFO: Communication with the network time protocol (ntp) server {%s} failed,' % (
+                        'Communication with the network time protocol (ntp) server {%s} failed,' % (
                             self.ntp.server
                         ),
                         ' retrying in %.2f [min.].' % (
@@ -81,7 +81,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                    'Communication with the network time protocol (npt) server {%s} cancelled.' % (
                         self.ntp.server
                     )
                 )
@@ -123,7 +123,7 @@ class Service():
 
             # Logging
             self.logger.error(
-                "ERROR: No input audio device found."
+                "No input audio device found."
             )
 
             # Exit
@@ -138,6 +138,20 @@ class Service():
             input=True,
             input_device_index=audera.DEVICE_INDEX,
             frames_per_buffer=audera.CHUNK
+        )
+
+        # Logging
+        self.logger.info(
+            ' '.join([
+                "Streaming audio over PORT {%s} at RATE {%s}" % (
+                    audera.STREAM_PORT,
+                    audera.RATE
+                ),
+                "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
+                    audera.CHANNELS,
+                    audera.DEVICE_INDEX
+                )
+            ])
         )
 
         # Serve audio stream
@@ -205,7 +219,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The audio stream was cancelled.'
+                    'The audio stream was cancelled.'
                 )
 
                 # Retain list of client-connections
@@ -216,7 +230,7 @@ class Service():
 
                     # Logging
                     self.logger.info(
-                        'INFO: Client {%s} disconnected.' % (
+                        'Client {%s} disconnected.' % (
                             client_ip
                         )
                     )
@@ -242,13 +256,13 @@ class Service():
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] %s.' % (
+                    '[%s] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
                 self.logger.info(
                     ''.join([
-                        "INFO: The audio stream capture encountered",
+                        "The audio stream capture encountered",
                         " an error, retrying in %.2f [sec.]." % (
                             audera.TIME_OUT
                         )
@@ -297,7 +311,7 @@ class Service():
 
             # Logging
             self.logger.info(
-                'INFO: Client {%s} disconnected.' % (
+                'Client {%s} disconnected.' % (
                     client_ip
                 )
             )
@@ -335,7 +349,7 @@ class Service():
 
         # Logging
         self.logger.info(
-            'INFO: Client {%s} connected.' % (
+            'Client {%s} connected.' % (
                 client_ip
             )
         )
@@ -352,7 +366,7 @@ class Service():
 
             # Logging
             self.logger.warning(
-                'WARNING: Client {%s} unable to operate with TCP_NODELAY.' % (
+                'Client {%s} unable to operate with TCP_NODELAY.' % (
                     client_ip
                 )
             )
@@ -385,7 +399,7 @@ class Service():
 
         # Logging
         self.logger.info(
-            'INFO: Received communication from client {%s}.' % (
+            'Received communication from client {%s}.' % (
                 client_ip
             )
         )
@@ -417,7 +431,7 @@ class Service():
 
             # Logging
             self.logger.info(
-                'INFO: Communication with client {%s} cancelled.' % (
+                'Communication with client {%s} cancelled.' % (
                     client_ip
                 )
             )
@@ -426,7 +440,7 @@ class Service():
 
             # Logging
             self.logger.error(
-                'ERROR: [%s] [handle_communication()] %s.' % (
+                '[%s] [handle_communication()] %s.' % (
                     type(e).__name__, str(e)
                 )
             )
@@ -533,7 +547,7 @@ class Service():
 
                     # Logging
                     self.logger.error(
-                        'ERROR: [%s] An unhandled exception was raised. %s.' % (
+                        '[%s] An unhandled exception was raised. %s.' % (
                             type(task.exception()).__name__,
                             task.exception()
                         )
@@ -549,34 +563,22 @@ class Service():
 
         # Logging
         for line in audera.LOGO:
-            self.logger.info(line)
-        self.logger.info('')
-        self.logger.info('')
-        self.logger.info('    Running the server-service.')
-        self.logger.info('')
-        self.logger.info(
+            self.logger.message(line)
+        self.logger.message('')
+        self.logger.message('')
+        self.logger.message('    Running the server-service.')
+        self.logger.message('')
+        self.logger.message(
             '    Audio stream address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.STREAM_PORT
             ))
-        self.logger.info(
+        self.logger.message(
             '    Client-communication address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.PING_PORT
             ))
-        self.logger.info('')
-        self.logger.info(
-            ' '.join([
-                "INFO: Streaming audio over PORT {%s} at RATE {%s}" % (
-                    audera.STREAM_PORT,
-                    audera.RATE
-                ),
-                "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
-                    audera.CHANNELS,
-                    audera.DEVICE_INDEX
-                )
-            ])
-        )
+        self.logger.message('')
 
         # Run services
         await self.start_services()

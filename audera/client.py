@@ -59,9 +59,9 @@ class Service():
             if operating_system not in ['Linux', 'Darwin']:
 
                 # Logging
-                self.logger.info(
+                self.logger.warning(
                     ''.join([
-                        'ERROR: The shairport-sync service is only available',
+                        'The shairport-sync service is only available',
                         ' on Linux and MacOS.'
                     ])
                 )
@@ -81,21 +81,21 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The shairport-sync service started successfully.'
+                    'The shairport-sync service started successfully.'
                 )
 
             else:
 
                 # Logging
                 self.logger.error(
-                    'INFO: The shairport-sync service failed to start.'
+                    'The shairport-sync service failed to start.'
                 )
 
                 if stderr:
 
                     # Logging
                     self.logger.error(
-                        'ERROR: [%s] [start_shairport_services()] %s.' % (
+                        '[%s] [start_shairport_services()] %s.' % (
                             'CalledProcessError', stderr.decode().strip()
                         )
                     )
@@ -118,7 +118,7 @@ class Service():
                         # Logging
                         self.logger.info(
                             ''.join([
-                                "INFO: The shairport-sync service encountered",
+                                "The shairport-sync service encountered",
                                 " an error, retrying in %.2f [sec.]." % (
                                     audera.TIME_OUT
                                 )
@@ -161,7 +161,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: The client time offset is %.7f [sec.].' % (
+                    'The client time offset is %.7f [sec.].' % (
                         self.offset
                     )
                 )
@@ -174,7 +174,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'INFO: Communication with the network time protocol (ntp) server {%s} failed,' % (
+                        'Communication with the network time protocol (ntp) server {%s} failed,' % (
                             self.ntp.server
                         ),
                         ' retrying in %.2f [min.].' % (
@@ -190,7 +190,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                    'Communication with the network time protocol (npt) server {%s} cancelled.' % (
                         self.ntp.server
                     )
                 )
@@ -231,7 +231,7 @@ class Service():
         # Logging
         self.logger.info(
             ' '.join([
-                "INFO: Receiving audio over PORT {%s} at RATE {%s}" % (
+                "Receiving audio over PORT {%s} at RATE {%s}" % (
                     audera.STREAM_PORT,
                     audera.RATE
                 ),
@@ -267,7 +267,7 @@ class Service():
 
                     # Logging
                     self.logger.warning(
-                        'WARNING: Incomplete packet with target playback time {%.6f}.' % (
+                        'Incomplete packet with target playback time {%.6f}.' % (
                             target_play_time
                         )
                     )
@@ -278,7 +278,7 @@ class Service():
 
                     # Logging
                     self.logger.warning(
-                        'WARNING: Discarded late packet with target playback time {%.6f}.' % (
+                        'Discarded late packet with target playback time {%.6f}.' % (
                             target_play_time
                         )
                     )
@@ -302,7 +302,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Server {%s} disconnected.' % (
+                    'Server {%s} disconnected.' % (
                         audera.SERVER_IP
                     )
                 )
@@ -319,7 +319,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'INFO: The audio stream from server',
+                        'The audio stream from server',
                         ' {%s} was cancelled.' % (
                             audera.SERVER_IP
                         )
@@ -402,7 +402,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Server {%s} disconnected.' % (
+                    'Server {%s} disconnected.' % (
                         audera.SERVER_IP
                     )
                 )
@@ -422,7 +422,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'INFO: The audio stream from server',
+                        'The audio stream from server',
                         ' {%s} was cancelled.' % (
                             audera.SERVER_IP
                         )
@@ -436,7 +436,7 @@ class Service():
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] [playback_stream()] %s.' % (
+                    '[%s] [playback_stream()] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
@@ -475,7 +475,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Server {%s} disconnected.' % (
+                    'Server {%s} disconnected.' % (
                         audera.SERVER_IP
                     )
                 )
@@ -490,7 +490,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'INFO: Communication with server {%s} cancelled.' % (
+                    'Communication with server {%s} cancelled.' % (
                         audera.SERVER_IP
                     )
                 )
@@ -502,7 +502,7 @@ class Service():
 
                 # Logging
                 self.logger.error(
-                    'ERROR: [%s] [handle_communication()] %s.' % (
+                    '[%s] [handle_communication()] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
@@ -524,7 +524,7 @@ class Service():
             #         # Logging
             #         self.logger.info(
             #             ''.join([
-            #                 'INFO: Latency statistics',
+            #                 'Latency statistics',
             #                 ' (jitter {%.4f},' % (jitter),
             #                 ' avg. rtt {%.4f}).' % (mean_rtt)
             #             ])
@@ -559,7 +559,7 @@ class Service():
             #         # Logging
             #         self.logger.info(
             #             ''.join([
-            #                 'INFO: Audio playback playback delay adjusted',
+            #                 'Audio playback playback delay adjusted',
             #                 ' to %.2f [sec.].' % (
             #                     self.playback_delay
             #                 )
@@ -598,14 +598,14 @@ class Service():
 
         # Logging
         self.logger.info(
-            'INFO: Round-trip time (rtt) is %.4f [sec.].' % (rtt)
+            'Round-trip time (rtt) is %.4f [sec.].' % (rtt)
         )
 
         # Update the client local machine time offset from the server
         self.offset = timestamp - current_time - rtt
 
         self.logger.info(
-            'INFO: The client time offset is %.7f [sec.].' % (
+            'The client time offset is %.7f [sec.].' % (
                 self.offset
             )
         )
@@ -674,7 +674,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        "INFO: Waiting on a connection to the server,",
+                        "Waiting on a connection to the server,",
                         " retrying in %.2f [sec.]." % (
                             audera.TIME_OUT
                         )
@@ -689,7 +689,7 @@ class Service():
                 # Logging
                 self.logger.error(
                     ''.join([
-                        'ERROR: [%s] [start_client_services()] %s,' % (
+                        '[%s] [start_client_services()] %s,' % (
                             type(e).__name__, str(e)
                         ),
                         " retrying in %.2f [sec.]." % (
@@ -709,7 +709,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'INFO: The audio stream from server',
+                        'The audio stream from server',
                         ' {%s} was cancelled.' % (
                             audera.SERVER_IP
                         )
@@ -780,7 +780,7 @@ class Service():
 
                     # Logging
                     self.logger.error(
-                        'ERROR: [%s] An unhandled exception was raised. %s.' % (
+                        '[%s] An unhandled exception was raised. %s.' % (
                             type(task.exception()).__name__,
                             task.exception()
                         )
@@ -797,26 +797,26 @@ class Service():
 
         # Logging
         for line in audera.LOGO:
-            self.logger.info(line)
-        self.logger.info('')
-        self.logger.info('')
-        self.logger.info('    Running the client-service.')
-        self.logger.info('')
-        self.logger.info(
+            self.logger.message(line)
+        self.logger.message('')
+        self.logger.message('')
+        self.logger.message('    Running the client-service.')
+        self.logger.message('')
+        self.logger.message(
             '    Audio stream address: {%s:%s}' % (
                 audera.SERVER_IP,
                 audera.STREAM_PORT
             )
         )
-        self.logger.info(
+        self.logger.message(
             '    Client address: {%s}' % (
                 socket.gethostbyname(socket.gethostname()),
             )
         )
-        self.logger.info('')
+        self.logger.message('')
         self.logger.info(
             ''.join([
-                "INFO: Waiting on a connection to the server,",
+                "Waiting on a connection to the server,",
                 " retrying in %.2f [sec.]." % (
                     audera.TIME_OUT
                 )
@@ -824,7 +824,7 @@ class Service():
         )
         self.logger.info(
             ''.join([
-                "INFO: Waiting on the shairport-sync service to begin,",
+                "Waiting on the shairport-sync service to begin,",
                 " retrying in %.2f [sec.]." % (
                     audera.TIME_OUT
                 )

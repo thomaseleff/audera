@@ -24,17 +24,6 @@ class Logger(logging.Logger):
         super().__init__(*args, **kwargs)
 
 
-# Create application-loggers
-def get_server_logger() -> logging.Logger:
-    """ Get the `audera` server console logger. """
-    return logger(name='server').get()
-
-
-def get_client_logger() -> logging.Logger:
-    """ Get the `audera` client console logger. """
-    return logger(name='client', text_color=COLORS['red']).get()
-
-
 class logger():
     """ A `class` that represents a generic logging handler. """
 
@@ -70,6 +59,86 @@ class logger():
             self.logger.addHandler(hdlr=debugger)
 
     def get(self):
-        """ Returns the logger instance.
-        """
+        """ Returns the logger instance. """
         return self.logger
+
+    def message(self, message: str):
+        """ Logs message with an un-set severity.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.info(f"{message}")
+
+    def debug(self, message: str):
+        """ Logs message with severity `DEBUG`.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.debug(
+            f"    DEBUG: {message}"
+        )
+
+    def info(self, message: str):
+        """ Logs message with severity `INFO`.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.info(
+            f"    INFO: {message}"
+        )
+
+    def warning(self, message: str):
+        """ Logs message with severity `WARNING`.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.warning(
+            f"*   WARNING: {message}"
+        )
+
+    def error(self, message: str):
+        """ Logs message with severity `ERROR`.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.error(
+            f"**  ERROR: {message}"
+        )
+
+    def critical(self, message: str):
+        """ Logs message with severity `CRITICAL`.
+
+        Parameters
+        ----------
+        message: `str`
+            The log-message content.
+        """
+        self.logger.critical(
+            f"*** CRITICAL: {message}"
+        )
+
+
+# Create application-loggers
+def get_server_logger() -> logger:
+    """ Get the `audera` server console logger. """
+    return logger(name='server')
+
+
+def get_client_logger() -> logger:
+    """ Get the `audera` client console logger. """
+    return logger(name='client', text_color=COLORS['red'])
