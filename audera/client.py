@@ -258,7 +258,7 @@ class Service():
                 # Parse the time-stamp and audio data from the packet
                 receive_time = time.time() + self.offset
                 length = struct.unpack(">I", packet[:4])[0]
-                target_play_time = struct.unpack("d", packet[4:12])[0]
+                target_play_time = struct.unpack("d", packet[4:12])[0] + self.offset
                 chunk = packet[12:-12]
 
                 # Discard incomplete packets
