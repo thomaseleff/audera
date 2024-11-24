@@ -256,11 +256,10 @@ class Service():
                 )
 
                 # Parse the timestamp and audio data from the packet,
-                #   adding offset to adjust server-side timestamps
-                #   and subtracting offset to adjust client-side timestamps
-                receive_time = time.time() - self.offset
+                #   subtracting offset to adjust server-side timestamps
+                receive_time = time.time()
                 length = struct.unpack(">I", packet[:4])[0]
-                target_play_time = struct.unpack("d", packet[4:12])[0] + self.offset
+                target_play_time = struct.unpack("d", packet[4:12])[0] - self.offset
                 chunk = packet[12:-12]
 
                 # Discard incomplete packets
