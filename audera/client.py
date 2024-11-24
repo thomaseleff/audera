@@ -256,7 +256,7 @@ class Service():
                 )
 
                 # Parse the timestamp and audio data from the packet,
-                #   subtracting offset to adjust server-side timestamps
+                #   adding offset to adjust client-side timestamps
                 receive_time = time.time() + self.offset
                 length = struct.unpack(">I", packet[:4])[0]
                 target_play_time = struct.unpack("d", packet[4:12])[0]
@@ -378,7 +378,8 @@ class Service():
                     timeout=audera.TIME_OUT
                 )
 
-                # Parse the time-stamp and audio data from the buffer queue
+                # Parse the time-stamp and audio data from the buffer queue,
+                #   adding offset to adjust client-side timestamps
                 while self.buffer:
                     target_play_time, data = self.buffer.popleft()
                     sleep_time = target_play_time - time.time() + self.offset
