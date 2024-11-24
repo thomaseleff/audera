@@ -257,9 +257,9 @@ class Service():
 
                 # Parse the timestamp and audio data from the packet,
                 #   subtracting offset to adjust server-side timestamps
-                receive_time = time.time()
+                receive_time = time.time() + self.offset
                 length = struct.unpack(">I", packet[:4])[0]
-                target_play_time = struct.unpack("d", packet[4:12])[0] - self.offset
+                target_play_time = struct.unpack("d", packet[4:12])[0]
                 chunk = packet[12:-12]
 
                 # Discard incomplete packets
@@ -381,7 +381,7 @@ class Service():
                 # Parse the time-stamp and audio data from the buffer queue
                 while self.buffer:
                     target_play_time, data = self.buffer.popleft()
-                    sleep_time = target_play_time - time.time()
+                    sleep_time = target_play_time - time.time() + self.offset
 
                     # Sleep until the target playback time
                     if sleep_time > 0:
