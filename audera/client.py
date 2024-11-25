@@ -392,7 +392,7 @@ class Service():
                         stream.write(chunk)
 
                 # Play silence when the buffer is empty
-                # stream.write(self.silent_data)
+                stream.write(self.silent_data)
 
                 # Reset the buffer event when the buffer is empty
                 if not self.buffer:
