@@ -255,37 +255,8 @@ class Service():
                     )
                 )
 
-                # Parse the timestamp and audio data from the packet,
-                #   adding offset to adjust client-side timestamps
-                receive_time = time.time() + self.offset
-                length = struct.unpack(">I", packet[:4])[0]
-                target_play_time = struct.unpack("d", packet[4:12])[0]
-                chunk = packet[12:-12]
-
-                # Discard incomplete packets
-                if len(chunk) != length:
-
-                    # Logging
-                    self.logger.warning(
-                        'Incomplete packet with target playback time {%.6f}.' % (
-                            target_play_time
-                        )
-                    )
-                    continue
-
-                # Discard late packets
-                if receive_time > target_play_time:
-
-                    # Logging
-                    self.logger.warning(
-                        'Discarded late packet with target playback time {%.6f}.' % (
-                            target_play_time
-                        )
-                    )
-                    continue
-
-                # Add audio data to the buffer
-                self.buffer.append((target_play_time, chunk))
+                # Add audio stream packet to the buffer
+                self.buffer.append(packet)
 
                 # Trigger playback
                 if len(self.buffer) >= audera.BUFFER_SIZE:
@@ -378,21 +349,50 @@ class Service():
                     timeout=audera.TIME_OUT
                 )
 
-                # Parse the time-stamp and audio data from the buffer queue,
-                #   adding offset to adjust client-side timestamps
+                # Parse the audio stream packet from the buffer queue
                 while self.buffer:
-                    target_play_time, data = self.buffer.popleft()
-                    sleep_time = target_play_time - time.time() + self.offset
+                    packet = self.buffer.popleft()
+
+                    # Parse the timestamp and audio data from the packet,
+                    #   adding offset to adjust client-side timestamps
+                    length = struct.unpack(">I", packet[:4])[0]
+                    target_play_time = struct.unpack("d", packet[4:12])[0]
+                    chunk = packet[12:-12]
+
+                    # Discard incomplete packets
+                    if len(chunk) != length:
+
+                        # Logging
+                        self.logger.warning(
+                            'Incomplete packet with target playback time {%.6f}.' % (
+                                target_play_time
+                            )
+                        )
+                        continue
+
+                    # Discard late packets
+                    if (time.time() + self.offset) > target_play_time:
+
+                        # Logging
+                        self.logger.warning(
+                            'Late packet with target playback time {%.6f}.' % (
+                                target_play_time
+                            )
+                        )
+                        continue
+
+                    # Calculate the time to wait until the target playback time
+                    sleep_time = target_play_time - (time.time() + self.offset)
 
                     # Sleep until the target playback time
-                    if sleep_time > 0:
+                    if sleep_time >= 0:
                         await asyncio.sleep(sleep_time)
 
-                    # Play the audio stream data
-                    stream.write(data)
+                        # Play the audio stream data
+                        stream.write(chunk)
 
                 # Play silence when the buffer is empty
-                stream.write(self.silent_data)
+                # stream.write(self.silent_data)
 
                 # Reset the buffer event when the buffer is empty
                 if not self.buffer:
