@@ -9,6 +9,9 @@ import sys
 import time
 import struct
 import copy
+import uuid
+import threading
+from zeroconf import Zeroconf, ServiceInfo
 
 import audera
 
@@ -22,6 +25,27 @@ class Service():
         # Logging
         self.logger = audera.logging.get_server_logger()
 
+        # Initialize mDNS
+        self.mac_address = uuid.getnode()
+        self.hostname = socket.gethostname()
+        self.ip_address = socket.gethostbyname(self.hostname)
+        self.mdns_type = f"_{audera.NAME.lower()}._tcp.local."
+        self.mdns_name = f"server-{self.mac_address}.{self.mdns_type}"
+        self.mdns = audera.mdns.Service(
+            logger=self.logger,
+            zc=Zeroconf(),
+            info=ServiceInfo(
+                type_=self.mdns_type,
+                name=self.mdns_name,
+                addresses=[socket.inet_aton(self.ip_address)],
+                port=audera.STREAM_PORT,
+                weight=0,
+                priority=0,
+                properties={"description": audera.DESCRIPTION},
+                server=f"server-{self.mac_address}.local."
+            )
+        )
+
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
         self.offset: float = 0.0
@@ -31,6 +55,52 @@ class Service():
 
         # Initialize clients for broadcasting the audio stream
         self.clients: Dict[str, asyncio.StreamWriter] = {}
+
+        # Initialize process control parameters
+        self.running: asyncio.Event = asyncio.Event()
+
+    async def start_mdns_services(self):
+        """ Starts the async service for time-synchronization.
+
+        The `server` attempts to start the mDNS service as an
+        _independent_ task, until the task is either cancelled by
+        the event loop or cancelled manually through `KeyboardInterrupt`.
+        """
+
+        # Register and broadcast the mDNS service
+        while True:
+
+            try:
+
+                # The mDNS service must be started in a separate thread,
+                #   since zeroconf relies on its own async event loop that must be run
+                #   separately from the `server` async event loop.
+
+                mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
+                mdns_thread.start()
+
+                # Start all other `server` services
+                self.running.set()
+
+                # Yield to other tasks in the event loop
+                while self.running.is_set():
+                    await asyncio.sleep(0.1)
+
+            except KeyboardInterrupt:  # Server-services cancelled manually
+
+                # Logging
+                self.logger.info(
+                    'mDNS service {%s} cancelled.' % (
+                        self.mdns_type
+                    )
+                )
+
+                # Exit the loop
+                break
+
+        # Close the mDNS service
+        self.mdns.unregister()
+        mdns_thread.join()
 
     async def start_time_synchonization(self):
         """ Starts the async service for time-synchronization.
@@ -42,7 +112,7 @@ class Service():
         """
 
         # Communicate with the server
-        while True:
+        while self.running.is_set():
 
             try:
 
@@ -155,7 +225,8 @@ class Service():
         )
 
         # Serve audio stream
-        while True:
+        while self.running.is_set():
+
             try:
 
                 # Read the next audio data chunk
@@ -495,13 +566,22 @@ class Service():
                 communication_server.serve_forever()
             )
 
+    async def stop_services(self):
+        """ Stops the async services. """
+        self.running.clear()
+
     async def start_services(self):
-        """ Runs the async time-synchronization service, audio stream service,
-        and client-communication server independently.
+        """ Runs the async mDNS service, time-synchronization service,
+        audio stream service, and client-communication server independently.
 
         The `client` attempts to start the time-synchronization service,
         the audio stream service and the bundle of servers as _independent_ tasks.
         """
+
+        # Initialize the mDNS service
+        start_mdns_services = asyncio.create_task(
+            self.start_mdns_services()
+        )
 
         # Initialize the time-synchronization service
         # start_time_synchonization_services = asyncio.create_task(
@@ -527,36 +607,41 @@ class Service():
         )
 
         tasks = [
+            start_mdns_services,
             # start_time_synchonization_services,
             start_stream_services,
             start_server_services
         ]
 
         # Run services
-        while tasks:
-            done, tasks = await asyncio.wait(
-                tasks,
-                return_when=asyncio.FIRST_COMPLETED
-            )
+        try:
+            while tasks:
+                done, tasks = await asyncio.wait(
+                    tasks,
+                    return_when=asyncio.FIRST_COMPLETED
+                )
 
-            done: set[asyncio.Future]
-            tasks: set[asyncio.Future]
+                done: set[asyncio.Future]
+                tasks: set[asyncio.Future]
 
-            for task in done:
-                if task.exception():
+                for task in done:
+                    if task.exception():
 
-                    # Logging
-                    self.logger.error(
-                        '[%s] An unhandled exception was raised. %s.' % (
-                            type(task.exception()).__name__,
-                            task.exception()
+                        # Logging
+                        self.logger.error(
+                            '[%s] An unhandled exception was raised. %s.' % (
+                                type(task.exception()).__name__,
+                                task.exception()
+                            )
                         )
-                    )
 
-        await asyncio.gather(
-            *tasks,
-            return_exceptions=True
-        )
+        # Stop services
+        finally:
+            await self.stop_services()
+            await asyncio.gather(
+                *tasks,
+                return_exceptions=True
+            )
 
     async def run(self):
         """ Starts all async server-services. """

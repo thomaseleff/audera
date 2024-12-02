@@ -8,9 +8,9 @@ from typing import Union, List, Literal
 import errno
 import pyaudio
 
-from audera import logging, ntp
+from audera import logging, ntp, mdns
 
-__all__ = ['logging', 'ntp']
+__all__ = ['logging', 'ntp', 'mdns']
 
 # Logo
 LOGO: List[str] = [
