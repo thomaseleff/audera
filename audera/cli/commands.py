@@ -60,7 +60,7 @@ def run(
 
         # Logging
         service.logger.info(
-            "INFO: Shutting down the services."
+            "Shutting down the services."
         )
 
         # Cancel any / all remaining running services
@@ -82,5 +82,5 @@ def run(
 
         # Logging
         service.logger.info(
-            'INFO: The services exited successfully.'
+            'The services exited successfully.'
         )

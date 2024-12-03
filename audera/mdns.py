@@ -4,9 +4,21 @@ Allows for resolving hostnames to IP addresses within local networks
 that do not include a local name server.
 """
 
+from typing import Union
 import logging
 import socket
 from zeroconf import Zeroconf, ServiceInfo
+
+
+def get_local_ip_address():
+    """ Connects to an external ip-address, which determines the appropriate
+    interface for the connection, and then returns the local ip-address used
+    in that connection.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 80))
+        ip_address = s.getsockname()[0]
+    return ip_address
 
 
 class Service:
@@ -128,8 +140,11 @@ class Connection:
         self.retry: int = 1
         self.time_out: float = time_out
 
-    def browse(self):
+    def browse(self) -> Union[ServiceInfo, None]:
         """ Browse for a the mDNS service within the local network. """
+
+        # Initialize the mDNS service information
+        info = None
 
         while self.retry < self.max_retries + 1:
 
@@ -171,10 +186,4 @@ class Connection:
         # Exit
         self.zc.close()
 
-        if not info:
-            return (None, None)
-        else:
-            return (
-                socket.inet_ntoa(info.addresses[0]),
-                info.port
-            )
+        return info

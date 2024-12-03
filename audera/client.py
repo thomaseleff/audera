@@ -61,9 +61,14 @@ class Service():
         """
 
         # Browse mDNS services and retain the ip-address of the server service
-        self.ip_address, self.stream_port = self.mdns.browse()
+        info = self.mdns.browse()
 
-        if self.ip_address and self.stream_port:
+        # Retain mDNS service settings
+        if info:
+            self.server_ip_address = socket.inet_ntoa(info.addresses[0])
+            self.stream_port = info.port
+
+            # Trigger client-services
             self.mdns_connection_event.set()
 
         # Yield to other tasks in the event loop
@@ -846,7 +851,7 @@ class Service():
         self.logger.message('')
         self.logger.message(
             '    Client address: {%s}' % (
-                socket.gethostbyname(socket.gethostname()),
+                audera.mdns.get_local_ip_address(),
             )
         )
         self.logger.message('')

@@ -27,15 +27,14 @@ class Service():
 
         # Initialize mDNS
         self.mac_address = uuid.getnode()
-        self.hostname = socket.gethostname()
-        self.ip_address = socket.gethostbyname(self.hostname)
+        self.server_ip_address = audera.mdns.get_local_ip_address()
         self.mdns: audera.mdns.Service = audera.mdns.Service(
             logger=self.logger,
             zc=Zeroconf(),
             info=ServiceInfo(
                 type_=audera.MDNS_TYPE,
                 name=audera.MDNS_NAME,
-                addresses=[socket.inet_aton(self.ip_address)],
+                addresses=[socket.inet_aton(self.server_ip_address)],
                 port=audera.STREAM_PORT,
                 weight=0,
                 priority=0,
@@ -652,12 +651,12 @@ class Service():
         self.logger.message('')
         self.logger.message(
             '    Audio stream address: {%s:%s}' % (
-                audera.SERVER_IP,
+                self.server_ip_address,
                 audera.STREAM_PORT
             ))
         self.logger.message(
             '    Client-communication address: {%s:%s}' % (
-                audera.SERVER_IP,
+                self.server_ip_address,
                 audera.PING_PORT
             ))
         self.logger.message('')
