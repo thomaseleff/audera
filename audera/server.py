@@ -29,20 +29,17 @@ class Service():
         self.mac_address = uuid.getnode()
         self.hostname = socket.gethostname()
         self.ip_address = socket.gethostbyname(self.hostname)
-        self.mdns_type = f"_{audera.NAME.lower()}._tcp.local."
-        self.mdns_name = f"server-{self.mac_address}.{self.mdns_type}"
-        self.mdns = audera.mdns.Service(
+        self.mdns: audera.mdns.Service = audera.mdns.Service(
             logger=self.logger,
             zc=Zeroconf(),
             info=ServiceInfo(
-                type_=self.mdns_type,
-                name=self.mdns_name,
+                type_=audera.MDNS_TYPE,
+                name=audera.MDNS_NAME,
                 addresses=[socket.inet_aton(self.ip_address)],
                 port=audera.STREAM_PORT,
                 weight=0,
                 priority=0,
-                properties={"description": audera.DESCRIPTION},
-                server=f"server-{self.mac_address}.local."
+                properties={"description": audera.DESCRIPTION}
             )
         )
 
@@ -60,7 +57,7 @@ class Service():
         self.running: asyncio.Event = asyncio.Event()
 
     async def start_mdns_services(self):
-        """ Starts the async service for time-synchronization.
+        """ Starts the async service for the multi-cast DNS service.
 
         The `server` attempts to start the mDNS service as an
         _independent_ task, until the task is either cancelled by
@@ -91,7 +88,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     'mDNS service {%s} cancelled.' % (
-                        self.mdns_type
+                        audera.MDNS_TYPE
                     )
                 )
 

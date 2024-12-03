@@ -36,6 +36,8 @@ RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: Union[int, None] = None
 
 # Server configuration
+MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
+MDNS_NAME = f"stream.{MDNS_TYPE}"
 SERVER_IP: str = "192.168.1.17"
 STREAM_PORT: int = 5000
 PING_PORT: int = 5001
