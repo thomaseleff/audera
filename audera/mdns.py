@@ -16,13 +16,13 @@ def get_local_ip_address():
     in that connection.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.connect(("8.8.8.8", 80))
+        s.connect(("208.67.220.123", 80))  # DuckDuckGo
         ip_address = s.getsockname()[0]
     return ip_address
 
 
-class Service:
-    """ A `class` that represents a multi-cast DNS server service. """
+class Runner:
+    """ A `class` that represents a multi-cast DNS service runner. """
 
     def __init__(
         self,
@@ -30,7 +30,7 @@ class Service:
         zc: Zeroconf,
         info: ServiceInfo
     ):
-        """ Creates an instance of the multi-cast DNS server service.
+        """ Creates an instance of the multi-cast DNS service runner.
 
         Parameters
         ----------
@@ -111,7 +111,7 @@ class Connection:
         name: str,
         time_out: float
     ):
-        """ Creates an instance of the multi-cast DNS server service client connection.
+        """ Creates an instance of the multi-cast DNS service client connection.
 
         Parameters
         ----------

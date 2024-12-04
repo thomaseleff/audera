@@ -28,7 +28,7 @@ class Service():
         # Initialize mDNS
         self.mac_address = uuid.getnode()
         self.server_ip_address = audera.mdns.get_local_ip_address()
-        self.mdns: audera.mdns.Service = audera.mdns.Service(
+        self.mdns: audera.mdns.Runner = audera.mdns.Runner(
             logger=self.logger,
             zc=Zeroconf(),
             info=ServiceInfo(
@@ -53,7 +53,7 @@ class Service():
         self.clients: Dict[str, asyncio.StreamWriter] = {}
 
         # Initialize process control parameters
-        self.running: asyncio.Event = asyncio.Event()
+        self.mdns_runner_event: asyncio.Event = asyncio.Event()
 
     async def start_mdns_services(self):
         """ Starts the async service for the multi-cast DNS service.
@@ -64,35 +64,33 @@ class Service():
         """
 
         # Register and broadcast the mDNS service
-        while True:
+        try:
 
-            try:
+            # The mDNS service must be started in a separate thread,
+            #   since zeroconf relies on its own async event loop that must be run
+            #   separately from the `server` async event loop.
 
-                # The mDNS service must be started in a separate thread,
-                #   since zeroconf relies on its own async event loop that must be run
-                #   separately from the `server` async event loop.
+            mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
+            mdns_thread.start()
 
-                mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
-                mdns_thread.start()
+            # Start the `server` services
+            self.mdns_runner_event.set()
 
-                # Start all other `server` services
-                self.running.set()
+            # Yield to other tasks in the event loop
+            while True:
+                await asyncio.sleep(0)
 
-                # Yield to other tasks in the event loop
-                while self.running.is_set():
-                    await asyncio.sleep(0.1)
+        except (
+            RuntimeWarning,  # Server-services cancelled before the await
+            KeyboardInterrupt,  # Server-services cancelled manually
+        ):
 
-            except KeyboardInterrupt:  # Server-services cancelled manually
-
-                # Logging
-                self.logger.info(
-                    'mDNS service {%s} cancelled.' % (
-                        audera.MDNS_TYPE
-                    )
+            # Logging
+            self.logger.info(
+                'mDNS service {%s} cancelled.' % (
+                    audera.MDNS_TYPE
                 )
-
-                # Exit the loop
-                break
+            )
 
         # Close the mDNS service
         self.mdns.unregister()
@@ -108,7 +106,7 @@ class Service():
         """
 
         # Communicate with the server
-        while self.running.is_set():
+        while self.mdns_runner_event.is_set():
 
             try:
 
@@ -172,6 +170,9 @@ class Service():
         When cancelled, the service disconnects any / all connected clients.
         """
 
+        # Wait for the mDNS connection
+        await self.mdns_runner_event.wait()
+
         # Initialize PyAudio
         audio = pyaudio.PyAudio()
 
@@ -221,7 +222,7 @@ class Service():
         )
 
         # Serve audio stream
-        while self.running.is_set():
+        while self.mdns_runner_event.is_set():
 
             try:
 
@@ -532,6 +533,9 @@ class Service():
         manually through `KeyboardInterrupt`.
         """
 
+        # Wait for the mDNS connection
+        await self.mdns_runner_event.wait()
+
         # Initialize the client-registration server
         registration_server = await asyncio.start_server(
             client_connected_cb=(
@@ -562,9 +566,12 @@ class Service():
                 communication_server.serve_forever()
             )
 
+        # Stop the `server` services
+        await self.stop_services()
+
     async def stop_services(self):
         """ Stops the async services. """
-        self.running.clear()
+        self.mdns_runner_event.clear()
 
     async def start_services(self):
         """ Runs the async mDNS service, time-synchronization service,
@@ -633,7 +640,6 @@ class Service():
 
         # Stop services
         finally:
-            await self.stop_services()
             await asyncio.gather(
                 *tasks,
                 return_exceptions=True

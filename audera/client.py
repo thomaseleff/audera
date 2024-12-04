@@ -68,7 +68,7 @@ class Service():
             self.server_ip_address = socket.inet_ntoa(info.addresses[0])
             self.stream_port = info.port
 
-            # Trigger client-services
+            # Start all other `client` services
             self.mdns_connection_event.set()
 
         # Yield to other tasks in the event loop
@@ -280,7 +280,7 @@ class Service():
         )
 
         # Receive audio stream
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Parse audio stream packet
@@ -376,7 +376,7 @@ class Service():
         )
 
         # Play audio stream data
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Wait for enough packets in the buffer queue,
@@ -503,7 +503,7 @@ class Service():
         """
 
         # Communicate with the server
-        while True:
+        while self.mdns_connection_event.is_set():
 
             # Measure round-trip time (rtt)
             try:
@@ -640,7 +640,7 @@ class Service():
         )
 
         # Update the client local machine time offset from the server
-        self.offset = timestamp - current_time - rtt
+        self.offset = timestamp - current_time
 
         self.logger.info(
             'The client time offset is %.7f [sec.].' % (
@@ -673,7 +673,7 @@ class Service():
         await self.mdns_connection_event.wait()
 
         # Handle server-availability
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Initialize the connection to the audio stream server
