@@ -10,7 +10,7 @@ import time
 import struct
 import copy
 import uuid
-import threading
+import concurrent.futures
 from zeroconf import Zeroconf, ServiceInfo
 
 import audera
@@ -62,6 +62,7 @@ class Service():
         _independent_ task, until the task is either cancelled by
         the event loop or cancelled manually through `KeyboardInterrupt`.
         """
+        loop = asyncio.get_running_loop()
 
         # Register and broadcast the mDNS service
         try:
@@ -70,19 +71,24 @@ class Service():
             #   since zeroconf relies on its own async event loop that must be run
             #   separately from the `server` async event loop.
 
-            mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
-            mdns_thread.start()
+            # mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
+            # mdns_thread.start()
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                mdns_server = loop.run_in_executor(pool, self.mdns.register)
+
+                await asyncio.gather(mdns_server)
 
             # Start the `server` services
             self.mdns_runner_event.set()
 
             # Yield to other tasks in the event loop
-            while True:
+            while self.mdns_runner_event.is_set():
                 await asyncio.sleep(0)
 
         except (
-            RuntimeWarning,  # Server-services cancelled before the await
-            KeyboardInterrupt,  # Server-services cancelled manually
+            asyncio.CancelledError,  # mDNS-services cancelled
+            KeyboardInterrupt,  # mDNS-services cancelled manually
         ):
 
             # Logging
@@ -94,7 +100,6 @@ class Service():
 
         # Close the mDNS service
         self.mdns.unregister()
-        mdns_thread.join()
 
     async def start_time_synchonization(self):
         """ Starts the async service for time-synchronization.

@@ -48,7 +48,6 @@ class Runner:
         # Initialize mDNS
         self.zc: Zeroconf = zc
         self.info: ServiceInfo = info
-        # self.time_out: float = time_out
 
     def register(self):
         """ Registers the mDNS service within the local network. """
@@ -76,24 +75,13 @@ class Runner:
                     str(e)
                 )
             )
-            # self.logger.info(
-            #     ''.join([
-            #         "The mDNS service encountered",
-            #         " an error, retrying in %.2f [sec.]." % (
-            #             self.time_out
-            #         )
-            #     ])
-            # )
-
-            # Timeout
-            # time.sleep(self.time_out)
 
     def unregister(self):
         """ Unregisters the mDNS service within the local network. """
         if self.zc and self.info:
 
             # Logging
-            self.logger.info("mDNS service un-registered successfully.")
+            self.logger.info("mDNS services un-registered successfully.")
 
             # Exit
             self.zc.unregister_service(self.info)
