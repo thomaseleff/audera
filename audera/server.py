@@ -71,9 +71,6 @@ class Service():
             #   since zeroconf relies on its own async event loop that must be run
             #   separately from the `server` async event loop.
 
-            # mdns_thread = threading.Thread(target=self.mdns.register, daemon=True)
-            # mdns_thread.start()
-
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 mdns_server = loop.run_in_executor(pool, self.mdns.register)
 
