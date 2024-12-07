@@ -200,7 +200,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'The client time offset is %.7f [sec.].' % (
+                    'The client ntp time offset is %.7f [sec.].' % (
                         self.ntp_offset
                     )
                 )
@@ -213,7 +213,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'Communication with the network time protocol (ntp) server {%s} failed,' % (
+                        'Communication with the ntp server {%s} failed,' % (
                             self.ntp.server
                         ),
                         ' retrying in %.2f [min.].' % (
@@ -229,7 +229,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                    'Communication with the npt server {%s} cancelled.' % (
                         self.ntp.server
                     )
                 )
