@@ -37,7 +37,8 @@ class Service():
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.offset: float = 0.0
+        self.ntp_offset: float = 0.0
+        self.server_offset: float = 0.0
 
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
@@ -195,12 +196,12 @@ class Service():
 
                 # Update the client local machine time offset from the network
                 #   time protocol (ntp) server
-                self.offset = self.ntp.offset()
+                self.ntp_offset = self.ntp.offset()
 
                 # Logging
                 self.logger.info(
                     'The client time offset is %.7f [sec.].' % (
-                        self.offset
+                        self.ntp_offset
                     )
                 )
 
@@ -409,18 +410,19 @@ class Service():
                         continue
 
                     # Discard late packets
-                    if (time.time() + self.offset) > target_play_time:
+                    if (time.time() + self.server_offset + self.ntp_offset) > target_play_time:
 
                         # Logging
                         self.logger.warning(
-                            'Late packet with target playback time {%.6f}.' % (
+                            'Late packet {~%.6f} with target playback time {%.6f}.' % (
+                                target_play_time - time.time() + self.server_offset + self.ntp_offset,
                                 target_play_time
                             )
                         )
                         continue
 
                     # Calculate the time to wait until the target playback time
-                    sleep_time = target_play_time - (time.time() + self.offset)
+                    sleep_time = target_play_time - (time.time() + self.server_offset + self.ntp_offset)
 
                     # Sleep until the target playback time
                     if sleep_time >= 0:
@@ -640,11 +642,11 @@ class Service():
         )
 
         # Update the client local machine time offset from the server
-        self.offset = timestamp - current_time
+        self.server_offset = timestamp - current_time
 
         self.logger.info(
             'The client time offset is %.7f [sec.].' % (
-                self.offset
+                self.server_offset
             )
         )
 
@@ -796,9 +798,9 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        # start_time_synchronization_services = asyncio.create_task(
-        #     self.start_time_synchronization()
-        # )
+        start_time_synchronization_services = asyncio.create_task(
+            self.start_time_synchronization()
+        )
 
         # Initialize the `audera` client-services
         start_client_services = asyncio.create_task(
@@ -808,7 +810,7 @@ class Service():
         tasks = [
             start_shairport_services,
             start_mdns_services,
-            # start_time_synchronization_services,
+            start_time_synchronization_services,
             start_client_services
         ]
 

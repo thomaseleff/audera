@@ -44,7 +44,7 @@ class Service():
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.offset: float = 0.0
+        self.ntp_offset: float = 0.0
 
         # Initialize playback delay
         self.playback_delay: float = audera.PLAYBACK_DELAY
@@ -114,12 +114,12 @@ class Service():
 
                 # Update the server local machine time offset from the network
                 #   time protocol (ntp) server
-                self.offset = self.ntp.offset()
+                self.ntp_offset = self.ntp.offset()
 
                 # Logging
                 self.logger.info(
                     'The server time offset is %.7f [sec.].' % (
-                        self.offset
+                        self.ntp_offset
                     )
                 )
 
@@ -244,7 +244,7 @@ class Service():
                 length = struct.pack(">I", len(chunk))
                 target_play_time = struct.pack(
                     "d",
-                    time.time() + self.playback_delay + self.offset
+                    time.time() + self.playback_delay + self.ntp_offset
                 )
                 packet = (
                     length  # 4 bytes
@@ -589,9 +589,9 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        # start_time_synchonization_services = asyncio.create_task(
-        #     self.start_time_synchonization()
-        # )
+        start_time_synchonization_services = asyncio.create_task(
+            self.start_time_synchonization()
+        )
 
         # Initialize the audio stream service
 
@@ -613,7 +613,7 @@ class Service():
 
         tasks = [
             start_mdns_services,
-            # start_time_synchonization_services,
+            start_time_synchonization_services,
             start_stream_services,
             start_server_services
         ]
