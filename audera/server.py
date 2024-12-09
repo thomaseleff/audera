@@ -55,6 +55,12 @@ class Service():
         # Initialize process control parameters
         self.mdns_runner_event: asyncio.Event = asyncio.Event()
 
+    def get_playback_time(self) -> float:
+        """ Returns the playback time based on the current time, playback delay and
+        network time protocol (ntp) server offset.
+        """
+        return float(time.time() + self.playback_delay + self.ntp_offset)
+
     async def start_mdns_services(self):
         """ Starts the async service for the multi-cast DNS service.
 
@@ -244,7 +250,7 @@ class Service():
                 length = struct.pack(">I", len(chunk))
                 target_play_time = struct.pack(
                     "d",
-                    time.time() + self.playback_delay + self.ntp_offset
+                    self.get_playback_time()
                 )
                 packet = (
                     length  # 4 bytes
@@ -488,7 +494,7 @@ class Service():
                 writer.write(
                     struct.pack(
                         "d",
-                        time.time()
+                        time.time() + self.ntp_offset
                     )
                 )  # 8 bytes
                 await writer.drain()

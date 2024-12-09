@@ -53,6 +53,12 @@ class Service():
         # Initialize process control parameters
         self.mdns_connection_event: asyncio.Event = asyncio.Event()
 
+    def get_playback_time(self) -> float:
+        """ Returns the playback time based on the current time, server time offset and
+        network time protocol (ntp) server offset.
+        """
+        return float(time.time() + self.server_offset + self.ntp_offset)
+
     async def start_mdns_services(self):
         """ Starts the async service for the multi-cast DNS service connection.
 
@@ -410,19 +416,20 @@ class Service():
                         continue
 
                     # Discard late packets
-                    if (time.time() + self.server_offset + self.ntp_offset) > target_play_time:
+                    playback_time = self.get_playback_time()
+                    if playback_time > target_play_time:
 
                         # Logging
                         self.logger.warning(
                             'Late packet {~%.6f} with target playback time {%.6f}.' % (
-                                target_play_time - time.time() + self.server_offset + self.ntp_offset,
+                                target_play_time - playback_time,
                                 target_play_time
                             )
                         )
                         continue
 
                     # Calculate the time to wait until the target playback time
-                    sleep_time = target_play_time - (time.time() + self.server_offset + self.ntp_offset)
+                    sleep_time = target_play_time - playback_time
 
                     # Sleep until the target playback time
                     if sleep_time >= 0:
@@ -621,7 +628,7 @@ class Service():
         )
 
         # Record the start-time
-        start_time = time.time()
+        start_time = time.time() + self.ntp_offset
 
         # Ping the server
         writer.write(b"ping")
@@ -631,7 +638,7 @@ class Service():
         #   time on the server for calculating time offset
         packet = await reader.read(8)  # 8 bytes
         timestamp = struct.unpack("d", packet)[0]
-        current_time = time.time()
+        current_time = time.time() + self.ntp_offset
 
         # Calculate round-trip time
         rtt = current_time - start_time
