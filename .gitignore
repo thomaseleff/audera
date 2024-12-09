@@ -2,4 +2,4 @@ __pycache__
 .venv
 build
 audera.egg-info
-testing.py
+testing*.py

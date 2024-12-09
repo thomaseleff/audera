@@ -8,6 +8,7 @@ import platform
 import time
 import struct
 from collections import deque
+from zeroconf import Zeroconf
 # import statistics
 
 import audera
@@ -22,6 +23,18 @@ class Service():
         # Logging
         self.logger = audera.logging.get_client_logger()
 
+        # Initialize mDNS
+        self.mdns: audera.mdns.Connection = audera.mdns.Connection(
+            logger=self.logger,
+            zc=Zeroconf(),
+            type=audera.MDNS_TYPE,
+            name=audera.MDNS_NAME,
+            time_out=audera.TIME_OUT
+        )
+        self.server_ip_address: str = None
+        self.stream_port: int = None
+        self.ping_port: int = audera.PING_PORT
+
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
         self.offset: float = 0.0
@@ -35,6 +48,31 @@ class Service():
         self.silent_data: bytes = b'\x00' * (
             audera.CHUNK * audera.CHANNELS * 2
         )
+
+        # Initialize process control parameters
+        self.mdns_connection_event: asyncio.Event = asyncio.Event()
+
+    async def start_mdns_services(self):
+        """ Starts the async service for the multi-cast DNS service connection.
+
+        The `server` attempts to connect the mDNS service as an
+        _independent_ task, until the task is either cancelled by
+        the event loop or cancelled manually through `KeyboardInterrupt`.
+        """
+
+        # Browse mDNS services and retain the ip-address of the server service
+        info = self.mdns.browse()
+
+        # Retain mDNS service settings
+        if info:
+            self.server_ip_address = socket.inet_ntoa(info.addresses[0])
+            self.stream_port = info.port
+
+            # Start all other `client` services
+            self.mdns_connection_event.set()
+
+        # Yield to other tasks in the event loop
+        await asyncio.sleep(0)
 
     async def start_shairport_services(self):
         """ Starts async shairport-sync connectivity to Airplay
@@ -232,7 +270,7 @@ class Service():
         self.logger.info(
             ' '.join([
                 "Receiving audio over PORT {%s} at RATE {%s}" % (
-                    audera.STREAM_PORT,
+                    self.stream_port,
                     audera.RATE
                 ),
                 "with {%s} CHANNEL(s)." % (
@@ -242,7 +280,7 @@ class Service():
         )
 
         # Receive audio stream
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Parse audio stream packet
@@ -274,7 +312,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     'Server {%s} disconnected.' % (
-                        audera.SERVER_IP
+                        self.server_ip_address
                     )
                 )
 
@@ -292,7 +330,7 @@ class Service():
                     ''.join([
                         'The audio stream from server',
                         ' {%s} was cancelled.' % (
-                            audera.SERVER_IP
+                            self.server_ip_address
                         )
                     ])
                 )
@@ -338,7 +376,7 @@ class Service():
         )
 
         # Play audio stream data
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Wait for enough packets in the buffer queue,
@@ -403,7 +441,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     'Server {%s} disconnected.' % (
-                        audera.SERVER_IP
+                        self.server_ip_address
                     )
                 )
 
@@ -424,7 +462,7 @@ class Service():
                     ''.join([
                         'The audio stream from server',
                         ' {%s} was cancelled.' % (
-                            audera.SERVER_IP
+                            self.server_ip_address
                         )
                     ])
                 )
@@ -465,7 +503,7 @@ class Service():
         """
 
         # Communicate with the server
-        while True:
+        while self.mdns_connection_event.is_set():
 
             # Measure round-trip time (rtt)
             try:
@@ -476,7 +514,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     'Server {%s} disconnected.' % (
-                        audera.SERVER_IP
+                        self.server_ip_address
                     )
                 )
 
@@ -491,7 +529,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     'Communication with server {%s} cancelled.' % (
-                        audera.SERVER_IP
+                        self.server_ip_address
                     )
                 )
 
@@ -574,8 +612,8 @@ class Service():
         # Initialize the connection to the ping-communication server
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(
-                audera.SERVER_IP,
-                audera.PING_PORT
+                self.server_ip_address,
+                self.ping_port
             ),
             timeout=audera.TIME_OUT
         )
@@ -602,7 +640,7 @@ class Service():
         )
 
         # Update the client local machine time offset from the server
-        self.offset = timestamp - current_time - rtt
+        self.offset = timestamp - current_time
 
         self.logger.info(
             'The client time offset is %.7f [sec.].' % (
@@ -631,15 +669,18 @@ class Service():
         manually through `KeyboardInterrupt`.
         """
 
+        # Wait for the mDNS connection
+        await self.mdns_connection_event.wait()
+
         # Handle server-availability
-        while True:
+        while self.mdns_connection_event.is_set():
             try:
 
                 # Initialize the connection to the audio stream server
                 reader, writer = await asyncio.wait_for(
                     asyncio.open_connection(
-                        audera.SERVER_IP,
-                        audera.STREAM_PORT
+                        self.server_ip_address,
+                        self.stream_port
                     ),
                     timeout=audera.TIME_OUT
                 )
@@ -711,7 +752,7 @@ class Service():
                     ''.join([
                         'The audio stream from server',
                         ' {%s} was cancelled.' % (
-                            audera.SERVER_IP
+                            self.server_ip_address
                         )
                     ])
                 )
@@ -749,6 +790,11 @@ class Service():
             self.start_shairport_services()
         )
 
+        # Initialize the mDNS service
+        start_mdns_services = asyncio.create_task(
+            self.start_mdns_services()
+        )
+
         # Initialize the time-synchronization service
         # start_time_synchronization_services = asyncio.create_task(
         #     self.start_time_synchronization()
@@ -761,6 +807,7 @@ class Service():
 
         tasks = [
             start_shairport_services,
+            start_mdns_services,
             # start_time_synchronization_services,
             start_client_services
         ]
@@ -803,25 +850,11 @@ class Service():
         self.logger.message('    Running the client-service.')
         self.logger.message('')
         self.logger.message(
-            '    Audio stream address: {%s:%s}' % (
-                audera.SERVER_IP,
-                audera.STREAM_PORT
-            )
-        )
-        self.logger.message(
             '    Client address: {%s}' % (
-                socket.gethostbyname(socket.gethostname()),
+                audera.mdns.get_local_ip_address(),
             )
         )
         self.logger.message('')
-        self.logger.info(
-            ''.join([
-                "Waiting on a connection to the server,",
-                " retrying in %.2f [sec.]." % (
-                    audera.TIME_OUT
-                )
-            ])
-        )
         self.logger.info(
             ''.join([
                 "Waiting on the shairport-sync service to begin,",

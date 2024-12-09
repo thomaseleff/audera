@@ -8,9 +8,9 @@ from typing import Union, List, Literal
 import errno
 import pyaudio
 
-from audera import logging, ntp
+from audera import logging, ntp, mdns
 
-__all__ = ['logging', 'ntp']
+__all__ = ['logging', 'ntp', 'mdns']
 
 # Logo
 LOGO: List[str] = [
@@ -36,7 +36,8 @@ RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: Union[int, None] = None
 
 # Server configuration
-SERVER_IP: str = "192.168.1.17"
+MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
+MDNS_NAME = f"stream.{MDNS_TYPE}"
 STREAM_PORT: int = 5000
 PING_PORT: int = 5001
 
