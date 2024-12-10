@@ -409,7 +409,7 @@ class Service():
 
                         # Logging
                         self.logger.warning(
-                            'Incomplete packet with target playback time {%.6f}.' % (
+                            'Incomplete packet with target playback time %.6f [sec.].' % (
                                 target_play_time
                             )
                         )
@@ -421,7 +421,7 @@ class Service():
 
                         # Logging
                         self.logger.warning(
-                            'Late packet {~%.6f} with target playback time {%.6f}.' % (
+                            'Late packet %.6f [sec.] with target playback time %.6f [sec.].' % (
                                 target_play_time - playback_time,
                                 target_play_time
                             )
