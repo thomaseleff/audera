@@ -6,6 +6,12 @@ set -e
 # Add dietpi scripts to path
 export PATH=$PATH:/boot/dietpi
 
+# Setup color formatting
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+RESET='\033[0m'
+
 # Variables
 GIT_REPO_URL="https://github.com/thomaseleff/audera.git"
 WORKSPACE="/home/dietpi/audera"
@@ -31,13 +37,23 @@ echo "    Script source {https://raw.githubusercontent.com/thomaseleff/audera/re
 # Ensure the script is running as root
 echo
 if [[ $EUID -ne 0 ]]; then
-   echo "*** CRITICAL: The setup-script must be run as {sudo}." 
+   echo "${RED}*** CRITICAL: The setup-script must be run as {sudo}.${RESET}" 
    exit 1
 fi
 
-
+# Install build packages
 echo ">>> Installing build packages"
-apt-get update && apt-get install python3-dev build-essential python3-pyaudio portaudio19-dev -y
+apt-get update && \
+apt-get install -y \
+    alsa-utils \
+    ffmpeg \
+    shairport-sync \
+    git \
+    python3.11 \
+    python3-dev \
+    build-essential \
+    python3-pyaudio \
+    portaudio19-dev
 
 # Clone the git repository
 echo
@@ -69,7 +85,7 @@ if [ -f "$WORKSPACE/requirements.txt" ]; then
   echo ">>> Installing Python requirements"
   pip3 install "$WORKSPACE" --root-user-action
 else
-  echo " ** ERROR: Failed to build & install audera."
+  echo "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
 fi
 
@@ -80,12 +96,12 @@ if [ ! -f "$SHAIRPORT_CONFIG" ]; then
   cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
   chmod +x "$AUTOSTART_SCRIPT"
 else
-  echo "  * WARNING: Autostart script not found."
+  echo "${YELLOW}  * WARNING: Autostart script not found.${RESET}"
 fi
 
 # Log
 echo
-echo "[ ok ] The Audera playback-client setup & installation completed successfully"
+echo "[ ${GREEN}ok${RESET} ] The Audera playback-client setup & installation completed successfully"
 
 # Restart
 echo ">>> Restarting the Audera playback-client"
