@@ -8,7 +8,7 @@
 
 ##### Language/Regional options #####
 # Locale e.g.: "en_GB.UTF-8" / "de_DE.UTF-8" | One entry and UTF-8 ONLY!
-AUTO_SETUP_LOCALE=en_US.UTF-8
+AUTO_SETUP_LOCALE=C.UTF-8
 
 # Keyboard layout e.g.: "gb" / "us" / "de" / "fr"
 AUTO_SETUP_KEYBOARD_LAYOUT=gb
@@ -49,7 +49,7 @@ AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=1
 
 ##### Misc options #####
 # Swap space size to generate: 0 => disable | 1 => auto | 2 and up => size in MiB
-AUTO_SETUP_SWAPFILE_SIZE=1581
+AUTO_SETUP_SWAPFILE_SIZE=1
 # Swap space location: "zram" => swap space on /dev/zram0 (auto-size = 50% of RAM size) | /path/to/file => swap file at location (auto-size = 2 GiB minus RAM size)
 AUTO_SETUP_SWAPFILE_LOCATION=/var/swap
 
@@ -218,10 +218,10 @@ CONFIG_CHECK_APT_UPDATES=1
 CONFIG_NTP_MODE=2
 
 # Serial Console: Set to 0 if you do not require serial console.
-CONFIG_SERIAL_CONSOLE_ENABLE=0
+CONFIG_SERIAL_CONSOLE_ENABLE=1
 
 # Sound card
-CONFIG_SOUNDCARD=rpi-bcm2835-auto
+CONFIG_SOUNDCARD=none
 
 # LCD Panel addon
 # - Do not modify, you must use dietpi-config to configure/set options
