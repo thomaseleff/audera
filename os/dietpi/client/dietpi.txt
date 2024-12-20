@@ -130,18 +130,7 @@ AUTO_SETUP_GLOBAL_PASSWORD=dietpi
 # - Add as many entries as you wish, one each line.
 # - DietPi will automatically install all dependencies, like ALSA/X11 for desktops etc.
 # - E.g. the following (without the leading "#") will install the LXDE desktop automatically on first boot:
-
-# Install git
-AUTO_SETUP_INSTALL_SOFTWARE_ID=17
-
-# Install alsa
-AUTO_SETUP_INSTALL_SOFTWARE_ID=5
-
-# Install ffmpeg
-AUTO_SETUP_INSTALL_SOFTWARE_ID=7
-
-# Install shairport-sync
-AUTO_SETUP_INSTALL_SOFTWARE_ID=37
+# AUTO_SETUP_INSTALL_SOFTWARE_ID=0
 
 #------------------------------------------------------------------------------------------------------
 ##### Misc DietPi program settings #####

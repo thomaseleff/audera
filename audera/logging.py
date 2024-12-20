@@ -117,7 +117,7 @@ class logger():
             The log-message content.
         """
         self.logger.error(
-            f" **  ERROR: {message}"
+            f" ** ERROR: {message}"
         )
 
     def critical(self, message: str):
