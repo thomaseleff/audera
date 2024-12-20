@@ -3,6 +3,9 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Add dietpi scripts to path
+export PATH=$PATH:/boot/dietpi
+
 # Variables
 GIT_REPO_URL="https://github.com/thomaseleff/audera.git"
 WORKSPACE="/home/dietpi/audera"
