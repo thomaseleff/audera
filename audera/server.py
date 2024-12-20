@@ -44,7 +44,7 @@ class Service():
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.offset: float = 0.0
+        self.ntp_offset: float = 0.0
 
         # Initialize playback delay
         self.playback_delay: float = audera.PLAYBACK_DELAY
@@ -54,6 +54,12 @@ class Service():
 
         # Initialize process control parameters
         self.mdns_runner_event: asyncio.Event = asyncio.Event()
+
+    def get_playback_time(self) -> float:
+        """ Returns the playback time based on the current time, playback delay and
+        network time protocol (ntp) server offset.
+        """
+        return float(time.time() + self.playback_delay + self.ntp_offset)
 
     async def start_mdns_services(self):
         """ Starts the async service for the multi-cast DNS service.
@@ -108,18 +114,18 @@ class Service():
         """
 
         # Communicate with the server
-        while self.mdns_runner_event.is_set():
+        while True:
 
             try:
 
                 # Update the server local machine time offset from the network
                 #   time protocol (ntp) server
-                self.offset = self.ntp.offset()
+                self.ntp_offset = self.ntp.offset()
 
                 # Logging
                 self.logger.info(
-                    'The server time offset is %.7f [sec.].' % (
-                        self.offset
+                    'The server ntp time offset is %.7f [sec.].' % (
+                        self.ntp_offset
                     )
                 )
 
@@ -131,7 +137,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'Communication with the network time protocol (ntp) server {%s} failed,' % (
+                        'Communication with the ntp server {%s} failed,' % (
                             self.ntp.server
                         ),
                         ' retrying in %.2f [min.].' % (
@@ -147,7 +153,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                    'Communication with the npt server {%s} cancelled.' % (
                         self.ntp.server
                     )
                 )
@@ -244,7 +250,7 @@ class Service():
                 length = struct.pack(">I", len(chunk))
                 target_play_time = struct.pack(
                     "d",
-                    time.time() + self.playback_delay + self.offset
+                    self.get_playback_time()
                 )
                 packet = (
                     length  # 4 bytes
@@ -488,7 +494,7 @@ class Service():
                 writer.write(
                     struct.pack(
                         "d",
-                        time.time()
+                        time.time() + self.ntp_offset
                     )
                 )  # 8 bytes
                 await writer.drain()
@@ -589,9 +595,9 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        # start_time_synchonization_services = asyncio.create_task(
-        #     self.start_time_synchonization()
-        # )
+        start_time_synchonization_services = asyncio.create_task(
+            self.start_time_synchonization()
+        )
 
         # Initialize the audio stream service
 
@@ -613,7 +619,7 @@ class Service():
 
         tasks = [
             start_mdns_services,
-            # start_time_synchonization_services,
+            start_time_synchonization_services,
             start_stream_services,
             start_server_services
         ]

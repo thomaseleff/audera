@@ -37,7 +37,8 @@ class Service():
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.offset: float = 0.0
+        self.ntp_offset: float = 0.0
+        self.server_offset: float = 0.0
 
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
@@ -51,6 +52,12 @@ class Service():
 
         # Initialize process control parameters
         self.mdns_connection_event: asyncio.Event = asyncio.Event()
+
+    def get_playback_time(self) -> float:
+        """ Returns the playback time based on the current time, server time offset and
+        network time protocol (ntp) server offset.
+        """
+        return float(time.time() + self.server_offset + self.ntp_offset)
 
     async def start_mdns_services(self):
         """ Starts the async service for the multi-cast DNS service connection.
@@ -195,12 +202,12 @@ class Service():
 
                 # Update the client local machine time offset from the network
                 #   time protocol (ntp) server
-                self.offset = self.ntp.offset()
+                self.ntp_offset = self.ntp.offset()
 
                 # Logging
                 self.logger.info(
-                    'The client time offset is %.7f [sec.].' % (
-                        self.offset
+                    'The client ntp time offset is %.7f [sec.].' % (
+                        self.ntp_offset
                     )
                 )
 
@@ -212,7 +219,7 @@ class Service():
                 # Logging
                 self.logger.info(
                     ''.join([
-                        'Communication with the network time protocol (ntp) server {%s} failed,' % (
+                        'Communication with the ntp server {%s} failed,' % (
                             self.ntp.server
                         ),
                         ' retrying in %.2f [min.].' % (
@@ -228,7 +235,7 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'Communication with the network time protocol (npt) server {%s} cancelled.' % (
+                    'Communication with the npt server {%s} cancelled.' % (
                         self.ntp.server
                     )
                 )
@@ -402,25 +409,27 @@ class Service():
 
                         # Logging
                         self.logger.warning(
-                            'Incomplete packet with target playback time {%.6f}.' % (
+                            'Incomplete packet with target playback time %.6f [sec.].' % (
                                 target_play_time
                             )
                         )
                         continue
 
                     # Discard late packets
-                    if (time.time() + self.offset) > target_play_time:
+                    playback_time = self.get_playback_time()
+                    if playback_time > target_play_time:
 
                         # Logging
                         self.logger.warning(
-                            'Late packet with target playback time {%.6f}.' % (
+                            'Late packet %.6f [sec.] with target playback time %.6f [sec.].' % (
+                                target_play_time - playback_time,
                                 target_play_time
                             )
                         )
                         continue
 
                     # Calculate the time to wait until the target playback time
-                    sleep_time = target_play_time - (time.time() + self.offset)
+                    sleep_time = target_play_time - playback_time
 
                     # Sleep until the target playback time
                     if sleep_time >= 0:
@@ -619,7 +628,7 @@ class Service():
         )
 
         # Record the start-time
-        start_time = time.time()
+        start_time = time.time() + self.ntp_offset
 
         # Ping the server
         writer.write(b"ping")
@@ -629,7 +638,7 @@ class Service():
         #   time on the server for calculating time offset
         packet = await reader.read(8)  # 8 bytes
         timestamp = struct.unpack("d", packet)[0]
-        current_time = time.time()
+        current_time = time.time() + self.ntp_offset
 
         # Calculate round-trip time
         rtt = current_time - start_time
@@ -640,11 +649,11 @@ class Service():
         )
 
         # Update the client local machine time offset from the server
-        self.offset = timestamp - current_time
+        self.server_offset = timestamp - current_time
 
         self.logger.info(
             'The client time offset is %.7f [sec.].' % (
-                self.offset
+                self.server_offset
             )
         )
 
@@ -796,9 +805,9 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        # start_time_synchronization_services = asyncio.create_task(
-        #     self.start_time_synchronization()
-        # )
+        start_time_synchronization_services = asyncio.create_task(
+            self.start_time_synchronization()
+        )
 
         # Initialize the `audera` client-services
         start_client_services = asyncio.create_task(
@@ -808,7 +817,7 @@ class Service():
         tasks = [
             start_shairport_services,
             start_mdns_services,
-            # start_time_synchronization_services,
+            start_time_synchronization_services,
             start_client_services
         ]
 
