@@ -44,9 +44,9 @@ else
 fi
 
 # Replace shairport-sync configuration with the file from the repository
-if [ -f "$REPO_CONFIG_FILE" ]; then
+if [ -f "$REPO_SHAIRPORT_CONFIG" ]; then
   echo ">>> Updating the shairport-sync configuration"
-  cp "$REPO_CONFIG_FILE" "$SHAIRPORT_CONFIG"
+  cp "$REPO_SHAIRPORT_CONFIG" "$SHAIRPORT_CONFIG"
   chmod 644 "$SHAIRPORT_CONFIG"
 else
   echo ">>> Using default shairport-sync configuration"
