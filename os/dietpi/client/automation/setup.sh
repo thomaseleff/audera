@@ -37,7 +37,7 @@ echo "    Script source {https://raw.githubusercontent.com/thomaseleff/audera/re
 # Ensure the script is running as root
 echo
 if [[ $EUID -ne 0 ]]; then
-   echo "${RED}*** CRITICAL: The setup-script must be run as {sudo}.${RESET}" 
+   echo -e "${RED}*** CRITICAL: The setup-script must be run as {sudo}.${RESET}" 
    exit 1
 fi
 
@@ -69,17 +69,9 @@ fi
 
 # Replace shairport-sync configuration with the file from the repository
 echo
-if [ -f "$SHAIRPORT_CONFIG" ]; then
-  echo ">>> Updating the shairport-sync configuration"
-  cp "$REPO_SHAIRPORT_CONFIG" "$SHAIRPORT_CONFIG"
-  chmod 644 "$SHAIRPORT_CONFIG"
-else
-  echo ">>> Using default shairport-sync configuration"
-fi
-
-# Restart shairport-sync
-echo ">>> Restarting shairport-sync"
-systemctl restart shairport-sync
+echo ">>> Creating the shairport-sync configuration"
+cp "$REPO_SHAIRPORT_CONFIG" "$SHAIRPORT_CONFIG"
+chmod 644 "$SHAIRPORT_CONFIG"
 
 # Create the Python virtual environment
 echo
@@ -99,7 +91,7 @@ if [ -f "$WORKSPACE/requirements.txt" ]; then
   python3 -m pip install --upgrade pip
   pip3 install -e "$WORKSPACE"
 else
-  echo "${RED} ** ERROR: Failed to build & install audera.${RESET}"
+  echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
 fi
 
@@ -112,14 +104,14 @@ if [ ! -f "$AUTOSTART_DIRECTORY" ]; then
   cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
   chmod +x "$AUTOSTART_SCRIPT"
 else
-  echo "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
+  echo -e "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
 fi
 
 # Log
 echo
-echo "[ ${GREEN}OK${RESET} ] The Audera playback-client setup & installation completed successfully"
+echo -e "[ ${GREEN}OK${RESET} ] The Audera playback-client setup & installation completed successfully"
 
 # Restart
-echo ">>> Restarting the Audera playback-client"
-sleep 3
+echo ">>> Restarting the Audera playback-client in 5 [sec.] ..."
+sleep 5
 reboot

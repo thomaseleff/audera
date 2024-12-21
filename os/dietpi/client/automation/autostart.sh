@@ -16,7 +16,7 @@ WORKSPACE="/home/dietpi/audera"
 if [ -f "$WORKSPACE/.venv/bin/activate" ]; then
   source "$WORKSPACE/.venv/bin/activate"
 else
-   echo "${RED}*** CRITICAL: The Python virtual environment does not exist.${RESET}" 
+   echo -e "${RED}*** CRITICAL: The Python virtual environment does not exist.${RESET}" 
    exit 1
 fi
 
