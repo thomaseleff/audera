@@ -86,7 +86,7 @@ systemctl restart shairport-sync
 echo
 if [ -f "$WORKSPACE/requirements.txt" ]; then
   echo ">>> Installing Python requirements"
-  pip3 install "$WORKSPACE" --root-user-action
+  pip3 install "$WORKSPACE" --root-user-action=ignore
 else
   echo "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
@@ -94,7 +94,7 @@ fi
 
 # Set up the autostart script
 echo
-if [ ! -f "$SHAIRPORT_CONFIG" ]; then
+if [ ! -f "$REPO_AUTOSTART_SCRIPT" ]; then
   echo ">>> Creating the custom autostart script"
   cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
   chmod +x "$AUTOSTART_SCRIPT"
