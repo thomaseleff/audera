@@ -38,8 +38,8 @@ DEVICE_INDEX: Union[int, None] = None
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
 MDNS_NAME = f"stream.{MDNS_TYPE}"
-STREAM_PORT: int = 5001
-PING_PORT: int = 5002
+STREAM_PORT: int = 5000
+PING_PORT: int = 5001
 
 # Network time protocol (ntp) configuration
 SYNC_INTERVAL: int = 600  # The time interval in seconds between time synchonization
