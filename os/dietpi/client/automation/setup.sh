@@ -12,7 +12,7 @@ RESET='\033[0m'
 # Variables
 GIT_REPO_URL="https://github.com/thomaseleff/audera.git"
 WORKSPACE="/home/dietpi/audera"
-SHAIRPORT_CONFIG="/etc/shairport-sync.conf"
+SHAIRPORT_CONFIG="/usr/local/etc/shairport-sync.conf"
 REPO_SHAIRPORT_CONFIG="$WORKSPACE/os/dietpi/client/conf/shairport-sync.conf"
 
 AUTOSTART_DIRECTORY="/var/lib/dietpi/dietpi-autostart"
