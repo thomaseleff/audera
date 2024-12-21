@@ -23,7 +23,7 @@ REPO_AUTOSTART_SCRIPT="$WORKSPACE/os/dietpi/client/automation/autostart.sh"
 
 # Start console logging
 #   The logo must be wrapped in single quotes ' ' to avoid escaping characters
-#       due to the nature of having double backslashes, like '\\
+#       due to the nature of having double backslashes, like '\\' in the logo
 echo ' ________  ___  ___  ________  _______  ________  ________      '
 echo '|\   __  \|\  \|\  \|\   ___ \|\   ___\|\   __  \|\   __  \     '
 echo '\ \  \|\  \ \  \\\  \ \  \_|\ \ \  \__|\ \  \|\  \ \  \|\  \    '
