@@ -56,6 +56,7 @@ apt-get install -y \
     build-essential \
     python3-pyaudio \
     portaudio19-dev
+echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
 # Clone the git repository
 echo
@@ -66,12 +67,14 @@ else
   echo ">>> Pulling the Git repository"
   cd "$WORKSPACE" && git pull main
 fi
+echo -e "[  ${GREEN}OK${RESET}  ] Git repository created successfully"
 
 # Replace shairport-sync configuration with the file from the repository
 echo
 echo ">>> Creating the shairport-sync configuration"
 cp "$REPO_SHAIRPORT_CONFIG" "$SHAIRPORT_CONFIG"
 chmod 644 "$SHAIRPORT_CONFIG"
+echo -e "[  ${GREEN}OK${RESET}  ] shairport-sync configured successfully"
 
 # Create the Python virtual environment
 echo
@@ -84,6 +87,7 @@ else
   echo ">>> Activating the Python virtual env"
   source "$WORKSPACE/.venv/bin/activate"
 fi
+echo -e "[  ${GREEN}OK${RESET}  ] Python virtual env created successfully"
 
 # Install Python requirements
 if [ -f "$WORKSPACE/requirements.txt" ]; then
@@ -94,6 +98,15 @@ else
   echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
 fi
+echo -e "[  ${GREEN}OK${RESET}  ] Python requirements installed successfully"
+
+# Configure alsa
+echo
+echo ">>> Configuring alsa"
+SOUNDCARD=$(sed -n '/^[[:blank:]]*CONFIG_SOUNDCARD=/{s/^[^=]*=//p;q}' /boot/dietpi.txt)
+echo ">>> Assigning {$SOUNDCARD} as the default soundcard"
+/boot/dietpi/func/dietpi-set_hardware soundcard $SOUNDCARD
+echo -e "[  ${GREEN}OK${RESET}  ] alsa configured successfully"
 
 # Set up the autostart script
 echo
@@ -106,10 +119,11 @@ if [ ! -f "$AUTOSTART_DIRECTORY" ]; then
 else
   echo -e "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
 fi
+echo -e "[  ${GREEN}OK${RESET}  ] Custom autostart script created successfully"
 
 # Log
 echo
-echo -e "[ ${GREEN}OK${RESET} ] The Audera playback-client setup & installation completed successfully"
+echo -e "[  ${GREEN}OK${RESET}  ] The Audera playback-client setup & installation completed successfully"
 
 # Restart
 echo ">>> Restarting the Audera playback-client in 5 [sec.] ..."
