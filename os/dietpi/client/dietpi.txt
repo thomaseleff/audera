@@ -8,24 +8,24 @@
 
 ##### Language/Regional options #####
 # Locale e.g.: "en_GB.UTF-8" / "de_DE.UTF-8" | One entry and UTF-8 ONLY!
-AUTO_SETUP_LOCALE=C.UTF-8
+AUTO_SETUP_LOCALE=en_US.UTF-8
 
 # Keyboard layout e.g.: "gb" / "us" / "de" / "fr"
-AUTO_SETUP_KEYBOARD_LAYOUT=gb
+AUTO_SETUP_KEYBOARD_LAYOUT=us
 
 # Time zone e.g.: "Europe/London" / "America/New_York" | Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-AUTO_SETUP_TIMEZONE=Europe/London
+AUTO_SETUP_TIMEZONE=America/Chicago
 
 ##### Network options #####
 # Enable Ethernet or WiFi adapter: 1=enable | 0=disable
 # - If both Ethernet and WiFi are enabled, WiFi will take priority and Ethernet will be disabled.
 # - If using WiFi, please edit dietpi-wifi.txt to pre-enter credentials.
-AUTO_SETUP_NET_ETHERNET_ENABLED=1
-AUTO_SETUP_NET_WIFI_ENABLED=0
+AUTO_SETUP_NET_ETHERNET_ENABLED=0
+AUTO_SETUP_NET_WIFI_ENABLED=1
 
 # WiFi country code: 2 capital letter value (e.g. GB US DE JP): https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 # - NB: This choice may be overridden if the WiFi access point sends a country code.
-AUTO_SETUP_NET_WIFI_COUNTRY_CODE=GB
+AUTO_SETUP_NET_WIFI_COUNTRY_CODE=US
 
 # Enter your static network details below, if applicable.
 AUTO_SETUP_NET_USESTATIC=0
@@ -208,17 +208,17 @@ CONFIG_CHECK_DNS_DOMAIN=dns9.quad9.net
 
 # Daily check for DietPi updates: 0=disable | 1=enable
 # - Checks are done by downloading a file of only 7 bytes.
-CONFIG_CHECK_DIETPI_UPDATES=1
+CONFIG_CHECK_DIETPI_UPDATES=0
 
 # Daily check for APT package updates: 0=disable | 1=check only | 2=check and upgrade automatically
 # - Upgrade logs can be found at: /var/tmp/dietpi/logs/dietpi-update_apt.log
-CONFIG_CHECK_APT_UPDATES=1
+CONFIG_CHECK_APT_UPDATES=0
 
 # Network time sync: 0=disabled | 1=boot only | 2=boot + daily | 3=boot + hourly | 4=Daemon + Drift
 CONFIG_NTP_MODE=2
 
 # Serial Console: Set to 0 if you do not require serial console.
-CONFIG_SERIAL_CONSOLE_ENABLE=1
+CONFIG_SERIAL_CONSOLE_ENABLE=0
 
 # Sound card
 CONFIG_SOUNDCARD=none
@@ -242,7 +242,7 @@ CONFIG_APT_DEBIAN_MIRROR=https://deb.debian.org/debian/
 # - To use another public NTP pool, see the full list at: https://www.ntppool.org/zone/@
 #   Use the pool domain without leading integer and dot (without "0."), like "debian.pool.ntp.org", "pool.ntp.org" or "uk.pool.ntp.org".
 # - You can also use a custom IP address, hostname or any combination of space-separated IP addresses, hostnames and NTP pool domains.
-CONFIG_NTP_MIRROR=default
+CONFIG_NTP_MIRROR=pool.ntp.org
 
 #------------------------------------------------------------------------------------------------------
 ##### DietPi-Software settings #####
