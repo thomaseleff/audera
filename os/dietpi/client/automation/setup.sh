@@ -50,6 +50,7 @@ apt-get install -y \
     shairport-sync \
     git \
     python3.11 \
+    python3-pip \
     python3-dev \
     build-essential \
     python3-pyaudio \
@@ -101,7 +102,7 @@ fi
 
 # Log
 echo
-echo "[ ${GREEN}ok${RESET} ] The Audera playback-client setup & installation completed successfully"
+echo "[ ${GREEN}OK${RESET} ] The Audera playback-client setup & installation completed successfully"
 
 # Restart
 echo ">>> Restarting the Audera playback-client"
