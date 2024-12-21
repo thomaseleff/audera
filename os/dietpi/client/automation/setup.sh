@@ -3,9 +3,6 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Add dietpi scripts to path
-export PATH=$PATH:/boot/dietpi
-
 # Setup color formatting
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -18,7 +15,8 @@ WORKSPACE="/home/dietpi/audera"
 SHAIRPORT_CONFIG="/etc/shairport-sync.conf"
 REPO_SHAIRPORT_CONFIG="$WORKSPACE/os/dietpi/client/conf/shairport-sync.conf"
 
-AUTOSTART_SCRIPT="/var/lib/dietpi/dietpi-autostart/custom.sh"
+AUTOSTART_DIRECTORY="/var/lib/dietpi/dietpi-autostart"
+AUTOSTART_SCRIPT="$AUTOSTART_DIRECTORY/custom.sh"
 REPO_AUTOSTART_SCRIPT="$WORKSPACE/os/dietpi/client/automation/autostart.sh"
 
 # Start console logging
@@ -52,6 +50,7 @@ apt-get install -y \
     shairport-sync \
     git \
     python3.11 \
+    python3-venv \
     python3-pip \
     python3-dev \
     build-essential \
@@ -82,11 +81,23 @@ fi
 echo ">>> Restarting shairport-sync"
 systemctl restart shairport-sync
 
-# Install Python requirements
+# Create the Python virtual environment
 echo
+if [ ! -d "$WORKSPACE/.venv" ]; then
+  echo ">>> Creating the Python virtual env {$WORKSPACE/.venv}"
+  python3 -m venv "$WORKSPACE/.venv"
+  echo ">>> Activating the Python virtual env"
+  source "$WORKSPACE/.venv/bin/activate"
+else
+  echo ">>> Activating the Python virtual env"
+  source "$WORKSPACE/.venv/bin/activate"
+fi
+
+# Install Python requirements
 if [ -f "$WORKSPACE/requirements.txt" ]; then
-  echo ">>> Installing Python requirements"
-  pip3 install "$WORKSPACE" --root-user-action=ignore
+  echo ">>> Installing the Python requirements"
+  python3 -m pip install --upgrade pip
+  pip3 install -e "$WORKSPACE"
 else
   echo "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
@@ -94,12 +105,14 @@ fi
 
 # Set up the autostart script
 echo
-if [ ! -f "$REPO_AUTOSTART_SCRIPT" ]; then
+if [ ! -f "$AUTOSTART_DIRECTORY" ]; then
+  echo ">>> Creating the custom autostart directory"
+  mkdir "$AUTOSTART_DIRECTORY"
   echo ">>> Creating the custom autostart script"
   cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
   chmod +x "$AUTOSTART_SCRIPT"
 else
-  echo "${YELLOW}  * WARNING: Autostart script not found.${RESET}"
+  echo "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
 fi
 
 # Log
