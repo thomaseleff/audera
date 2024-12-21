@@ -90,6 +90,7 @@ fi
 echo -e "[  ${GREEN}OK${RESET}  ] Python virtual env created successfully"
 
 # Install Python requirements
+echo
 if [ -f "$WORKSPACE/requirements.txt" ]; then
   echo ">>> Installing the Python requirements"
   python3 -m pip install --upgrade pip
