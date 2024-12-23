@@ -141,4 +141,4 @@ def get_server_logger() -> logger:
 
 def get_client_logger() -> logger:
     """ Get the `audera` client console logger. """
-    return logger(name='client', text_color=COLORS['red'])
+    return logger(name='client')
