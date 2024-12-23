@@ -31,7 +31,7 @@ DESCRIPTION: str = ''.join([
 # Interface configuration
 CHUNK: int = 1024
 FORMAT: int = pyaudio.paInt16
-CHANNELS: Literal[1, 2] = 2
+CHANNELS: Literal[1, 2] = 1
 RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: Union[int, None] = None
 
