@@ -3,6 +3,9 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Import DietPi global functions
+. /boot/dietpi/func/dietpi-globals
+
 # Setup color formatting
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -100,6 +103,13 @@ else
   exit 1
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Python requirements installed successfully"
+
+# Configure os
+echo
+echo ">>> Configuring the operating-system"
+echo ">>> Ensuring wifi availability without hdmi-output"
+G_CONFIG_INJECT 'hdmi_force_hotplug=' 'hdmi_force_hotplug=1' /boot/config.txt
+echo -e "[  ${GREEN}OK${RESET}  ] os configured successfully"
 
 # Configure alsa
 echo
