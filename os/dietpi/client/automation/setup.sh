@@ -4,7 +4,7 @@
 set -e
 
 # Import DietPi global functions
-. /boot/dietpi/func/dietpi-globals
+source "/boot/dietpi/func/dietpi-globals"
 
 # Setup color formatting
 RED='\033[0;31m'
@@ -109,6 +109,7 @@ echo
 echo ">>> Configuring the operating-system"
 echo ">>> Ensuring wifi availability without hdmi-output"
 G_CONFIG_INJECT 'hdmi_force_hotplug=' 'hdmi_force_hotplug=1' /boot/config.txt
+G_CONFIG_INJECT 'hdmi_drive=' 'hdmi_drive=2' /boot/config.txt
 echo -e "[  ${GREEN}OK${RESET}  ] os configured successfully"
 
 # Configure alsa
