@@ -122,7 +122,7 @@ echo -e "[  ${GREEN}OK${RESET}  ] alsa configured successfully"
 
 # Set up the autostart script
 echo
-if [ ! -f "$AUTOSTART_DIRECTORY" ]; then
+if [ ! -d "$AUTOSTART_DIRECTORY" ]; then
   echo ">>> Creating the custom autostart directory"
   mkdir "$AUTOSTART_DIRECTORY"
   echo ">>> Creating the custom autostart script"
