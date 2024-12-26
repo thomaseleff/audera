@@ -106,7 +106,7 @@ class logger():
             The log-message content.
         """
         self.logger.warning(
-            f"{COLORS['orange']}  * WARNING: {message}{RESET}"
+            f"{COLORS['yellow']}  * WARNING: {message}{RESET}"
         )
 
     def error(self, message: str):
