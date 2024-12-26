@@ -68,7 +68,7 @@ if [ ! -d "$WORKSPACE" ]; then
   git clone -b main "$GIT_REPO_URL" "$WORKSPACE"
 else
   echo ">>> Pulling the Git repository"
-  cd "$WORKSPACE" && git pull main
+  cd "$WORKSPACE" && git pull origin main
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Git repository created successfully"
 
