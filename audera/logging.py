@@ -12,6 +12,7 @@ COLORS = {
     'magenta': '\033[35m',
     'cyan': '\033[36m',
     'white': '\033[37m',
+    'bold_red': '\033[1;31m',
 }
 
 # Default color to reset formatting
@@ -81,7 +82,7 @@ class logger():
             The log-message content.
         """
         self.logger.debug(
-            f"    DEBUG: {message}"
+            f"{COLORS['blue']}    DEBUG: {message}{RESET}"
         )
 
     def info(self, message: str):
@@ -105,7 +106,7 @@ class logger():
             The log-message content.
         """
         self.logger.warning(
-            f"  * WARNING: {message}"
+            f"{COLORS['orange']}  * WARNING: {message}{RESET}"
         )
 
     def error(self, message: str):
@@ -117,7 +118,7 @@ class logger():
             The log-message content.
         """
         self.logger.error(
-            f" ** ERROR: {message}"
+            f"{COLORS['red']} ** ERROR: {message}{RESET}"
         )
 
     def critical(self, message: str):
@@ -129,7 +130,7 @@ class logger():
             The log-message content.
         """
         self.logger.critical(
-            f"*** CRITICAL: {message}"
+            f"{COLORS['bold_red']}*** CRITICAL: {message}{RESET}"
         )
 
 
