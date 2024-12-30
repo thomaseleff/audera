@@ -214,8 +214,8 @@ class Input():
         # Initialize the audio stream
         self.interface = interface
         self.device = device
-        self.audio = pyaudio.PyAudio()
-        self.stream = self.audio.open(
+        self.port = pyaudio.PyAudio()
+        self.stream = self.port.open(
             format=interface.format,
             rate=interface.rate,
             channels=interface.channels,
@@ -287,7 +287,7 @@ class Input():
                 self.device = copy.deepcopy(device)
 
             # Open a new audio stream with the latest settings
-            self.stream = self.audio.open(
+            self.stream = self.port.open(
                 format=self.interface.format,
                 rate=self.interface.rate,
                 channels=self.interface.channels,
