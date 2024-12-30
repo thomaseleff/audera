@@ -258,7 +258,8 @@ class Input():
         return False
 
     def update(self, interface: Interface, device: Device):
-        """ Opens a new audio stream with updated interface and device settings.
+        """ Opens a new audio stream with updated interface and device settings and
+        returns `True` when a the stream is updated.
 
         Parameters
         ----------
@@ -295,3 +296,8 @@ class Input():
                 input=True,
                 input_device_index=self.device.index
             )
+
+            return True
+
+        else:
+            return False

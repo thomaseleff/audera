@@ -206,15 +206,30 @@ class Service():
 
             try:
 
-                # Manage audio stream capture
-                self.audio_input.update(
+                # Manage / update audio stream capture
+                if self.audio_input.update(
                     interface=self.audio_input.interface,
                     device=device.get_device()
-                )
+                ):
+
+                    # Logging
+                    self.logger.info(
+                        ' '.join([
+                            "Streaming FORMAT {%s-bit} audio over PORT {%s} at RATE {%s}" % (
+                                self.audio_input.interface.format,
+                                audera.STREAM_PORT,
+                                self.audio_input.interface.rate
+                            ),
+                            "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
+                                self.audio_input.interface.channels,
+                                self.audio_input.device.index
+                            )
+                        ])
+                    )
 
                 # Read the next audio data chunk
                 chunk = self.audio_input.stream.read(
-                    audera.CHUNK,
+                    self.audio_input.interface.chunk,
                     exception_on_overflow=False
                 )
 
