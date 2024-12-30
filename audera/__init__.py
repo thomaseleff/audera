@@ -6,11 +6,10 @@ for DIY home audio enthusiasts.
 
 from typing import Union, List, Literal
 import errno
-import pyaudio
 
-from audera import logging, ntp, mdns
+from audera import audio, logging, ntp, mdns
 
-__all__ = ['logging', 'ntp', 'mdns']
+__all__ = ['audio', 'logging', 'ntp', 'mdns']
 
 # Logo
 LOGO: List[str] = [
@@ -29,11 +28,11 @@ DESCRIPTION: str = ''.join([
 ])
 
 # Interface configuration
-CHUNK: int = 1024
-FORMAT: int = pyaudio.paInt16
-CHANNELS: Literal[1, 2] = 1
-RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
-DEVICE_INDEX: Union[int, None] = None
+CHUNK: int = audio.CHUNK
+FORMAT: int = audio.FORMAT
+CHANNELS: Literal[1, 2] = audio.CHANNELS
+RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = audio.RATE
+DEVICE_INDEX: Union[int, None] = audio.DEVICE_INDEX
 
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
