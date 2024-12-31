@@ -12,7 +12,7 @@ import concurrent.futures
 from zeroconf import Zeroconf, ServiceInfo
 
 import audera
-from audera.dal import device
+from audera.dal import devices
 
 
 class Service():
@@ -44,7 +44,7 @@ class Service():
         # Initialize audio stream capture
         self.audio_input = audera.audio.Input(
             interface=audera.audio.Interface(),
-            device=device.get_device()
+            device=devices.get_device()
         )
 
         # Initialize time synchronization
@@ -209,7 +209,7 @@ class Service():
                 # Manage / update audio stream capture
                 if self.audio_input.update(
                     interface=self.audio_input.interface,
-                    device=device.get_device()
+                    device=devices.get_device()
                 ):
 
                     # Logging
