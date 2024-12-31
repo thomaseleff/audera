@@ -7,9 +7,9 @@ for DIY home audio enthusiasts.
 from typing import Union, List, Literal
 import errno
 
-from audera import mdns, audio, ntp, dal, logging
+from audera import mdns, audio, player, ntp, dal, logging
 
-__all__ = ['mdns', 'audio', 'ntp', 'dal', 'logging']
+__all__ = ['mdns', 'audio', 'player', 'ntp', 'dal', 'logging']
 
 # Logo
 LOGO: List[str] = [

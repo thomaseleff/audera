@@ -3,10 +3,11 @@
 from typing import Union
 import os
 from pytensils import config
-from audera import audio, dal
+from audera import audio
+from audera.dal import path
 
 
-PATH: Union[str, os.PathLike] = dal.PATH
+PATH: Union[str, os.PathLike] = path.HOME
 FILE_NAME: str = 'device.json'
 DTYPES: dict = {
     'device': {

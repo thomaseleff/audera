@@ -5,10 +5,11 @@ import os
 import coolname
 import duckdb
 from pytensils import config, utils
-from audera import player, dal
+from audera import player
+from audera.dal import path
 
 
-PATH: Union[str, os.PathLike] = os.path.join(dal.PATH, 'players')
+PATH: Union[str, os.PathLike] = os.path.join(path.HOME, 'players')
 DTYPES: dict = {
     'player': {
         'name': 'str',
