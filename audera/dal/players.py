@@ -5,7 +5,7 @@ import os
 import coolname
 import duckdb
 from pytensils import config, utils
-from audera import player
+from audera.struct import player
 from audera.dal import path
 
 

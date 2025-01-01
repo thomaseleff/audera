@@ -7,9 +7,9 @@ for DIY home audio enthusiasts.
 from typing import Union, List, Literal
 import errno
 
-from audera import mdns, audio, player, ntp, dal, logging
+from audera import mdns, ntp, dal, logging, struct
 
-__all__ = ['mdns', 'audio', 'player', 'ntp', 'dal', 'logging']
+__all__ = ['mdns', 'ntp', 'dal', 'logging', 'struct']
 
 # Logo
 LOGO: List[str] = [
@@ -28,11 +28,11 @@ DESCRIPTION: str = ''.join([
 ])
 
 # Interface configuration
-CHUNK: int = audio.CHUNK
-FORMAT: int = audio.FORMAT
-CHANNELS: Literal[1, 2] = audio.CHANNELS
-RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = audio.RATE
-DEVICE_INDEX: Union[int, None] = audio.DEVICE_INDEX
+CHUNK: int = struct.audio.CHUNK
+FORMAT: int = struct.audio.FORMAT
+CHANNELS: Literal[1, 2] = struct.audio.CHANNELS
+RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = struct.audio.RATE
+DEVICE_INDEX: Union[int, None] = struct.audio.DEVICE_INDEX
 
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
