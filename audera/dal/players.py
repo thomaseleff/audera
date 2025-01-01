@@ -27,7 +27,13 @@ DTYPES: dict = {
 
 
 def exists(network_interface: player.NetworkInterface) -> bool:
-    """ Returns `True` when the player configuration file exists. """
+    """ Returns `True` when the player configuration file exists.
+
+    Parameters
+    ----------
+    network_interface: `audera.player.NetworkInterface`
+        An instance of an `audera.player.NetworkInterface` object.
+    """
     if os.path.isfile(
         os.path.abspath(
             os.path.join(
