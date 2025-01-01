@@ -187,22 +187,22 @@ def delete(player_: player.Player):
         os.remove(os.path.join(PATH, '.'.join([player_.uuid, 'json'])))
 
 
-def _connection() -> duckdb.DuckDBPyConnection:
+def connection() -> duckdb.DuckDBPyConnection:
     return duckdb.connect().execute(
         "CREATE TABLE players AS SELECT player.* FROM read_json_auto(?)",
         (os.path.join(PATH, '*.json'),)
     )
 
 
-def _query_to_players(cursor: duckdb.DuckDBPyConnection) -> List[player.Player]:
+def query_to_players(cursor: duckdb.DuckDBPyConnection) -> List[player.Player]:
     columns = [desc[0] for desc in cursor.description]
     return [player.Player.from_dict(dict(zip(columns, row))) for row in cursor.fetchall()]
 
 
 def get_all_players() -> List[player.Player]:
     """ Returns all players as a list of `player.Player` objects. """
-    with _connection() as conn:
-        return _query_to_players(
+    with connection() as conn:
+        return query_to_players(
             conn.execute(
                 """
                 SELECT *
@@ -216,8 +216,8 @@ def get_all_available_players() -> List[player.Player]:
     """ Returns all available players as a list of `player.Player` objects. An
     available player is enabled and connected to the network.
     """
-    with _connection() as conn:
-        return _query_to_players(
+    with connection() as conn:
+        return query_to_players(
             conn.execute(
                 """
                 SELECT *
@@ -231,8 +231,8 @@ def get_all_available_players() -> List[player.Player]:
 
 def get_all_playing_players() -> List[player.Player]:
     """ Returns all currently playing players as a list of `player.Player` objects."""
-    with _connection() as conn:
-        return _query_to_players(
+    with connection() as conn:
+        return query_to_players(
             conn.execute(
                 """
                 SELECT *
@@ -243,7 +243,7 @@ def get_all_playing_players() -> List[player.Player]:
         )
 
 
-def play_player(player_: player.Player) -> player.Player:
+def play(player_: player.Player) -> player.Player:
     """ Starts audio playback to a player by setting `playing` = `True`.
 
     Parameters
@@ -259,7 +259,7 @@ def play_player(player_: player.Player) -> player.Player:
     return player.Player.from_config(update(player_))
 
 
-def stop_player(player_: player.Player) -> player.Player:
+def stop(player_: player.Player) -> player.Player:
     """ Stops audio playback to a player by setting `playing` = `False`.
 
     Parameters
@@ -275,7 +275,7 @@ def stop_player(player_: player.Player) -> player.Player:
     return player.Player.from_config(update(player_))
 
 
-def enable_player(player_: player.Player) -> player.Player:
+def enable(player_: player.Player) -> player.Player:
     """ Enables a player by setting `enabled` = `True`.
 
     Parameters
@@ -291,7 +291,7 @@ def enable_player(player_: player.Player) -> player.Player:
     return player.Player.from_config(update(player_))
 
 
-def disable_player(player_: player.Player) -> player.Player:
+def disable(player_: player.Player) -> player.Player:
     """ Disables a player by setting `enabled` = `False`.
 
     Parameters
@@ -304,10 +304,10 @@ def disable_player(player_: player.Player) -> player.Player:
         return player_
 
     player_.enabled = False
-    return player.Player.from_config(stop_player(player_))  # A player cannot be playing if it is disabled
+    return player.Player.from_config(stop(player_))  # A player cannot be playing if it is disabled
 
 
-def connect_player(player_: player.Player) -> player.Player:
+def connect(player_: player.Player) -> player.Player:
     """ Connects a player by setting `connected` = `True`.
 
     Parameters
@@ -323,7 +323,7 @@ def connect_player(player_: player.Player) -> player.Player:
     return player.Player.from_config(update(player_))
 
 
-def disconnect_player(player_: player.Player) -> player.Player:
+def disconnect(player_: player.Player) -> player.Player:
     """ Disconnects a player by setting `connected` = `False`.
 
     Parameters
@@ -336,10 +336,10 @@ def disconnect_player(player_: player.Player) -> player.Player:
         return player_
 
     player_.connected = False
-    return player.Player.from_config(stop_player(player_))  # A player cannot be playing if it is disconnected
+    return player.Player.from_config(player(player_))  # A player cannot be playing if it is disconnected
 
 
-def rename_player(player_: player.Player, name: str) -> player.Player:
+def rename(player_: player.Player, name: str) -> player.Player:
     """ Renames a player by setting `name` = {name}.
 
     Parameters
@@ -355,7 +355,7 @@ def rename_player(player_: player.Player, name: str) -> player.Player:
     return player.Player.from_config(update(player_))
 
 
-def update_player_volume(player_: player.Player, volume: float) -> player.Player:
+def update_volume(player_: player.Player, volume: float) -> player.Player:
     """ Updates the volume for a player by setting `volume` = {volume}.
 
     Parameters
@@ -371,7 +371,7 @@ def update_player_volume(player_: player.Player, volume: float) -> player.Player
     return player.Player.from_config(update(player_))
 
 
-def update_player_channels(player_: player.Player, channels: int) -> player.Player:
+def update_channels(player_: player.Player, channels: int) -> player.Player:
     """ Updates the playback channels for a player by setting `channels` = {channels}.
 
     Parameters

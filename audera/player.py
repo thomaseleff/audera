@@ -184,7 +184,7 @@ class Group():
     """ A `class` that represents a group of audio players. """
     name: str
     uuid: str
-    players: List[Player]
+    players: List[str]
     provider: Literal['audera'] = field(default='audera')
     volume: float = field(default=0.50)
     enabled: bool = field(default=True)
@@ -223,6 +223,16 @@ class Group():
             )
 
         return Group(**dict_object)
+
+    def from_config(config: config.Handler) -> Group:
+        """ Returns a `Group` object from a `pytensils.config.Handler` object.
+
+        Parameters
+        ----------
+        config: `pytensils.config.Handler`
+            An instance of an `pytensils.config.Handler` object.
+        """
+        return Group.from_dict(config.to_dict()['group'])
 
     def to_dict(self):
         """ Returns the `Group` object as a `dict`. """
