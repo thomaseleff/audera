@@ -1,4 +1,4 @@
-""" player configuration-layer """
+""" Player configuration-layer """
 
 from typing import Union, List
 import os
