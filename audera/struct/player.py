@@ -1,7 +1,7 @@
 """ Audio-player """
 
 from __future__ import annotations
-from typing import Literal, List
+from typing import Literal, List, Union
 from dataclasses import dataclass, field
 import json
 from pytensils import config
@@ -267,6 +267,95 @@ class Group():
                 and self.enabled == compare.enabled
                 and self.volume == compare.volume
                 and self.playing == compare.playing
+            )
+
+        return False
+
+
+@dataclass
+class Session():
+    """ A `class` that represents an audio playback session. """
+    name: str
+    uuid: str
+    group_uuid: Union[str, None] = field(default=None)
+    players: List[str]
+    provider: Literal['audera'] = field(default='audera')
+    volume: float = field(default=0.50)
+
+    def from_dict(dict_object: dict) -> Session:
+        """ Returns a `Session` object from a `dict`.
+
+        Parameters
+        ----------
+        dict_object : `dict`
+            The dictionary object to convert to a `Session` object.
+        """
+
+        # Assert object type
+        if not isinstance(dict_object, dict):
+            raise TypeError('Object must be a `dict`.')
+
+        # Assert keys
+        missing_keys = [
+            key for key in [
+                'name',
+                'uuid',
+                'group_uuid',
+                'players',
+                'provider',
+                'volume'
+            ] if key not in dict_object
+        ]
+        if missing_keys:
+            raise KeyError(
+                'Missing keys. The `dict` object is missing the following required keys [%s].' % (
+                    ','.join(["'%s'" % (key) for key in missing_keys])
+                )
+            )
+
+        return Session(**dict_object)
+
+    def from_config(config: config.Handler) -> Session:
+        """ Returns a `Session` object from a `pytensils.config.Handler` object.
+
+        Parameters
+        ----------
+        config: `pytensils.config.Handler`
+            An instance of an `pytensils.config.Handler` object.
+        """
+        return Session.from_dict(config.to_dict()['session'])
+
+    def to_dict(self):
+        """ Returns the `Session` object as a `dict`. """
+        return {
+            'name': self.name,
+            'uuid': self.uuid,
+            'group_uuid': self.group_uuid,
+            'players': self.players,
+            'provider': self.provider,
+            'volume': self.volume
+        }
+
+    def __repr__(self):
+        """ Returns the `Session` object as a json-formatted `str`. """
+        return json.dumps(self.to_dict(), indent=2)
+
+    def __eq__(self, compare):
+        """ Returns `True` when compare is an instance of self.
+
+        Parameters
+        ----------
+        compare: `audera.audio.Session`
+            An instance of an `audera.audio.Session` object.
+        """
+        if isinstance(compare, Session):
+            return (
+                self.name == compare.name
+                and self.uuid == compare.uuid
+                and self.group_uuid == compare.group_uuid
+                and self.players == compare.players
+                and self.provider == compare.provider
+                and self.volume == compare.volume
             )
 
         return False
