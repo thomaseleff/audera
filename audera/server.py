@@ -1,11 +1,9 @@
 """ Server-service """
 
 from typing import Dict
-import pyaudio
 import ntplib
 import asyncio
 import socket
-import sys
 import time
 import struct
 import copy
@@ -40,6 +38,12 @@ class Service():
                 priority=0,
                 properties={"description": audera.DESCRIPTION}
             )
+        )
+
+        # Initialize audio stream capture
+        self.audio_input = audera.struct.audio.Input(
+            interface=audera.dal.interfaces.get_interface(),
+            device=audera.dal.devices.get_device()
         )
 
         # Initialize time synchronization
@@ -181,50 +185,17 @@ class Service():
         # Wait for the mDNS connection
         await self.mdns_runner_event.wait()
 
-        # Initialize PyAudio
-        audio = pyaudio.PyAudio()
-
-        # Assign device-index
-        # --TODO: The name of the device should be set dynamically
-        # --TODO: This should wait until an audio device is found
-
-        for i in range(audio.get_device_count()):
-            device_info = audio.get_device_info_by_index(i)
-            if "Line 1" in device_info.get("name", ""):
-                audera.DEVICE_INDEX = i
-                break
-
-        if audera.DEVICE_INDEX is None:
-
-            # Logging
-            self.logger.error(
-                "No input audio device found."
-            )
-
-            # Exit
-            audio.terminate()
-            sys.exit(audera.errors.DEVICE_ERROR)
-
-        # Initialize audio stream-capture
-        stream = audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            input=True,
-            input_device_index=audera.DEVICE_INDEX,
-            frames_per_buffer=audera.CHUNK
-        )
-
         # Logging
         self.logger.info(
             ' '.join([
-                "Streaming audio over PORT {%s} at RATE {%s}" % (
-                    audera.STREAM_PORT,
-                    audera.RATE
+                "Streaming FORMAT {%s-bit} audio at RATE {%s}" % (
+                    self.audio_input.interface.format,
+                    self.audio_input.interface.rate
                 ),
-                "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
-                    audera.CHANNELS,
-                    audera.DEVICE_INDEX
+                "with {%s} CHANNEL(s) from input DEVICE {%s (%s)}." % (
+                    self.audio_input.interface.channels,
+                    self.audio_input.device.name,
+                    self.audio_input.device.index
                 )
             ])
         )
@@ -234,9 +205,30 @@ class Service():
 
             try:
 
+                # Manage / update audio stream capture
+                if self.audio_input.update(
+                    interface=audera.dal.interfaces.get_interface(),
+                    device=audera.dal.devices.get_device()
+                ):
+
+                    # Logging
+                    self.logger.info(
+                        ' '.join([
+                            "Streaming FORMAT {%s-bit} audio at RATE {%s}" % (
+                                self.audio_input.interface.format,
+                                self.audio_input.interface.rate
+                            ),
+                            "with {%s} CHANNEL(s) from input DEVICE {%s (%s)}." % (
+                                self.audio_input.interface.channels,
+                                self.audio_input.device.name,
+                                self.audio_input.device.index
+                            )
+                        ])
+                    )
+
                 # Read the next audio data chunk
-                chunk = stream.read(
-                    audera.CHUNK,
+                chunk = self.audio_input.stream.read(
+                    self.audio_input.interface.chunk,
                     exception_on_overflow=False
                 )
 
@@ -349,9 +341,9 @@ class Service():
                 await asyncio.sleep(audera.TIME_OUT)
 
         # Close the audio services
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
+        self.audio_input.stream.stop_stream()
+        self.audio_input.stream.close()
+        self.audio_input.port.terminate()
 
     async def broadcast(
         self,
