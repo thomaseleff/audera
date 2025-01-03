@@ -12,7 +12,7 @@ from pytensils import config
 # Interface configuration
 CHUNK: int = 1024
 FORMAT: int = pyaudio.paInt16
-CHANNELS: Literal[1, 2] = 1
+CHANNELS: Literal[1, 2] = 2
 RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: int = 0
 
@@ -64,9 +64,18 @@ class Interface():
 
         return Interface(**dict_object)
 
-    def to_dict(self):
-        """ Returns the `Interface` object as a `dict`.
+    def from_config(config: config.Handler) -> Interface:
+        """ Returns a `audera.struct.audio.Interface` object from a `pytensils.config.Handler` object.
+
+        Parameters
+        ----------
+        config: `pytensils.config.Handler`
+            An instance of an `pytensils.config.Handler` object.
         """
+        return Interface.from_dict(config.to_dict()['interface'])
+
+    def to_dict(self):
+        """ Returns the `audera.struct.audio.Interface` object as a `dict`. """
         return {
             'format': self.format,
             'rate': self.rate,
@@ -75,8 +84,7 @@ class Interface():
         }
 
     def __repr__(self):
-        """ Returns the `Interface` object as a json-formatted `str`.
-        """
+        """ Returns the `audera.struct.audio.Interface` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -84,8 +92,8 @@ class Interface():
 
         Parameters
         ----------
-        compare: `audera.audio.Interface`
-            An instance of an `audera.audio.Interface` object.
+        compare: `audera.struct.audio.Interface`
+            An instance of an `audera.struct.audio.Interface` object.
         """
         if isinstance(compare, Interface):
             return (
@@ -109,12 +117,12 @@ class Device():
     index: int = field(default=DEVICE_INDEX)
 
     def from_dict(dict_object: dict) -> Device:
-        """ Returns a `Device` object from a `dict`.
+        """ Returns a `audera.struct.audio.Device` object from a `dict`.
 
         Parameters
         ----------
         dict_object : `dict`
-            The dictionary object to convert to a `Device` object.
+            The dictionary object to convert to a `audera.struct.audio.Device` object.
         """
 
         # Assert object type
@@ -136,7 +144,7 @@ class Device():
         return Device(**dict_object)
 
     def get_default_device() -> Device:
-        """ Gets the default audio device and returns a `Device` object. """
+        """ Gets the default audio device and returns a `audera.struct.audio.Device` object. """
 
         # Open a temporary audio port
         _audio = pyaudio.PyAudio()
@@ -151,7 +159,7 @@ class Device():
         return Device(index=device_index)
 
     def from_config(config: config.Handler) -> Device:
-        """ Returns a `Device` object from a `pytensils.config.Handler` object.
+        """ Returns a `audera.struct.audio.Device` object from a `pytensils.config.Handler` object.
 
         Parameters
         ----------
@@ -161,13 +169,13 @@ class Device():
         return Device.from_dict(config.to_dict()['device'])
 
     def to_dict(self):
-        """ Returns the `Device` object as a `dict`. """
+        """ Returns the `audera.struct.audio.Device` object as a `dict`. """
         return {
             'index': self.index
         }
 
     def __repr__(self):
-        """ Returns the `Device` object as a json-formatted `str`. """
+        """ Returns the `audera.struct.audio.Device` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -175,8 +183,8 @@ class Device():
 
         Parameters
         ----------
-        compare: `audera.audio.Device`
-            An instance of an `audera.audio.Device` object.
+        compare: `audera.struct.audio.Device`
+            An instance of an `audera.struct.audio.Device` object.
         """
         if isinstance(compare, Device):
             return (
@@ -225,7 +233,7 @@ class Input():
         )
 
     def to_dict(self):
-        """ Returns the `Device` object as a `dict`. """
+        """ Returns the `audera.struct.audio.Input` object as a `dict`. """
         return {
             'state': 'active' if self.stream.is_active() else 'stopped',
             'format': self.interface.format,
@@ -236,7 +244,7 @@ class Input():
         }
 
     def __repr__(self):
-        """ Returns the `Device` object as a json-formatted `str`. """
+        """ Returns the `audera.struct.audio.Input` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -265,8 +273,8 @@ class Input():
         ----------
         interface: `audera.audio.Interface`
             An instance of an `audera.audio.Interface` object.
-        device: `audera.audio.Device`
-            An instance of an `audera.audio.Device` object.
+        device: `audera.struct.audio.Device`
+            An instance of an `audera.struct.audio.Device` object.
         """
 
         if not (

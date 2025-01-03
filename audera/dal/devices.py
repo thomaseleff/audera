@@ -124,19 +124,20 @@ def update(new: audio.Device) -> config.Handler:
         return Config
 
 
+def delete():
+    """ Deletes the configuration file associated with a `audera.struct.audio.Device` object. """
+    if exists():
+        os.remove(os.path.join(PATH, FILE_NAME))
+
+
 def get_device() -> audio.Device:
     """ Returns the current selected audio device as an `audera.struct.audio.Device` object. """
-    return audio.Device.from_config(get())
+    return audio.Device.from_config(get_or_create())
 
 
 def get_device_index() -> int:
     """ Returns the current selected audio device index as an `int`. """
 
     # Read the configuration file
-    Device: audio.Device = audio.Device.from_config(get_or_create())
+    Device = get_device()
     return Device.index
-
-
-def delete():
-    if exists():
-        os.remove(os.path.join(PATH, FILE_NAME))
