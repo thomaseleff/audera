@@ -156,16 +156,185 @@ def update(new: player.Group) -> config.Handler:
         return Config
 
 
-def delete(group: player.Group):
+def delete(uuid: str):
     """ Deletes the configuration file associated with a `audera.struct.player.Group` object.
 
     Parameters
     ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
     """
-    if exists():
-        os.remove(os.path.join(PATH, '.'.join([group.uuid, 'json'])))
+    if exists(uuid):
+        os.remove(os.path.join(PATH, '.'.join([uuid, 'json'])))
+
+
+def get_group(uuid: str) -> player.Group:
+    """ Returns the group player as an `audera.struct.player.Group` object. """
+    return player.Group.from_config(get(uuid))
+
+
+def rename(uuid: str, name: str) -> player.Group:
+    """ Renames a group player by setting `name` = {name}.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    name: `str`
+        The new name of the group player.
+    """
+
+    group = get_group(uuid)
+
+    if group.name == name:
+        return group
+
+    group.name = utils.as_type(name, 'str')
+    return player.Group.from_config(update(group))
+
+
+def play(uuid: str) -> player.Group:
+    """ Starts audio playback to a group player by setting `playing` = `True`.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    """
+
+    group = get_group(uuid)
+
+    if not (group.enabled and not group.playing):
+        return group
+
+    available_players = players.get_all_available_player_uuids()
+    for player_ in group.players:
+        if player_ in available_players:
+            players.play(player_)
+
+    group.playing = True
+    return player.Group.from_config(update(group))
+
+
+def stop(uuid: str) -> player.Group:
+    """ Stops audio playback to a group player by setting `playing` = `False`.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    """
+
+    group = get_group(uuid)
+
+    if not (group.playing):
+        return group
+
+    available_players = players.get_all_available_player_uuids()
+    for player_ in group.players:
+        if player_ in available_players:
+            players.stop(player_)
+
+    group.playing = False
+    return player.Group.from_config(update(group))
+
+
+def enable(uuid: str) -> player.Group:
+    """ Enables a group player by setting `enabled` = `True`.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    """
+
+    group = get_group(uuid)
+
+    if (group.enabled):
+        return group
+
+    group.enabled = True
+    return player.Group.from_config(update(group))
+
+
+def disable(uuid: str) -> player.Group:
+    """ Disables a group player by setting `enabled` = `False`.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    """
+
+    group = get_group(uuid)
+
+    if not (group.enabled):
+        return group
+
+    group.enabled = False
+    return player.Group.from_config(stop(uuid))  # A group player cannot be playing if it is disabled
+
+
+def update_volume(uuid: str, volume: float) -> player.Group:
+    """ Updates the volume for a group player by setting `volume` = {volume}.
+
+    Parameters
+    ----------
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
+    """
+
+    group = get_group(uuid)
+
+    if group.volume == volume:
+        return group
+
+    group.volume = utils.as_type(volume, 'float')
+    return player.Group.from_config(update(group))
+
+
+def attach_player(group_uuid: str, player_uuid: str) -> player.Group:
+    """ Attaches a new player to a group player.
+
+    Parameters
+    ----------
+    group_uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    player_uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Player` object.
+    """
+
+    group = get_group(group_uuid)
+    player_ = players.get_player(player_uuid)
+
+    if player_uuid in group.players or not (player_.enabled and player_.connected):
+        return group
+
+    group.players.append(player_uuid)
+    return player.Group.from_config(update(group))
+
+
+def detach_player(group_uuid: str, player_uuid: str) -> player.Group:
+    """ Detaches a player from a group player.
+
+    Parameters
+    ----------
+    group_uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    player_uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Player` object.
+    """
+
+    group = get_group(group_uuid)
+
+    if player_uuid not in group.players:
+        return group
+
+    group.players.remove(player_uuid)
+    return player.Group.from_config(update(group))
 
 
 def connection() -> duckdb.DuckDBPyConnection:
@@ -207,6 +376,22 @@ def get_all_available_groups() -> List[player.Group]:
                 """
             )
         )
+
+
+def get_all_available_group_uuids() -> List[str]:
+    """ Returns the uuid of all available group players as a list. An
+    available group player is enabled.
+    """
+    with connection() as conn:
+        return [
+            uuid[0] for uuid in conn.execute(
+                """
+                SELECT uuid
+                FROM groups
+                WHERE enabled = True
+                """
+            ).fetchall()
+        ]
 
 
 def get_all_playing_groups() -> List[player.Group]:
@@ -262,148 +447,9 @@ def get_all_available_group_players(group: player.Group) -> List[player.Player]:
                     ", ".join(
                         [
                             "'%s'" % (uuid) for uuid in group.players
-                            if uuid in [
-                                player_.uuid for player_ in players.get_all_available_players()
-                            ]
+                            if uuid in players.get_all_available_player_uuids()
                         ]
                     )
                 )
             )
         )
-
-
-def play(group: player.Group) -> player.Group:
-    """ Starts audio playback to a group player by setting `playing` = `True`.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    """
-
-    if not (group.enabled and not group.playing):
-        return group
-
-    group.playing = True
-    return player.Group.from_config(update(group))
-
-
-def stop(group: player.Group) -> player.Group:
-    """ Stops audio playback to a group player by setting `playing` = `False`.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    """
-
-    if not (group.playing):
-        return group
-
-    group.playing = False
-    return player.Group.from_config(update(group))
-
-
-def enable(group: player.Group) -> player.Group:
-    """ Enables a group player by setting `enabled` = `True`.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    """
-
-    if (group.enabled):
-        return group
-
-    group.enabled = True
-    return player.Group.from_config(update(group))
-
-
-def disable(group: player.Group) -> player.Group:
-    """ Disables a group player by setting `enabled` = `False`.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    """
-
-    if not (group.enabled):
-        return group
-
-    group.enabled = False
-    return player.Group.from_config(stop(group))  # A player cannot be playing if it is disabled
-
-
-def rename(group: player.Group, name: str) -> player.Group:
-    """ Renames a group player by setting `name` = {name}.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    name: `str`
-        The new name of the group player.
-    """
-
-    if group.name == name:
-        return group
-
-    group.name = utils.as_type(name, 'str')
-    return player.Group.from_config(update(group))
-
-
-def update_volume(group: player.Group, volume: float) -> player.Group:
-    """ Updates the volume for a group player by setting `volume` = {volume}.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    volume: `float`
-        A float value from 0 to 100 that sets the loudness of playback. A value of
-            0 is muted.
-    """
-
-    if group.volume == volume:
-        return group
-
-    group.volume = utils.as_type(volume, 'float')
-    return player.Group.from_config(update(group))
-
-
-def add_player(group: player.Group, player_: player.Player) -> player.Group:
-    """ Adds a new player to a group player.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
-    """
-
-    if player_.uuid in group.players:
-        return group
-
-    group.players.append(player_.uuid)
-    return player.Group.from_config(update(group))
-
-
-def remove_player(group: player.Group, player_: player.Player) -> player.Group:
-    """ Removes a player from a group player.
-
-    Parameters
-    ----------
-    group: `audera.struct.player.Group`
-        An instance of an `audera.struct.player.Group` object.
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
-    """
-
-    if player_.uuid not in group.players:
-        return group
-
-    group.players.remove(player_.uuid)
-    return player.Group.from_config(update(group))

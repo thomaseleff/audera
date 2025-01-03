@@ -124,6 +124,11 @@ def update(new: audio.Device) -> config.Handler:
         return Config
 
 
+def get_device() -> audio.Device:
+    """ Returns the current selected audio device as an `audera.struct.audio.Device` object. """
+    return audio.Device.from_config(get())
+
+
 def get_device_index() -> int:
     """ Returns the current selected audio device index as an `int`. """
 
