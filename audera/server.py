@@ -42,7 +42,7 @@ class Service():
 
         # Initialize audio stream capture
         self.audio_input = audera.struct.audio.Input(
-            interface=audera.struct.audio.Interface(),
+            interface=audera.dal.interfaces.get_interface(),
             device=audera.dal.devices.get_device()
         )
 
@@ -207,7 +207,7 @@ class Service():
 
                 # Manage / update audio stream capture
                 if self.audio_input.update(
-                    interface=self.audio_input.interface,
+                    interface=audera.dal.interfaces.get_interface(),
                     device=audera.dal.devices.get_device()
                 ):
 
