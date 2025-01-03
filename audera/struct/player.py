@@ -1,7 +1,7 @@
 """ Audio-player """
 
 from __future__ import annotations
-from typing import Literal, List, Union
+from typing import Literal, List
 from dataclasses import dataclass, field
 import json
 from pytensils import config
@@ -9,18 +9,28 @@ from pytensils import config
 
 @dataclass
 class NetworkInterface():
-    """ A `class` that represents a network interface. """
+    """ A `class` that represents a network interface.
+
+    Attributes
+    ----------
+    uuid: `str`
+        A unique universal identifier.
+    mac_address: `str`
+        The media access control address of the network adapter.
+    address: `str`
+        The ip-address of the network device.
+    """
     uuid: str
     mac_address: str
     address: str
 
     def from_dict(dict_object: dict) -> NetworkInterface:
-        """ Returns a `NetworkInterface` object from a `dict`.
+        """ Returns an `audera.struct.player.NetworkInterface` object from a `dict`.
 
         Parameters
         ----------
         dict_object : `dict`
-            The dictionary object to convert to a `NetworkInterface` object.
+            The dictionary object to convert to an `audera.struct.player.NetworkInterface` object.
         """
 
         # Assert object type
@@ -45,7 +55,7 @@ class NetworkInterface():
         return NetworkInterface(**dict_object)
 
     def to_dict(self):
-        """ Returns the `NetworkInterface` object as a `dict`. """
+        """ Returns an `audera.struct.player.NetworkInterface` object as a `dict`. """
         return {
             'uuid': self.uuid,
             'mac_address': self.mac_address,
@@ -53,7 +63,7 @@ class NetworkInterface():
         }
 
     def __repr__(self):
-        """ Returns the `NetworkInterface` object as a json-formatted `str`. """
+        """ Returns an `audera.struct.player.NetworkInterface` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -61,8 +71,8 @@ class NetworkInterface():
 
         Parameters
         ----------
-        compare: `audera.audio.NetworkInterface`
-            An instance of an `audera.audio.NetworkInterface` object.
+        compare: `audera.struct.player.NetworkInterface`
+            An instance of an `audera.struct.player.NetworkInterface` object.
         """
         if isinstance(compare, NetworkInterface):
             return (
@@ -76,7 +86,32 @@ class NetworkInterface():
 
 @dataclass
 class Player():
-    """ A `class` that represents an audio player. """
+    """ A `class` that represents an audio player.
+
+    Attributes
+    ----------
+    name: `str`
+        The name of the audio player.
+    uuid: `str`
+        A unique universal identifier.
+    mac_address: `str`
+        The media access control address of the network adapter.
+    address: `str`
+        The ip-address of the network device.
+    provider: `Literal['audera']`
+        The manufacturer / provider of the network device.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
+    channels: `Literal[1, 2]`
+        Either `1` for mono or `2` for stereo audio playback.
+    enabled: `bool`
+        Whether the audio player can be added to playback / groups.
+    connected: `bool`
+        Whether the audio player is connected to the network.
+    playing: `bool`
+        Whether the audio player is currently playing.
+    """
     name: str
     uuid: str
     mac_address: str
@@ -89,12 +124,12 @@ class Player():
     playing: bool = field(default=True)
 
     def from_dict(dict_object: dict) -> Player:
-        """ Returns a `Player` object from a `dict`.
+        """ Returns an `audera.struct.player.Player` object from a `dict`.
 
         Parameters
         ----------
         dict_object : `dict`
-            The dictionary object to convert to a `Player` object.
+            The dictionary object to convert to an `audera.struct.player.Player` object.
         """
 
         # Assert object type
@@ -126,7 +161,7 @@ class Player():
         return Player(**dict_object)
 
     def from_config(config: config.Handler) -> Player:
-        """ Returns a `Player` object from a `pytensils.config.Handler` object.
+        """ Returns an `audera.struct.player.Player` object from a `pytensils.config.Handler` object.
 
         Parameters
         ----------
@@ -136,7 +171,7 @@ class Player():
         return Player.from_dict(config.to_dict()['player'])
 
     def to_dict(self):
-        """ Returns the `Player` object as a `dict`. """
+        """ Returns an `audera.struct.player.Player` object as a `dict`. """
         return {
             'name': self.name,
             'uuid': self.uuid,
@@ -151,7 +186,7 @@ class Player():
         }
 
     def __repr__(self):
-        """ Returns the `Player` object as a json-formatted `str`. """
+        """ Returns an `audera.struct.player.Player` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -159,8 +194,8 @@ class Player():
 
         Parameters
         ----------
-        compare: `audera.audio.Player`
-            An instance of an `audera.audio.Player` object.
+        compare: `audera.struct.player.Player`
+            An instance of an `audera.struct.player.Player` object.
         """
         if isinstance(compare, Player):
             return (
@@ -181,7 +216,26 @@ class Player():
 
 @dataclass
 class Group():
-    """ A `class` that represents a group of audio players. """
+    """ A `class` that represents a group of audio players.
+
+    Attributes
+    ----------
+    name: `str`
+        The name of the group player.
+    uuid: `str`
+        A unique universal identifier.
+    players: `List[str]`
+        A list of unique universal identifiers for `audera.struct.player.Player` objects.
+    provider: `Literal['audera']`
+        The manufacturer / provider of the network device.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
+    enabled: `bool`
+        Whether the audio player can be added to playback / groups.
+    playing: `bool`
+        Whether the audio player is currently playing.
+    """
     name: str
     uuid: str
     players: List[str] = field(default_factory=list)
@@ -191,12 +245,12 @@ class Group():
     playing: bool = field(default=False)
 
     def from_dict(dict_object: dict) -> Group:
-        """ Returns a `Group` object from a `dict`.
+        """ Returns an `audera.struct.player.Group` object from a `dict`.
 
         Parameters
         ----------
         dict_object : `dict`
-            The dictionary object to convert to a `Group` object.
+            The dictionary object to convert to an `audera.struct.player.Group` object.
         """
 
         # Assert object type
@@ -225,7 +279,7 @@ class Group():
         return Group(**dict_object)
 
     def from_config(config: config.Handler) -> Group:
-        """ Returns a `Group` object from a `pytensils.config.Handler` object.
+        """ Returns an `audera.struct.player.Group` object from a `pytensils.config.Handler` object.
 
         Parameters
         ----------
@@ -235,7 +289,7 @@ class Group():
         return Group.from_dict(config.to_dict()['group'])
 
     def to_dict(self):
-        """ Returns the `Group` object as a `dict`. """
+        """ Returns an `audera.struct.player.Group` object as a `dict`. """
         return {
             'name': self.name,
             'uuid': self.uuid,
@@ -247,7 +301,7 @@ class Group():
         }
 
     def __repr__(self):
-        """ Returns the `Group` object as a json-formatted `str`. """
+        """ Returns an `audera.struct.player.Group` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -255,8 +309,8 @@ class Group():
 
         Parameters
         ----------
-        compare: `audera.audio.Group`
-            An instance of an `audera.audio.Group` object.
+        compare: `audera.struct.player.Group`
+            An instance of an `audera.struct.player.Group` object.
         """
         if isinstance(compare, Group):
             return (
@@ -274,21 +328,38 @@ class Group():
 
 @dataclass
 class Session():
-    """ A `class` that represents an audio playback session. """
+    """ A `class` that represents an audio playback session.
+
+    Attributes
+    ----------
+    name: `str`
+        The name of the audio playback session.
+    uuid: `str`
+        A unique universal identifier.
+    group: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
+    players: `List[str]`
+        A list of unique universal identifiers for `audera.struct.player.Player` objects.
+    provider: `Literal['audera']`
+        The manufacturer / provider of the network device.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
+    """
     name: str
     uuid: str
-    group_uuid: Union[str] = field(default='')
+    group: str = field(default='')
     players: List[str] = field(default_factory=list)
     provider: Literal['audera'] = field(default='audera')
     volume: float = field(default=0.50)
 
     def from_dict(dict_object: dict) -> Session:
-        """ Returns a `Session` object from a `dict`.
+        """ Returns an `audera.struct.player.Session` object from a `dict`.
 
         Parameters
         ----------
         dict_object : `dict`
-            The dictionary object to convert to a `Session` object.
+            The dictionary object to convert to an `audera.struct.player.Session` object.
         """
 
         # Assert object type
@@ -300,7 +371,7 @@ class Session():
             key for key in [
                 'name',
                 'uuid',
-                'group_uuid',
+                'group',
                 'players',
                 'provider',
                 'volume'
@@ -316,7 +387,7 @@ class Session():
         return Session(**dict_object)
 
     def from_config(config: config.Handler) -> Session:
-        """ Returns a `Session` object from a `pytensils.config.Handler` object.
+        """ Returns an `audera.struct.player.Session` object from a `pytensils.config.Handler` object.
 
         Parameters
         ----------
@@ -326,18 +397,18 @@ class Session():
         return Session.from_dict(config.to_dict()['session'])
 
     def to_dict(self):
-        """ Returns the `Session` object as a `dict`. """
+        """ Returns an `audera.struct.player.Session` object as a `dict`. """
         return {
             'name': self.name,
             'uuid': self.uuid,
-            'group_uuid': self.group_uuid,
+            'group': self.group,
             'players': self.players,
             'provider': self.provider,
             'volume': self.volume
         }
 
     def __repr__(self):
-        """ Returns the `Session` object as a json-formatted `str`. """
+        """ Returns an `audera.struct.player.Session` object as a json-formatted `str`. """
         return json.dumps(self.to_dict(), indent=2)
 
     def __eq__(self, compare):
@@ -345,14 +416,14 @@ class Session():
 
         Parameters
         ----------
-        compare: `audera.audio.Session`
-            An instance of an `audera.audio.Session` object.
+        compare: `audera.struct.player.Session`
+            An instance of an `audera.struct.player.Session` object.
         """
         if isinstance(compare, Session):
             return (
                 self.name == compare.name
                 and self.uuid == compare.uuid
-                and self.group_uuid == compare.group_uuid
+                and self.group == compare.group
                 and self.players == compare.players
                 and self.provider == compare.provider
                 and self.volume == compare.volume

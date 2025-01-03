@@ -21,19 +21,19 @@ DTYPES: dict = {
 }
 
 
-def exists(session: player.Session) -> bool:
+def exists(uuid: str) -> bool:
     """ Returns `True` when the session configuration file exists.
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Session` object.
     """
     if os.path.isfile(
         os.path.abspath(
             os.path.join(
                 PATH,
-                '.'.join([session.uuid, 'json'])
+                '.'.join([uuid, 'json'])
             )
         )
     ):
@@ -48,11 +48,11 @@ def create(session: player.Session) -> config.Handler:
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of a `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of a `audera.struct.player.Session` object.
     """
 
-    # Create the player configuration-layer directory
+    # Create the session configuration-layer directory
     if not os.path.isdir(PATH):
         os.makedirs(PATH)
 
@@ -74,7 +74,7 @@ def get(uuid: str) -> config.Handler:
     Parameters
     ----------
     uuid: `str`
-        A unique universal identifier of an `audera.player.Session` object.
+        A unique universal identifier of an `audera.struct.player.Session` object.
     """
 
     # Read the configuration file
@@ -95,10 +95,10 @@ def get_or_create(session: player.Session) -> config.Handler:
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     """
-    if exists(session):
+    if exists(session.uuid):
         return get(session.uuid)
     else:
         return create(session)
@@ -109,8 +109,8 @@ def save(session: player.Session) -> config.Handler:
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     """
 
     # Create the session configuration-layer directory
@@ -133,20 +133,20 @@ def update(new: player.Session) -> config.Handler:
 
     Parameters
     ----------
-    new: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    new: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     """
 
     # Read the configuration file
     Config = get_or_create(new)
 
-    # Convert the config to an audio player object
+    # Convert the config to a playback session object
     Player = player.Session.from_config(config=Config)
 
     # Compare and update
     if not Player == new:
 
-        # Update the player configuration object and write to the configuration file
+        # Update the session configuration object and write to the configuration file
         Config = Config.from_dict({'session': new.to_dict()})
         return Config
 
@@ -159,8 +159,8 @@ def delete(session: player.Session):
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     """
     if exists():
         os.remove(os.path.join(PATH, '.'.join([session.uuid, 'json'])))
@@ -171,8 +171,10 @@ def rename(session: player.Session, name: str) -> player.Session:
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
+    name: `str`
+        The new name of the playback session.
     """
 
     if session.name == name:
@@ -187,8 +189,8 @@ def update_volume(session: player.Session, volume: float) -> player.Session:
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     volume: `float`
         A float value from 0 to 100 that sets the loudness of playback. A value of
             0 is muted.
@@ -205,18 +207,18 @@ def attach_players(
     session: player.Session,
     player_or_players: Union[player.Player, List[player.Player]]
 ) -> player.Session:
-    """ Attaches an `audera.player.Player` object or a list of
-    `audera.player.Player` objects to a session.
+    """ Attaches an `audera.struct.player.Player` object or a list of
+    `audera.struct.player.Player` objects to a session.
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     player_or_players: `Union[player.Player, List[player.Player]]`
-        An `audera.player.Player` object or a list of `audera.player.Player` objects.
+        An `audera.struct.player.Player` object or a list of `audera.struct.player.Player` objects.
     """
 
-    # Update the session with the new players
+    # Update the session with extended players
     if isinstance(player_or_players, player.Player):
         player_or_players = [player_or_players]
 
@@ -229,7 +231,7 @@ def attach_players(
 
     session.players = sorted(list(extended_players))
 
-    # Rename
+    # Rename the playback session
     if len(session.players) == 1:
         only_player: player.Player = session.players[0]
         session.name = players.get(only_player).data['player']['name']
@@ -240,8 +242,58 @@ def attach_players(
             int(len(session.players) - 1)
         )
 
-    # Remove the session group-id
-    session.group_uuid = ''
+    # Remove the session group
+    session.group = ''
+
+    return player.Session.from_config(update(session))
+
+
+def detach_players(
+    session: player.Session,
+    player_or_players: Union[player.Player, List[player.Player]]
+) -> player.Session:
+    """ Detaches an `audera.struct.player.Player` object or a list of
+    `audera.struct.player.Player` objects from a session.
+
+    Parameters
+    ----------
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
+    player_or_players: `Union[player.Player, List[player.Player]]`
+        An `audera.struct.player.Player` object or a list of `audera.struct.player.Player` objects.
+    """
+
+    # Update the session with reduced players
+    if isinstance(player_or_players, player.Player):
+        player_or_players = [player_or_players]
+
+    reduced_players = copy.deepcopy(session.players)
+    reduced_players = [
+        uuid for uuid in reduced_players
+        if uuid not in [player_.uuid for player_ in player_or_players]
+    ]
+    reduced_players = set(reduced_players)
+
+    if reduced_players == set(session.players):
+        return session
+
+    session.players = sorted(list(reduced_players))
+
+    # Rename the playback session
+    if not session.players:
+        session.name = ''
+    elif len(session.players) == 1:
+        only_player: player.Player = session.players[0]
+        session.name = players.get(only_player).data['player']['name']
+    else:
+        first_player: player.Player = session.players[0]
+        session.name = '%s + %s' % (
+            players.get(first_player).data['player']['name'],
+            int(len(session.players) - 1)
+        )
+
+    # Remove the session group
+    session.group = ''
 
     return player.Session.from_config(update(session))
 
@@ -250,14 +302,14 @@ def attach_group(
     session: player.Session,
     group: player.Group
 ) -> player.Session:
-    """ Attaches an `audera.player.Group` object to a session.
+    """ Attaches an `audera.struct.player.Group` object to a session.
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     if (
@@ -266,10 +318,36 @@ def attach_group(
     ):
         return session
 
-    session.name = str(group.name)
-    session.group_uuid = str(group.uuid)
+    session.name = group.name
+    session.group = group.uuid
     session.players = copy.deepcopy(group.players)
-    session.volume = utils.as_type(group.volume, 'float')
+    session.volume = group.volume
+
+    return player.Session.from_config(update(session))
+
+
+def detach_group(
+    session: player.Session,
+    group: player.Group
+) -> player.Session:
+    """ Detaches an `audera.struct.player.Group` object from a session.
+
+    Parameters
+    ----------
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
+    """
+
+    if not (
+        group.name == session.name
+        and group.players == session.players
+    ):
+        return session
+
+    session.name = ''
+    session.group = ''
 
     return player.Session.from_config(update(session))
 
@@ -278,16 +356,16 @@ def attach_players_or_group(
     session: player.Session,
     players_or_group: Union[player.Player, List[player.Player], player.Group]
 ) -> player.Session:
-    """ Attaches an `audera.player.Player` object, a list of
-    `audera.player.Player` objects, or an `audera.player.Group` object to a session.
+    """ Attaches an `audera.struct.player.Player` object, a list of
+    `audera.struct.player.Player` objects, or an `audera.struct.player.Group` object to a session.
 
     Parameters
     ----------
-    session: `audera.player.Session`
-        An instance of an `audera.player.Session` object.
+    session: `audera.struct.player.Session`
+        An instance of an `audera.struct.player.Session` object.
     players_or_group: `Union[audera.player.Player, List[audera.player.Player], audera.player.Group]`
-        An `audera.player.Player` object, a list of `audera.player.Player` objects, or an
-            `audera.player.Group` object.
+        An `audera.struct.player.Player` object, a list of `audera.struct.player.Player` objects, or an
+            `audera.struct.player.Group` object.
     """
 
     if isinstance(players_or_group, player.Group):

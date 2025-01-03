@@ -26,19 +26,19 @@ DTYPES: dict = {
 }
 
 
-def exists(network_interface: player.NetworkInterface) -> bool:
+def exists(uuid: str) -> bool:
     """ Returns `True` when the player configuration file exists.
 
     Parameters
     ----------
-    network_interface: `audera.player.NetworkInterface`
-        An instance of an `audera.player.NetworkInterface` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Player` object.
     """
     if os.path.isfile(
         os.path.abspath(
             os.path.join(
                 PATH,
-                '.'.join([network_interface.uuid, 'json'])
+                '.'.join([uuid, 'json'])
             )
         )
     ):
@@ -48,13 +48,13 @@ def exists(network_interface: player.NetworkInterface) -> bool:
 
 
 def create(network_interface: player.NetworkInterface) -> config.Handler:
-    """ Creates the player configuration file and returns the contents
-    as a `pytensils.config.Handler` object.
+    """ Creates the player configuration file from a network interface
+    and returns the contents as a `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    network_interface: `audera.player.NetworkInterface`
-        An instance of an `audera.player.NetworkInterface` object.
+    network_interface: `audera.struct.player.NetworkInterface`
+        An instance of an `audera.struct.player.NetworkInterface` object.
     """
 
     # Create the player configuration-layer directory
@@ -88,7 +88,7 @@ def get(uuid: str) -> config.Handler:
     Parameters
     ----------
     uuid: `str`
-        A unique universal identifier of an `audera.player.Player` object.
+        A unique universal identifier of an `audera.struct.player.Player` object.
     """
 
     # Read the configuration file
@@ -109,22 +109,22 @@ def get_or_create(network_interface: player.NetworkInterface) -> config.Handler:
 
     Parameters
     ----------
-    network_interface: `audera.player.NetworkInterface`
-        An instance of an `audera.player.NetworkInterface` object.
+    network_interface: `audera.struct.player.NetworkInterface`
+        An instance of an `audera.struct.player.NetworkInterface` object.
     """
-    if exists(network_interface):
+    if exists(network_interface.uuid):
         return get(network_interface.uuid)
     else:
         return create(network_interface)
 
 
 def save(player: player.Player) -> config.Handler:
-    """ Saves the player configuration to `~/.audera/players/{player.uuid}.json`.
+    """ Saves the player configuration to `~/.audera/playerss/{player.uuid}.json`.
 
     Parameters
     ----------
-    player: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     # Create the player configuration-layer directory
@@ -143,12 +143,12 @@ def save(player: player.Player) -> config.Handler:
 
 
 def update(new: player.Player) -> config.Handler:
-    """ Updates the player configuration file `~/.audera/player/{player.uuid}.json`.
+    """ Updates the player configuration file `~/.audera/players/{player.uuid}.json`.
 
     Parameters
     ----------
-    new: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    new: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     # Read the configuration file
@@ -176,12 +176,12 @@ def update(new: player.Player) -> config.Handler:
 
 
 def delete(player_: player.Player):
-    """ Deletes the configuration file associated with a `player.Player` object.
+    """ Deletes the configuration file associated with a `audera.struct.player.Player` object.
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
     if exists():
         os.remove(os.path.join(PATH, '.'.join([player_.uuid, 'json'])))
@@ -200,7 +200,7 @@ def query_to_players(cursor: duckdb.DuckDBPyConnection) -> List[player.Player]:
 
 
 def get_all_players() -> List[player.Player]:
-    """ Returns all players as a list of `player.Player` objects. """
+    """ Returns all players as a list of `audera.struct.player.Player` objects. """
     with connection() as conn:
         return query_to_players(
             conn.execute(
@@ -213,7 +213,7 @@ def get_all_players() -> List[player.Player]:
 
 
 def get_all_available_players() -> List[player.Player]:
-    """ Returns all available players as a list of `player.Player` objects. An
+    """ Returns all available players as a list of `audera.struct.player.Player` objects. An
     available player is enabled and connected to the network.
     """
     with connection() as conn:
@@ -230,7 +230,7 @@ def get_all_available_players() -> List[player.Player]:
 
 
 def get_all_playing_players() -> List[player.Player]:
-    """ Returns all currently playing players as a list of `player.Player` objects."""
+    """ Returns all currently playing players as a list of `audera.struct.player.Player` objects."""
     with connection() as conn:
         return query_to_players(
             conn.execute(
@@ -248,8 +248,8 @@ def play(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if not (player_.enabled and player_.connected and not player_.playing):
@@ -264,8 +264,8 @@ def stop(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if not (player_.playing):
@@ -280,8 +280,8 @@ def enable(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if (player_.enabled):
@@ -296,8 +296,8 @@ def disable(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if not (player_.enabled):
@@ -312,8 +312,8 @@ def connect(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if (player_.connected):
@@ -328,8 +328,8 @@ def disconnect(player_: player.Player) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if not (player_.connected):
@@ -344,8 +344,10 @@ def rename(player_: player.Player, name: str) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    name: `str`
+        The new name of the audio player.
     """
 
     if player_.name == name:
@@ -360,8 +362,11 @@ def update_volume(player_: player.Player, volume: float) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
     """
 
     if player_.volume == volume:
@@ -376,8 +381,8 @@ def update_channels(player_: player.Player, channels: int) -> player.Player:
 
     Parameters
     ----------
-    player_: `audera.player.Player`
-        An instance of an `audera.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     """
 
     if player_.channels == channels:

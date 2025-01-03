@@ -22,19 +22,19 @@ DTYPES: dict = {
 }
 
 
-def exists(group: player.Group) -> bool:
+def exists(uuid: str) -> bool:
     """ Returns `True` when the group player configuration file exists.
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.struct.player.Group` object.
     """
     if os.path.isfile(
         os.path.abspath(
             os.path.join(
                 PATH,
-                '.'.join([group.uuid, 'json'])
+                '.'.join([uuid, 'json'])
             )
         )
     ):
@@ -49,11 +49,11 @@ def create(group: player.Group) -> config.Handler:
 
     Parameters
     ----------
-    group: `player.Group`
-        An instance of an `player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
-    # Create the player configuration-layer directory
+    # Create the group player configuration-layer directory
     if not os.path.isdir(PATH):
         os.makedirs(PATH)
 
@@ -75,7 +75,7 @@ def get(uuid: str) -> config.Handler:
     Parameters
     ----------
     uuid: `str`
-        A unique universal identifier of an `audera.player.Group` object.
+        A unique universal identifier of an `audera.struct.player.Group` object.
     """
 
     # Read the configuration file
@@ -96,10 +96,10 @@ def get_or_create(group: player.Group) -> config.Handler:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
-    if exists(group):
+    if exists(group.uuid):
         return get(group.uuid)
     else:
         return create(group)
@@ -110,11 +110,11 @@ def save(group: player.Group) -> config.Handler:
 
     Parameters
     ----------
-    player: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    player: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
-    # Create the player configuration-layer directory
+    # Create the group player configuration-layer directory
     if not os.path.isdir(PATH):
         os.makedirs(PATH)
 
@@ -130,24 +130,24 @@ def save(group: player.Group) -> config.Handler:
 
 
 def update(new: player.Group) -> config.Handler:
-    """ Updates the group player configuration file `~/.audera/group/{group.uuid}.json`.
+    """ Updates the group player configuration file `~/.audera/groups/{group.uuid}.json`.
 
     Parameters
     ----------
-    new: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    new: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     # Read the configuration file
     Config = get_or_create(new)
 
-    # Convert the config to an audio player object
+    # Convert the config to an audio group player object
     Player = player.Group.from_config(config=Config)
 
     # Compare and update
     if not Player == new:
 
-        # Update the player configuration object and write to the configuration file
+        # Update the group player configuration object and write to the configuration file
         Config = Config.from_dict({'group': new.to_dict()})
 
         return Config
@@ -157,12 +157,12 @@ def update(new: player.Group) -> config.Handler:
 
 
 def delete(group: player.Group):
-    """ Deletes the configuration file associated with a `player.Group` object.
+    """ Deletes the configuration file associated with a `audera.struct.player.Group` object.
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
     if exists():
         os.remove(os.path.join(PATH, '.'.join([group.uuid, 'json'])))
@@ -181,7 +181,7 @@ def query_to_groups(cursor: duckdb.DuckDBPyConnection) -> List[player.Group]:
 
 
 def get_all_groups() -> List[player.Group]:
-    """ Returns all group players as a list of `player.Group` objects. """
+    """ Returns all group players as a list of `audera.struct.player.Group` objects. """
     with connection() as conn:
         return query_to_groups(
             conn.execute(
@@ -194,7 +194,7 @@ def get_all_groups() -> List[player.Group]:
 
 
 def get_all_available_groups() -> List[player.Group]:
-    """ Returns all available group players as a list of `player.Group` objects. An
+    """ Returns all available group players as a list of `audera.struct.player.Group` objects. An
     available group player is enabled.
     """
     with connection() as conn:
@@ -210,7 +210,7 @@ def get_all_available_groups() -> List[player.Group]:
 
 
 def get_all_playing_groups() -> List[player.Group]:
-    """ Returns all currently playing players as a list of `player.Group` objects. """
+    """ Returns all currently playing players as a list of `audera.struct.player.Group` objects. """
     with connection() as conn:
         return query_to_groups(
             conn.execute(
@@ -224,12 +224,12 @@ def get_all_playing_groups() -> List[player.Group]:
 
 
 def get_all_group_players(group: player.Group) -> List[player.Player]:
-    """ Returns all players from a group as a list of `player.Player` objects.
+    """ Returns all players from a group as a list of `audera.struct.player.Player` objects.
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
     with players.connection() as conn:
         return players.query_to_players(
@@ -244,12 +244,12 @@ def get_all_group_players(group: player.Group) -> List[player.Player]:
 
 
 def get_all_available_group_players(group: player.Group) -> List[player.Player]:
-    """ Returns all available players from a group as a list of `player.Player` objects.
+    """ Returns all available players from a group as a list of `audera.struct.player.Player` objects.
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
     with players.connection() as conn:
         return players.query_to_players(
@@ -277,8 +277,8 @@ def play(group: player.Group) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     if not (group.enabled and not group.playing):
@@ -293,8 +293,8 @@ def stop(group: player.Group) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     if not (group.playing):
@@ -309,8 +309,8 @@ def enable(group: player.Group) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     if (group.enabled):
@@ -325,8 +325,8 @@ def disable(group: player.Group) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     """
 
     if not (group.enabled):
@@ -341,8 +341,10 @@ def rename(group: player.Group, name: str) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
+    name: `str`
+        The new name of the group player.
     """
 
     if group.name == name:
@@ -357,8 +359,11 @@ def update_volume(group: player.Group, volume: float) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
+    volume: `float`
+        A float value from 0 to 100 that sets the loudness of playback. A value of
+            0 is muted.
     """
 
     if group.volume == volume:
@@ -373,8 +378,8 @@ def add_player(group: player.Group, player_: player.Player) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     player_: `audera.player.Player`
         An instance of an `audera.player.Player` object.
     """
@@ -391,8 +396,8 @@ def remove_player(group: player.Group, player_: player.Player) -> player.Group:
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    group: `audera.struct.player.Group`
+        An instance of an `audera.struct.player.Group` object.
     player_: `audera.player.Player`
         An instance of an `audera.player.Player` object.
     """

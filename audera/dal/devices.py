@@ -48,7 +48,8 @@ def create() -> config.Handler:
 
 def get() -> config.Handler:
     """ Returns the contents of the device configuration as a
-    `pytensils.config.Handler` object. """
+    `pytensils.config.Handler` object.
+    """
 
     # Read the configuration file
     Config = config.Handler(
@@ -77,8 +78,8 @@ def save(device: audio.Device) -> config.Handler:
 
     Parameters
     ----------
-    device: `audera.audio.Device`
-        An instance of an `audera.audio.Device` object.
+    device: `audera.struct.audio.Device`
+        An instance of an `audera.struct.audio.Device` object.
     """
 
     # Create the device configuration-layer directory
@@ -101,8 +102,8 @@ def update(new: audio.Device) -> config.Handler:
 
     Parameters
     ----------
-    new: `audera.audio.Device`
-        An instance of an `audera.audio.Device` object.
+    new: `audera.struct.audio.Device`
+        An instance of an `audera.struct.audio.Device` object.
     """
 
     # Read the configuration file

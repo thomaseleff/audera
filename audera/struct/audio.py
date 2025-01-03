@@ -190,10 +190,10 @@ class Input():
 
     Parameters
     ----------
-    interface: `audera.Interface`
-        An `audera.Interface` object.
-    device: `audera.Device`
-        An `audera.Device` object.
+    interface: `audera.struct.audio.Interface`
+        An `audera.struct.audio.Interface` object.
+    device: `audera.struct.audio.Device`
+        An `audera.struct.audio.Device` object.
     """
 
     def __init__(
@@ -205,10 +205,10 @@ class Input():
 
         Parameters
         ----------
-        interface: `audera.Interface`
-            An `audera.Interface` object.
-        device: `audera.Device`
-            An `audera.Device` object.
+        interface: `audera.struct.audio.Interface`
+            An `audera.struct.audio.Interface` object.
+        device: `audera.struct.audio.Device`
+            An `audera.struct.audio.Device` object.
         """
 
         # Initialize the audio stream
@@ -258,7 +258,7 @@ class Input():
         return False
 
     def update(self, interface: Interface, device: Device):
-        """ Opens a new audio stream with updated interface and device settings and
+        """ Opens a new audio stream with an updated interface and device settings and
         returns `True` when a the stream is updated.
 
         Parameters
