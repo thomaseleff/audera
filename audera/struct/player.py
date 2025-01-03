@@ -184,7 +184,7 @@ class Group():
     """ A `class` that represents a group of audio players. """
     name: str
     uuid: str
-    players: List[str]
+    players: List[str] = field(default_factory=list)
     provider: Literal['audera'] = field(default='audera')
     volume: float = field(default=0.50)
     enabled: bool = field(default=True)
@@ -277,8 +277,8 @@ class Session():
     """ A `class` that represents an audio playback session. """
     name: str
     uuid: str
-    group_uuid: Union[str, None] = field(default=None)
-    players: List[str]
+    group_uuid: Union[str] = field(default='')
+    players: List[str] = field(default_factory=list)
     provider: Literal['audera'] = field(default='audera')
     volume: float = field(default=0.50)
 

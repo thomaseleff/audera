@@ -55,7 +55,7 @@ def create(group: player.Group) -> config.Handler:
 
     # Create the player configuration-layer directory
     if not os.path.isdir(PATH):
-        os.mkdir(PATH)
+        os.makedirs(PATH)
 
     # Create the configuration file
     Config = config.Handler(
@@ -68,20 +68,20 @@ def create(group: player.Group) -> config.Handler:
     return Config
 
 
-def get(group: player.Group) -> config.Handler:
+def get(uuid: str) -> config.Handler:
     """ Returns the contents of the group player configuration as a
     `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    group: `audera.player.Group`
-        An instance of an `audera.player.Group` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.player.Group` object.
     """
 
     # Read the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name='.'.join([group.uuid, 'json'])
+        file_name='.'.join([uuid, 'json'])
     )
 
     # Validate
@@ -100,7 +100,7 @@ def get_or_create(group: player.Group) -> config.Handler:
         An instance of an `audera.player.Group` object.
     """
     if exists(group):
-        return get(group)
+        return get(group.uuid)
     else:
         return create(group)
 
@@ -116,7 +116,7 @@ def save(group: player.Group) -> config.Handler:
 
     # Create the player configuration-layer directory
     if not os.path.isdir(PATH):
-        os.mkdir(PATH)
+        os.makedirs(PATH)
 
     # Create the configuration file
     Config = config.Handler(
@@ -237,8 +237,37 @@ def get_all_group_players(group: player.Group) -> List[player.Player]:
                 """
                 SELECT *
                 FROM players
-                WHERE uuid in (%s)
+                WHERE uuid IN (%s)
                 """ % (", ".join(["'%s'" % (uuid) for uuid in group.players]))
+            )
+        )
+
+
+def get_all_available_group_players(group: player.Group) -> List[player.Player]:
+    """ Returns all available players from a group as a list of `player.Player` objects.
+
+    Parameters
+    ----------
+    group: `audera.player.Group`
+        An instance of an `audera.player.Group` object.
+    """
+    with players.connection() as conn:
+        return players.query_to_players(
+            conn.execute(
+                """
+                SELECT *
+                FROM players
+                WHERE uuid IN (%s)
+                """ % (
+                    ", ".join(
+                        [
+                            "'%s'" % (uuid) for uuid in group.players
+                            if uuid in [
+                                player_.uuid for player_ in players.get_all_available_players()
+                            ]
+                        ]
+                    )
+                )
             )
         )
 

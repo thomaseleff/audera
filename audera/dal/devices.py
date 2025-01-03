@@ -123,16 +123,11 @@ def update(new: audio.Device) -> config.Handler:
         return Config
 
 
-def get_device() -> audio.Device:
-    """ Returns the contents of the configuration file as an `audio.Device` object. """
-    return audio.Device.from_dict(get_or_create().to_dict()['device'])
-
-
 def get_device_index() -> int:
     """ Returns the current selected audio device index as an `int`. """
 
     # Read the configuration file
-    Device = get_device()
+    Device: audio.Device = audio.Device.from_config(get_or_create())
     return Device.index
 
 

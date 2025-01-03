@@ -59,7 +59,7 @@ def create(network_interface: player.NetworkInterface) -> config.Handler:
 
     # Create the player configuration-layer directory
     if not os.path.isdir(PATH):
-        os.mkdir(PATH)
+        os.makedirs(PATH)
 
     # Create the configuration file
     Config = config.Handler(
@@ -81,20 +81,20 @@ def create(network_interface: player.NetworkInterface) -> config.Handler:
     return Config
 
 
-def get(network_interface: player.NetworkInterface) -> config.Handler:
+def get(uuid: str) -> config.Handler:
     """ Returns the contents of the player configuration as a
     `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    network_interface: `audera.player.NetworkInterface`
-        An instance of an `audera.player.NetworkInterface` object.
+    uuid: `str`
+        A unique universal identifier of an `audera.player.Player` object.
     """
 
     # Read the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name='.'.join([network_interface.uuid, 'json'])
+        file_name='.'.join([uuid, 'json'])
     )
 
     # Validate
@@ -113,7 +113,7 @@ def get_or_create(network_interface: player.NetworkInterface) -> config.Handler:
         An instance of an `audera.player.NetworkInterface` object.
     """
     if exists(network_interface):
-        return get(network_interface)
+        return get(network_interface.uuid)
     else:
         return create(network_interface)
 
@@ -129,7 +129,7 @@ def save(player: player.Player) -> config.Handler:
 
     # Create the player configuration-layer directory
     if not os.path.isdir(PATH):
-        os.mkdir(PATH)
+        os.makedirs(PATH)
 
     # Create the configuration file
     Config = config.Handler(
