@@ -11,6 +11,7 @@ PATH: Union[str, os.PathLike] = path.HOME
 FILE_NAME: str = 'device.json'
 DTYPES: dict = {
     'device': {
+        'name': 'str',
         'index': 'int'
     }
 }

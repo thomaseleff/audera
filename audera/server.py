@@ -188,13 +188,13 @@ class Service():
         # Logging
         self.logger.info(
             ' '.join([
-                "Streaming FORMAT {%s-bit} audio over PORT {%s} at RATE {%s}" % (
+                "Streaming FORMAT {%s-bit} audio at RATE {%s}" % (
                     self.audio_input.interface.format,
-                    audera.STREAM_PORT,
                     self.audio_input.interface.rate
                 ),
-                "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
+                "with {%s} CHANNEL(s) from input DEVICE {%s (%s)}." % (
                     self.audio_input.interface.channels,
+                    self.audio_input.device.name,
                     self.audio_input.device.index
                 )
             ])
@@ -214,13 +214,13 @@ class Service():
                     # Logging
                     self.logger.info(
                         ' '.join([
-                            "Streaming FORMAT {%s-bit} audio over PORT {%s} at RATE {%s}" % (
+                            "Streaming FORMAT {%s-bit} audio at RATE {%s}" % (
                                 self.audio_input.interface.format,
-                                audera.STREAM_PORT,
                                 self.audio_input.interface.rate
                             ),
-                            "with {%s} CHANNEL(s) for input DEVICE {%s}." % (
+                            "with {%s} CHANNEL(s) from input DEVICE {%s (%s)}." % (
                                 self.audio_input.interface.channels,
+                                self.audio_input.device.name,
                                 self.audio_input.device.index
                             )
                         ])

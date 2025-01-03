@@ -111,9 +111,12 @@ class Device():
 
     Attributes
     ----------
-    index : `int`
+    name: `str`
+        The name of the audio device.
+    index: `int`
         The hardware index of the audio device.
     """
+    name: str = field(default='default')
     index: int = field(default=DEVICE_INDEX)
 
     def from_dict(dict_object: dict) -> Device:
@@ -150,13 +153,17 @@ class Device():
         _audio = pyaudio.PyAudio()
 
         # Get the default audio input device
-        device_index = _audio.get_default_input_device_info()["index"]
-        # device_info = _audio.get_device_info_by_index(device_index)
-        # name = device_info['name']
+        device_index = _audio.get_default_input_device_info()['index']
+        device_info = _audio.get_device_info_by_index(device_index)
+        name = device_info['name']
 
         # Close the temporary audio port
         _audio.terminate()
-        return Device(index=device_index)
+
+        return Device(
+            name=name,
+            index=device_index
+        )
 
     def from_config(config: config.Handler) -> Device:
         """ Returns a `audera.struct.audio.Device` object from a `pytensils.config.Handler` object.
@@ -171,6 +178,7 @@ class Device():
     def to_dict(self):
         """ Returns the `audera.struct.audio.Device` object as a `dict`. """
         return {
+            'name': self.name,
             'index': self.index
         }
 
@@ -188,7 +196,8 @@ class Device():
         """
         if isinstance(compare, Device):
             return (
-                self.index == compare.index
+                self.name == compare.name
+                and self.index == compare.index
             )
         return False
 
