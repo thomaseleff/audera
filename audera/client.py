@@ -1,5 +1,6 @@
 """ Client-service """
 
+from typing import Union
 import pyaudio
 import ntplib
 import asyncio
@@ -34,6 +35,9 @@ class Service():
         self.server_ip_address: str = None
         self.stream_port: int = None
         self.ping_port: int = audera.PING_PORT
+
+        # Initialize playback session
+        self.playback_session: Union[asyncio.StreamWriter] = None
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
@@ -273,18 +277,34 @@ class Service():
             The unused asynchronous network stream writer.
         """
 
+        # Retrieve the server ip-address and port
+        server_ip, _ = writer.get_extra_info('peername')
+
         # Logging
         self.logger.info(
-            ' '.join([
-                "Receiving audio over PORT {%s} at RATE {%s}" % (
-                    self.stream_port,
-                    audera.RATE
-                ),
-                "with {%s} CHANNEL(s)." % (
-                    audera.CHANNELS
-                )
-            ])
+            'Server {%s} connected.' % (
+                server_ip
+            )
         )
+
+        # Clear any existing playback session
+        if self.playback_session is not None:
+
+            # Close the connection
+            self.playback_session.close()
+            try:
+                await self.playback_session.wait_closed()
+            except (
+                ConnectionResetError,  # Server disconnected
+                ConnectionAbortedError,  # Server aborted the connection
+            ):
+                pass
+
+            # Logging
+            self.logger.info('Closing the previous server connection.')
+
+        # Retain the latest playback session
+        self.playback_session = writer
 
         # Receive audio stream
         while self.mdns_connection_event.is_set():
@@ -344,6 +364,10 @@ class Service():
 
                 # Exit the loop
                 break
+
+        # Clear the connection
+        if self.playback_session == writer:
+            self.playback_session = None
 
         # Close the connection
         writer.close()
@@ -618,7 +642,7 @@ class Service():
     async def communicate(self):
         """ Communicates with the server and measures round-trip time (rtt). """
 
-        # Initialize the connection to the ping-communication server
+        # Initialize the connection to the registration / communication server
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(
                 self.server_ip_address,
@@ -663,6 +687,36 @@ class Service():
 
         # return rtt
 
+    async def start_stream_server(self):
+        """ Starts the async server for audio streaming.
+
+        The `client` attempts to start the server as a _dependent_
+        tasks, receiving continuous connections with server(s) forever until
+        the tasks complete, are cancelled by the event loop or are cancelled
+        manually through `KeyboardInterrupt`.
+        """
+
+        # Wait for the mDNS connection
+        await self.mdns_connection_event.wait()
+
+        # Initialize the stream server
+        stream_server = await asyncio.start_server(
+            client_connected_cb=(
+                lambda reader, writer: self.receive_stream(
+                    reader=reader,
+                    writer=writer
+                )
+            ),
+            host='0.0.0.0',  # No specific destination address
+            port=audera.STREAM_PORT
+        )
+
+        # Serve server-connections
+        async with stream_server:
+            await asyncio.gather(
+                stream_server.serve_forever()
+            )
+
     async def start_client_services(self):
         """ Starts the async services for audio streaming
         and client-communication with the server.
@@ -685,19 +739,19 @@ class Service():
         while self.mdns_connection_event.is_set():
             try:
 
-                # Initialize the connection to the audio stream server
-                reader, writer = await asyncio.wait_for(
-                    asyncio.open_connection(
-                        self.server_ip_address,
-                        self.stream_port
-                    ),
-                    timeout=audera.TIME_OUT
-                )
+                # # Initialize the connection to the audio stream server
+                # reader, writer = await asyncio.wait_for(
+                #     asyncio.open_connection(
+                #         self.server_ip_address,
+                #         self.stream_port
+                #     ),
+                #     timeout=audera.TIME_OUT
+                # )
 
-                # Initialize the audio stream capture service coroutine
-                receive_stream = asyncio.create_task(
-                    self.receive_stream(reader=reader, writer=writer)
-                )
+                # # Initialize the audio stream capture service coroutine
+                # receive_stream = asyncio.create_task(
+                #     self.receive_stream(reader=reader, writer=writer)
+                # )
 
                 # Initialize the audio stream playback service coroutine
                 playback_stream = asyncio.create_task(
@@ -710,7 +764,7 @@ class Service():
                 )
 
                 await asyncio.gather(
-                    receive_stream,
+                    # receive_stream,
                     playback_stream,
                     handle_communication,
                     return_exceptions=True
@@ -809,6 +863,11 @@ class Service():
             self.start_time_synchronization()
         )
 
+        # Initialize the audio stream server
+        start_stream_server = asyncio.create_task(
+            self.start_stream_server()
+        )
+
         # Initialize the `audera` client-services
         start_client_services = asyncio.create_task(
             self.start_client_services()
@@ -818,6 +877,7 @@ class Service():
             start_shairport_services,
             start_mdns_services,
             start_time_synchronization_services,
+            start_stream_server,
             start_client_services
         ]
 

@@ -397,52 +397,52 @@ class Service():
             return False
         return True
 
+    # async def register_client(
+    #     self,
+    #     writer: asyncio.StreamWriter
+    # ):
+    #     """ The async client-registration task that is started when a client
+    #     connects to `0.0.0.0:audera.STREAM_PORT`.
+
+    #     Parameters
+    #     ----------
+    #     writer: `asyncio.StreamWriter`
+    #         The asynchronous network stream writer passed from
+    #             `asyncio.start_server()` used to write the
+    #             audio stream to the client over a TCP connection.
+    #     """
+
+    #     # Retrieve the client ip-address and port
+    #     client_ip, _ = writer.get_extra_info('peername')
+
+    #     # Logging
+    #     self.logger.info(
+    #         'Client {%s} connected.' % (
+    #             client_ip
+    #         )
+    #     )
+
+    #     # Configure the client socket options for low-latency communication
+    #     try:
+    #         client_socket: socket.socket = writer.get_extra_info('socket')
+    #         client_socket.setsockopt(
+    #             socket.IPPROTO_TCP,
+    #             socket.TCP_NODELAY,
+    #             1
+    #         )
+    #     except Exception:
+
+    #         # Logging
+    #         self.logger.warning(
+    #             'Client {%s} unable to operate with TCP_NODELAY.' % (
+    #                 client_ip
+    #             )
+    #         )
+
+    #     # Register client
+    #     self.clients[client_ip] = writer
+
     async def register_client(
-        self,
-        writer: asyncio.StreamWriter
-    ):
-        """ The async client-registration task that is started when a client
-        connects to `0.0.0.0:audera.STREAM_PORT`.
-
-        Parameters
-        ----------
-        writer: `asyncio.StreamWriter`
-            The asynchronous network stream writer passed from
-                `asyncio.start_server()` used to write the
-                audio stream to the client over a TCP connection.
-        """
-
-        # Retrieve the client ip-address and port
-        client_ip, _ = writer.get_extra_info('peername')
-
-        # Logging
-        self.logger.info(
-            'Client {%s} connected.' % (
-                client_ip
-            )
-        )
-
-        # Configure the client socket options for low-latency communication
-        try:
-            client_socket: socket.socket = writer.get_extra_info('socket')
-            client_socket.setsockopt(
-                socket.IPPROTO_TCP,
-                socket.TCP_NODELAY,
-                1
-            )
-        except Exception:
-
-            # Logging
-            self.logger.warning(
-                'Client {%s} unable to operate with TCP_NODELAY.' % (
-                    client_ip
-                )
-            )
-
-        # Register client
-        self.clients[client_ip] = writer
-
-    async def handle_communication(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
@@ -471,6 +471,45 @@ class Service():
                 client_ip
             )
         )
+
+        # Register the client ip-address
+        if client_ip not in self.clients.keys():
+
+            # Logging
+            self.logger.info(
+                'Registered client {%s}.' % (
+                    client_ip
+                )
+            )
+
+            # Configure the client socket options for low-latency communication
+            try:
+                client_socket: socket.socket = writer.get_extra_info('socket')
+                client_socket.setsockopt(
+                    socket.IPPROTO_TCP,
+                    socket.TCP_NODELAY,
+                    1
+                )
+            except Exception:
+
+                # Logging
+                self.logger.warning(
+                    'Client {%s} unable to operate with TCP_NODELAY.' % (
+                        client_ip
+                    )
+                )
+
+            # Initialize the connection to the playback client
+            _, stream_writer = await asyncio.wait_for(
+                asyncio.open_connection(
+                    client_ip,
+                    audera.STREAM_PORT
+                ),
+                timeout=audera.TIME_OUT
+            )
+
+            # Register client
+            self.clients[client_ip] = stream_writer
 
         # Communicate with the client
         try:
@@ -523,9 +562,9 @@ class Service():
             ):
                 pass
 
-    async def start_server_services(self):
-        """ Starts the async servers for client-registration
-        and client-communication with client(s).
+    async def start_registration_server(self):
+        """ Starts the async server for client-registration
+        and client-communication.
 
         The `server` attempts to start the servers as _dependent_
         tasks, each serving continuous connections with client(s) forever until
@@ -536,21 +575,21 @@ class Service():
         # Wait for the mDNS connection
         await self.mdns_runner_event.wait()
 
-        # Initialize the client-registration server
-        registration_server = await asyncio.start_server(
-            client_connected_cb=(
-                lambda _, writer: self.register_client(
-                    writer=writer
-                )
-            ),
-            host='0.0.0.0',  # No specific destination address
-            port=audera.STREAM_PORT
-        )
+        # # Initialize the client-registration server
+        # registration_server = await asyncio.start_server(
+        #     client_connected_cb=(
+        #         lambda _, writer: self.register_client(
+        #             writer=writer
+        #         )
+        #     ),
+        #     host='0.0.0.0',  # No specific destination address
+        #     port=audera.STREAM_PORT
+        # )
 
         # Initialize the ping-communication server
-        communication_server = await asyncio.start_server(
+        registration_server = await asyncio.start_server(
             client_connected_cb=(
-                lambda reader, writer: self.handle_communication(
+                lambda reader, writer: self.register_client(
                     reader=reader,
                     writer=writer
                 )
@@ -560,10 +599,13 @@ class Service():
         )
 
         # Serve client-connections and communication
-        async with registration_server, communication_server:
+        async with (
+            # registration_server,
+            registration_server
+        ):
             await asyncio.gather(
-                registration_server.serve_forever(),
-                communication_server.serve_forever()
+                # registration_server.serve_forever(),
+                registration_server.serve_forever()
             )
 
         # Stop the `server` services
@@ -605,15 +647,15 @@ class Service():
         )
 
         # Initialize the `audera` servers
-        start_server_services = asyncio.create_task(
-            self.start_server_services()
+        start_registration_server = asyncio.create_task(
+            self.start_registration_server()
         )
 
         tasks = [
             start_mdns_services,
             start_time_synchonization_services,
             start_stream_services,
-            start_server_services
+            start_registration_server
         ]
 
         # Run services
