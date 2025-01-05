@@ -36,7 +36,7 @@ DEVICE_INDEX: Union[int, None] = struct.audio.DEVICE_INDEX
 
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
-MDNS_NAME = f"stream.{MDNS_TYPE}"
+# MDNS_NAME = f"stream.{MDNS_TYPE}"
 STREAM_PORT: int = 5000
 PING_PORT: int = 5001
 

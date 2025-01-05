@@ -8,85 +8,8 @@ from pytensils import config
 
 
 @dataclass
-class NetworkInterface():
-    """ A `class` that represents a network interface.
-
-    Attributes
-    ----------
-    uuid: `str`
-        A unique universal identifier.
-    mac_address: `str`
-        The media access control address of the network adapter.
-    address: `str`
-        The ip-address of the network device.
-    """
-    uuid: str
-    mac_address: str
-    address: str
-
-    def from_dict(dict_object: dict) -> NetworkInterface:
-        """ Returns an `audera.struct.player.NetworkInterface` object from a `dict`.
-
-        Parameters
-        ----------
-        dict_object : `dict`
-            The dictionary object to convert to an `audera.struct.player.NetworkInterface` object.
-        """
-
-        # Assert object type
-        if not isinstance(dict_object, dict):
-            raise TypeError('Object must be a `dict`.')
-
-        # Assert keys
-        missing_keys = [
-            key for key in [
-                'uuid',
-                'mac_address',
-                'address',
-            ] if key not in dict_object
-        ]
-        if missing_keys:
-            raise KeyError(
-                'Missing keys. The `dict` object is missing the following required keys [%s].' % (
-                    ','.join(["'%s'" % (key) for key in missing_keys])
-                )
-            )
-
-        return NetworkInterface(**dict_object)
-
-    def to_dict(self):
-        """ Returns an `audera.struct.player.NetworkInterface` object as a `dict`. """
-        return {
-            'uuid': self.uuid,
-            'mac_address': self.mac_address,
-            'address': self.address
-        }
-
-    def __repr__(self):
-        """ Returns an `audera.struct.player.NetworkInterface` object as a json-formatted `str`. """
-        return json.dumps(self.to_dict(), indent=2)
-
-    def __eq__(self, compare):
-        """ Returns `True` when compare is an instance of self.
-
-        Parameters
-        ----------
-        compare: `audera.struct.player.NetworkInterface`
-            An instance of an `audera.struct.player.NetworkInterface` object.
-        """
-        if isinstance(compare, NetworkInterface):
-            return (
-                self.uuid == compare.uuid
-                and self.mac_address == compare.mac_address
-                and self.address == compare.address
-            )
-
-        return False
-
-
-@dataclass
 class Player():
-    """ A `class` that represents an audio player.
+    """ A `class` that represents a remote audio output player.
 
     Attributes
     ----------
@@ -216,7 +139,7 @@ class Player():
 
 @dataclass
 class Group():
-    """ A `class` that represents a group of audio players.
+    """ A `class` that represents a group of remote output audio players.
 
     Attributes
     ----------

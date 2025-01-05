@@ -2,10 +2,9 @@
 
 from typing import Union, List
 import os
-import coolname
 import duckdb
 from pytensils import config, utils
-from audera.struct import player
+from audera.struct import identity, player
 from audera.dal import path
 
 
@@ -47,14 +46,14 @@ def exists(uuid: str) -> bool:
         return False
 
 
-def create(network_interface: player.NetworkInterface) -> config.Handler:
-    """ Creates the player configuration file from a network interface
+def create(identity_: identity.Identity) -> config.Handler:
+    """ Creates the player configuration file from a player identity
     and returns the contents as a `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    network_interface: `audera.struct.player.NetworkInterface`
-        An instance of an `audera.struct.player.NetworkInterface` object.
+    identity_: `audera.struct.identity.Identity`
+        An instance of an `audera.struct.identity.Identity` object.
     """
 
     # Create the player configuration-layer directory
@@ -64,16 +63,16 @@ def create(network_interface: player.NetworkInterface) -> config.Handler:
     # Create the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name='.'.join([network_interface.uuid, 'json']),
+        file_name='.'.join([identity_.uuid, 'json']),
         create=True
     )
     Config = Config.from_dict(
         {
             'player': player.Player(
-                name=coolname.generate_slug(2),
-                uuid=network_interface.uuid,
-                mac_address=network_interface.mac_address,
-                address=network_interface.address
+                name=identity_.name,
+                uuid=identity_.uuid,
+                mac_address=identity_.mac_address,
+                address=identity_.address
             ).to_dict()
         }
     )
@@ -103,19 +102,19 @@ def get(uuid: str) -> config.Handler:
     return Config
 
 
-def get_or_create(network_interface: player.NetworkInterface) -> config.Handler:
+def get_or_create(identity_: identity.Identity) -> config.Handler:
     """ Creates or reads the player configuration file and returns the contents as
     a `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    network_interface: `audera.struct.player.NetworkInterface`
-        An instance of an `audera.struct.player.NetworkInterface` object.
+    identity_: `audera.struct.identity.Identity`
+        An instance of an `audera.struct.identity.Identity` object.
     """
-    if exists(network_interface.uuid):
-        return get(network_interface.uuid)
+    if exists(identity_.uuid):
+        return get(identity_.uuid)
     else:
-        return create(network_interface)
+        return create(identity_)
 
 
 def save(player: player.Player) -> config.Handler:
@@ -153,7 +152,8 @@ def update(new: player.Player) -> config.Handler:
 
     # Read the configuration file
     Config = get_or_create(
-        player.NetworkInterface(
+        identity.Identity(
+            name=new.name,
             uuid=new.uuid,
             mac_address=new.mac_address,
             address=new.address

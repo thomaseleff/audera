@@ -7,7 +7,6 @@ import socket
 import time
 import struct
 import copy
-import uuid
 import concurrent.futures
 from zeroconf import Zeroconf, ServiceInfo
 
@@ -23,22 +22,46 @@ class Service():
         # Logging
         self.logger = audera.logging.get_server_logger()
 
-        # Initialize mDNS
-        self.mac_address = uuid.getnode()
+        # Initialize identity
+        self.mac_address = audera.mdns.get_local_mac_address()
         self.server_ip_address = audera.mdns.get_local_ip_address()
-        self.mdns: audera.mdns.Runner = audera.mdns.Runner(
-            logger=self.logger,
-            zc=Zeroconf(),
-            info=ServiceInfo(
-                type_=audera.MDNS_TYPE,
-                name=audera.MDNS_NAME,
-                addresses=[socket.inet_aton(self.server_ip_address)],
-                port=audera.STREAM_PORT,
-                weight=0,
-                priority=0,
-                properties={"description": audera.DESCRIPTION}
+        self.identity: audera.struct.identity.Identity = audera.struct.identity.Identity.from_config(
+            audera.dal.identities.update(
+                audera.struct.identity.Identity(
+                    name=audera.struct.identity.generate_cool_name(),
+                    uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
+                    mac_address=self.mac_address,
+                    address=self.server_ip_address
+                )
             )
         )
+
+        # Initialize mDNS
+        self.mdns: audera.mdns.Browser = audera.mdns.Browser(
+            logger=self.logger,
+            zc=Zeroconf(),
+            type_=audera.MDNS_TYPE,
+            time_out=audera.TIME_OUT
+        )
+        # self.mdns: audera.mdns.Runner = audera.mdns.Runner(
+        #     logger=self.logger,
+        #     zc=Zeroconf(),
+        #     info=ServiceInfo(
+        #         type_=audera.MDNS_TYPE,
+        #         name='server@%s.%s' % (
+        #             self.mac_address.replace(':', ''),
+        #             audera.MDNS_TYPE
+        #         ),
+        #         addresses=[socket.inet_aton(self.server_ip_address)],
+        #         port=audera.STREAM_PORT,
+        #         weight=0,
+        #         priority=0,
+        #         properties={
+        #             "mac_address": self.mac_address,
+        #             "description": audera.DESCRIPTION
+        #         }
+        #     )
+        # )
 
         # Initialize audio stream capture
         self.audio_input = audera.struct.audio.Input(
@@ -57,7 +80,8 @@ class Service():
         self.clients: Dict[str, asyncio.StreamWriter] = {}
 
         # Initialize process control parameters
-        self.mdns_runner_event: asyncio.Event = asyncio.Event()
+        # self.mdns_runner_event: asyncio.Event = asyncio.Event()
+        self.mdns_browser_event: asyncio.Event = asyncio.Event()
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, playback delay and
@@ -66,7 +90,7 @@ class Service():
         return float(time.time() + self.playback_delay + self.ntp_offset)
 
     async def start_mdns_services(self):
-        """ Starts the async service for the multi-cast DNS service.
+        """ Starts the async service for the multi-cast DNS service browser.
 
         The `server` attempts to start the mDNS service as an
         _independent_ task, until the task is either cancelled by
@@ -74,7 +98,7 @@ class Service():
         """
         loop = asyncio.get_running_loop()
 
-        # Register and broadcast the mDNS service
+        # Browse for remote audio output players broadcasting the mDNS service
         try:
 
             # The mDNS service must be started in a separate thread,
@@ -82,16 +106,29 @@ class Service():
             #   separately from the `server` async event loop.
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                mdns_server = loop.run_in_executor(pool, self.mdns.register)
+                mdns_server = loop.run_in_executor(pool, self.mdns.browse)
 
                 await asyncio.gather(mdns_server)
 
             # Start the `server` services
-            self.mdns_runner_event.set()
+            self.mdns_browser_event.set()
 
             # Yield to other tasks in the event loop
-            while self.mdns_runner_event.is_set():
-                await asyncio.sleep(0)
+            while self.mdns_browser_event.is_set():
+
+                # Register / update each remote audio output player discovered
+                #    by the mDNS service browser concurrently.
+
+                if self.mdns.players:
+                    await asyncio.gather(
+                        *[
+                            self.register_player(info=info)
+                            for info in self.mdns.players.values()
+                        ],
+                        return_exceptions=True
+                    )
+
+                await asyncio.sleep(audera.TIME_OUT)
 
         except (
             asyncio.CancelledError,  # mDNS-services cancelled
@@ -106,9 +143,51 @@ class Service():
             )
 
         # Close the mDNS service
-        self.mdns.unregister()
+        self.mdns.close()
 
-    async def start_time_synchonization(self):
+        # """ Starts the async service for the multi-cast DNS service.
+
+        # The `server` attempts to start the mDNS service as an
+        # _independent_ task, until the task is either cancelled by
+        # the event loop or cancelled manually through `KeyboardInterrupt`.
+        # """
+        # loop = asyncio.get_running_loop()
+
+        # # Register and broadcast the mDNS service
+        # try:
+
+        #     # The mDNS service must be started in a separate thread,
+        #     #   since zeroconf relies on its own async event loop that must be run
+        #     #   separately from the `server` async event loop.
+
+        #     with concurrent.futures.ThreadPoolExecutor() as pool:
+        #         mdns_server = loop.run_in_executor(pool, self.mdns.register)
+
+        #         await asyncio.gather(mdns_server)
+
+        #     # Start the `server` services
+        #     self.mdns_runner_event.set()
+
+        #     # Yield to other tasks in the event loop
+        #     while self.mdns_runner_event.is_set():
+        #         await asyncio.sleep(0)
+
+        # except (
+        #     asyncio.CancelledError,  # mDNS-services cancelled
+        #     KeyboardInterrupt,  # mDNS-services cancelled manually
+        # ):
+
+        #     # Logging
+        #     self.logger.info(
+        #         'mDNS service {%s} cancelled.' % (
+        #             audera.MDNS_TYPE
+        #         )
+        #     )
+
+        # # Close the mDNS service
+        # self.mdns.unregister()
+
+    async def start_ntp_synchronization(self):
         """ Starts the async service for time-synchronization.
 
         The `server` attempts to start the time-synchronization service
@@ -183,7 +262,7 @@ class Service():
         """
 
         # Wait for the mDNS connection
-        await self.mdns_runner_event.wait()
+        await self.mdns_browser_event.wait()
 
         # Logging
         self.logger.info(
@@ -201,7 +280,7 @@ class Service():
         )
 
         # Serve audio stream
-        while self.mdns_runner_event.is_set():
+        while self.mdns_browser_event.is_set():
 
             try:
 
@@ -397,20 +476,76 @@ class Service():
             return False
         return True
 
-    # async def register_client(
-    #     self,
-    #     writer: asyncio.StreamWriter
-    # ):
-    #     """ The async client-registration task that is started when a client
-    #     connects to `0.0.0.0:audera.STREAM_PORT`.
+    async def register_player(
+        self,
+        info: ServiceInfo
+    ):
+        """ Registers a remote audio output player when it is discovered by
+        the mDNS browser.
 
-    #     Parameters
-    #     ----------
-    #     writer: `asyncio.StreamWriter`
-    #         The asynchronous network stream writer passed from
-    #             `asyncio.start_server()` used to write the
-    #             audio stream to the client over a TCP connection.
-    #     """
+        Parameters
+        ----------
+        info: `zeroconf.ServiceInfo`
+            An instance of the `zeroconf` multi-cast DNS service parameters.
+        """
+
+        # Unpack the mDNS service info into a dictionary
+        properties = {
+            key.decode('utf-8'): value.decode('utf-8') if isinstance(value, bytes) else value
+            for key, value in info.properties.items()
+        }
+
+        # Update the player configuration-file
+        player: audera.struct.player.Player = audera.struct.player.Player.from_config(
+            audera.dal.players.update(
+                audera.struct.player.Player(
+                    name=properties['name'],
+                    uuid=properties['uuid'],
+                    mac_address=properties['mac_address'],
+                    address=socket.inet_ntoa(info.addresses[0])
+                )
+            )
+        )
+
+        # Register the client ip-address
+        if player.address not in self.clients.keys():
+
+            # Logging
+            self.logger.info(
+                'Registered client {%s}.' % (
+                    player.address
+                )
+            )
+
+            # Initialize the connection to the remote audio output player
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(
+                    player.address,
+                    audera.STREAM_PORT
+                ),
+                timeout=audera.TIME_OUT
+            )
+
+            # Configure the stream socket options for low-latency communication
+            try:
+                client_socket: socket.socket = writer.get_extra_info('socket')
+                client_socket: socket.socket = socket.socket()
+                client_socket.setsockopt(
+                    socket.IPPROTO_TCP,
+                    socket.TCP_NODELAY,
+                    1
+                )
+            except Exception:
+
+                # Logging
+                self.logger.warning(
+                    'Client {%s} unable to operate with TCP_NODELAY.' % (
+                        player.address
+                    )
+                )
+
+            # Register client
+            self.clients[player.address] = writer
 
     #     # Retrieve the client ip-address and port
     #     client_ip, _ = writer.get_extra_info('peername')
@@ -442,12 +577,12 @@ class Service():
     #     # Register client
     #     self.clients[client_ip] = writer
 
-    async def register_client(
+    async def start_multi_player_synchronization(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter
     ):
-        """ The async client-communication task that is started when a client
+        """ The async multi-player synchronization task that is started when a client
         connects to `0.0.0.0:audera.PING_PORT`.
 
         Parameters
@@ -458,7 +593,7 @@ class Service():
                 response from the client.
         writer: `asyncio.StreamWriter`
             The asynchronous network stream writer passed from
-                `asyncio.start_server()` used to serve a `pong`
+                `asyncio.start_server()` used to serve a datetime
                 response to the client.
         """
 
@@ -471,45 +606,6 @@ class Service():
                 client_ip
             )
         )
-
-        # Register the client ip-address
-        if client_ip not in self.clients.keys():
-
-            # Logging
-            self.logger.info(
-                'Registered client {%s}.' % (
-                    client_ip
-                )
-            )
-
-            # Configure the client socket options for low-latency communication
-            try:
-                client_socket: socket.socket = writer.get_extra_info('socket')
-                client_socket.setsockopt(
-                    socket.IPPROTO_TCP,
-                    socket.TCP_NODELAY,
-                    1
-                )
-            except Exception:
-
-                # Logging
-                self.logger.warning(
-                    'Client {%s} unable to operate with TCP_NODELAY.' % (
-                        client_ip
-                    )
-                )
-
-            # Initialize the connection to the playback client
-            _, stream_writer = await asyncio.wait_for(
-                asyncio.open_connection(
-                    client_ip,
-                    audera.STREAM_PORT
-                ),
-                timeout=audera.TIME_OUT
-            )
-
-            # Register client
-            self.clients[client_ip] = stream_writer
 
         # Communicate with the client
         try:
@@ -562,9 +658,8 @@ class Service():
             ):
                 pass
 
-    async def start_registration_server(self):
-        """ Starts the async server for client-registration
-        and client-communication.
+    async def start_multi_player_synchronization_server(self):
+        """ Starts the async server for multi-player synchronization.
 
         The `server` attempts to start the servers as _dependent_
         tasks, each serving continuous connections with client(s) forever until
@@ -573,7 +668,7 @@ class Service():
         """
 
         # Wait for the mDNS connection
-        await self.mdns_runner_event.wait()
+        await self.mdns_browser_event.wait()
 
         # # Initialize the client-registration server
         # registration_server = await asyncio.start_server(
@@ -587,9 +682,9 @@ class Service():
         # )
 
         # Initialize the ping-communication server
-        registration_server = await asyncio.start_server(
+        multi_player_synchronization_server = await asyncio.start_server(
             client_connected_cb=(
-                lambda reader, writer: self.register_client(
+                lambda reader, writer: self.start_multi_player_synchronization(
                     reader=reader,
                     writer=writer
                 )
@@ -601,11 +696,11 @@ class Service():
         # Serve client-connections and communication
         async with (
             # registration_server,
-            registration_server
+            multi_player_synchronization_server
         ):
             await asyncio.gather(
                 # registration_server.serve_forever(),
-                registration_server.serve_forever()
+                multi_player_synchronization_server.serve_forever()
             )
 
         # Stop the `server` services
@@ -613,7 +708,7 @@ class Service():
 
     async def stop_services(self):
         """ Stops the async services. """
-        self.mdns_runner_event.clear()
+        self.mdns_browser_event.clear()
 
     async def start_services(self):
         """ Runs the async mDNS service, time-synchronization service,
@@ -629,8 +724,13 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        start_time_synchonization_services = asyncio.create_task(
-            self.start_time_synchonization()
+        start_ntp_synchronization_services = asyncio.create_task(
+            self.start_ntp_synchronization()
+        )
+
+        # Initialize the multi-player synchronization server
+        start_multi_player_synchronization_server = asyncio.create_task(
+            self.start_multi_player_synchronization_server()
         )
 
         # Initialize the audio stream service
@@ -646,16 +746,11 @@ class Service():
             self.start_stream_service()
         )
 
-        # Initialize the `audera` servers
-        start_registration_server = asyncio.create_task(
-            self.start_registration_server()
-        )
-
         tasks = [
             start_mdns_services,
-            start_time_synchonization_services,
-            start_stream_services,
-            start_registration_server
+            start_ntp_synchronization_services,
+            start_multi_player_synchronization_server,
+            start_stream_services
         ]
 
         # Run services
@@ -703,7 +798,7 @@ class Service():
                 audera.STREAM_PORT
             ))
         self.logger.message(
-            '    Client-communication address: {%s:%s}' % (
+            '    Multi-player synchronization address: {%s:%s}' % (
                 self.server_ip_address,
                 audera.PING_PORT
             ))

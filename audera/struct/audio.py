@@ -107,7 +107,7 @@ class Interface():
 
 @dataclass
 class Device():
-    """ A `class` that represents an audio device.
+    """ A `class` that represents a hardware audio device.
 
     Attributes
     ----------

@@ -9,7 +9,8 @@ import platform
 import time
 import struct
 from collections import deque
-from zeroconf import Zeroconf
+import concurrent.futures
+from zeroconf import Zeroconf, ServiceInfo
 # import statistics
 
 import audera
@@ -24,17 +25,51 @@ class Service():
         # Logging
         self.logger = audera.logging.get_client_logger()
 
+        # Initialize identity
+        mac_address = audera.mdns.get_local_mac_address()
+        self.identity: audera.struct.identity.Identity = audera.struct.identity.Identity.from_config(
+            audera.dal.identities.update(
+                audera.struct.identity.Identity(
+                    name=audera.struct.identity.generate_cool_name(),
+                    uuid=audera.struct.identity.generate_uuid_from_mac_address(mac_address),
+                    mac_address=mac_address,
+                    address=audera.mdns.get_local_ip_address()
+                )
+            )
+        )
+
         # Initialize mDNS
-        self.mdns: audera.mdns.Connection = audera.mdns.Connection(
+        # self.mdns: audera.mdns.Connection = audera.mdns.Connection(
+        #     logger=self.logger,
+        #     zc=Zeroconf(),
+        #     type=audera.MDNS_TYPE,
+        #     name=audera.MDNS_NAME,
+        #     time_out=audera.TIME_OUT
+        # )
+        self.mdns: audera.mdns.Runner = audera.mdns.Runner(
             logger=self.logger,
             zc=Zeroconf(),
-            type=audera.MDNS_TYPE,
-            name=audera.MDNS_NAME,
-            time_out=audera.TIME_OUT
+            info=ServiceInfo(
+                type_=audera.MDNS_TYPE,
+                name='raop@%s.%s' % (
+                    self.identity.mac_address.replace(':', ''),
+                    audera.MDNS_TYPE
+                ),  # (r)emote (a)udio (o)utput (p)layer
+                addresses=[socket.inet_aton(self.identity.address)],
+                port=audera.STREAM_PORT,
+                weight=0,
+                priority=0,
+                properties={
+                    "name": self.identity.name,
+                    "uuid": self.identity.uuid,
+                    "mac_address": self.identity.mac_address,
+                    "description": audera.DESCRIPTION
+                }
+            )
         )
         self.server_ip_address: str = None
-        self.stream_port: int = None
-        self.ping_port: int = audera.PING_PORT
+        # self.stream_port: int = None
+        # self.ping_port: int = audera.PING_PORT
 
         # Initialize playback session
         self.playback_session: Union[asyncio.StreamWriter] = None
@@ -55,7 +90,8 @@ class Service():
         )
 
         # Initialize process control parameters
-        self.mdns_connection_event: asyncio.Event = asyncio.Event()
+        # self.mdns_connection_event: asyncio.Event = asyncio.Event()
+        self.mdns_runner_event: asyncio.Event = asyncio.Event()
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, server time offset and
@@ -64,26 +100,68 @@ class Service():
         return float(time.time() + self.server_offset + self.ntp_offset)
 
     async def start_mdns_services(self):
-        """ Starts the async service for the multi-cast DNS service connection.
+        """ Starts the async service for the multi-cast DNS service.
 
-        The `server` attempts to connect the mDNS service as an
-        _independent_ task, until the task is either cancelled by
+        The remote audio output player `client` attempts to start the mDNS service
+        as an _independent_ task, until the task is either cancelled by
         the event loop or cancelled manually through `KeyboardInterrupt`.
         """
+        loop = asyncio.get_running_loop()
 
-        # Browse mDNS services and retain the ip-address of the server service
-        info = self.mdns.browse()
+        # Register and broadcast the mDNS service
+        try:
 
-        # Retain mDNS service settings
-        if info:
-            self.server_ip_address = socket.inet_ntoa(info.addresses[0])
-            self.stream_port = info.port
+            # The mDNS service must be started in a separate thread,
+            #   since zeroconf relies on its own async event loop that must be run
+            #   separately from the `client` async event loop.
 
-            # Start all other `client` services
-            self.mdns_connection_event.set()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                mdns_server = loop.run_in_executor(pool, self.mdns.register)
 
-        # Yield to other tasks in the event loop
-        await asyncio.sleep(0)
+                await asyncio.gather(mdns_server)
+
+            # Start the `client` services
+            self.mdns_runner_event.set()
+
+            # Yield to other tasks in the event loop
+            while self.mdns_runner_event.is_set():
+                await asyncio.sleep(0)
+
+        except (
+            asyncio.CancelledError,  # mDNS-services cancelled
+            KeyboardInterrupt,  # mDNS-services cancelled manually
+        ):
+
+            # Logging
+            self.logger.info(
+                'mDNS service {%s} cancelled.' % (
+                    audera.MDNS_TYPE
+                )
+            )
+
+        # Close the mDNS service
+        self.mdns.unregister()
+
+        # """ Starts the async service for the multi-cast DNS service connection.
+
+        # The `server` attempts to connect the mDNS service as an
+        # _independent_ task, until the task is either cancelled by
+        # the event loop or cancelled manually through `KeyboardInterrupt`.
+        # """
+
+        # # Browse mDNS services and retain the ip-address of the server service
+        # info = self.mdns.connect()
+
+        # # Retain mDNS service settings
+        # if info:
+        #     self.server_ip_address = socket.inet_ntoa(info.addresses[0])
+        #     self.stream_port = info.port
+
+        #     # Start all other `client` services
+        #     self.mdns_connection_event.set()
+
+        # # Yield to other tasks in the event loop
+        # await asyncio.sleep(0)
 
     async def start_shairport_services(self):
         """ Starts async shairport-sync connectivity to Airplay
@@ -190,7 +268,7 @@ class Service():
                 # Exit the loop
                 break
 
-    async def start_time_synchronization(self):
+    async def start_ntp_synchronization(self):
         """ Starts the async service for time-synchronization.
 
         The `client` attempts to start the time-synchronization service
@@ -278,12 +356,12 @@ class Service():
         """
 
         # Retrieve the server ip-address and port
-        server_ip, _ = writer.get_extra_info('peername')
+        self.server_ip_address, _ = writer.get_extra_info('peername')
 
         # Logging
         self.logger.info(
             'Server {%s} connected.' % (
-                server_ip
+                self.server_ip_address
             )
         )
 
@@ -307,7 +385,7 @@ class Service():
         self.playback_session = writer
 
         # Receive audio stream
-        while self.mdns_connection_event.is_set():
+        while self.mdns_runner_event.is_set():
             try:
 
                 # Parse audio stream packet
@@ -367,6 +445,7 @@ class Service():
 
         # Clear the connection
         if self.playback_session == writer:
+            self.server_ip_address = None
             self.playback_session = None
 
         # Close the connection
@@ -407,7 +486,7 @@ class Service():
         )
 
         # Play audio stream data
-        while self.mdns_connection_event.is_set():
+        while self.mdns_runner_event.is_set():
             try:
 
                 # Wait for enough packets in the buffer queue,
@@ -536,11 +615,12 @@ class Service():
         """
 
         # Communicate with the server
-        while self.mdns_connection_event.is_set():
+        while self.mdns_runner_event.is_set():
 
             # Measure round-trip time (rtt)
             try:
-                await self.communicate()
+                if self.server_ip_address:
+                    await self.communicate()
 
             except asyncio.TimeoutError:  # Server-communication timed-out
 
@@ -556,6 +636,7 @@ class Service():
 
             except (
                 asyncio.CancelledError,  # Client-services cancelled
+                ConnectionRefusedError,  # Server refused the connection
                 KeyboardInterrupt  # Client-services cancelled manually
             ):
 
@@ -646,7 +727,7 @@ class Service():
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(
                 self.server_ip_address,
-                self.ping_port
+                audera.PING_PORT
             ),
             timeout=audera.TIME_OUT
         )
@@ -697,7 +778,7 @@ class Service():
         """
 
         # Wait for the mDNS connection
-        await self.mdns_connection_event.wait()
+        await self.mdns_runner_event.wait()
 
         # Initialize the stream server
         stream_server = await asyncio.start_server(
@@ -733,10 +814,10 @@ class Service():
         """
 
         # Wait for the mDNS connection
-        await self.mdns_connection_event.wait()
+        await self.mdns_runner_event.wait()
 
         # Handle server-availability
-        while self.mdns_connection_event.is_set():
+        while self.mdns_runner_event.is_set():
             try:
 
                 # # Initialize the connection to the audio stream server
@@ -859,8 +940,8 @@ class Service():
         )
 
         # Initialize the time-synchronization service
-        start_time_synchronization_services = asyncio.create_task(
-            self.start_time_synchronization()
+        start_ntp_synchronization_services = asyncio.create_task(
+            self.start_ntp_synchronization()
         )
 
         # Initialize the audio stream server
@@ -876,7 +957,7 @@ class Service():
         tasks = [
             start_shairport_services,
             start_mdns_services,
-            start_time_synchronization_services,
+            start_ntp_synchronization_services,
             start_stream_server,
             start_client_services
         ]
