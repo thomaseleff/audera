@@ -311,6 +311,13 @@ class Service():
             ])
         )
 
+        # Retain the current number of connected remote audio
+        #   output players, if a new player is attached then
+        #   time-out to allow for the remote audio output player
+        #   buffers to empty to resynchronize audio
+
+        previous_num_players = len(self.clients.keys())
+
         # Serve audio stream
         while self.mdns_browser_event.is_set():
 
@@ -367,6 +374,24 @@ class Service():
 
                 # Retain the list of client-connections
                 clients = copy.copy(self.clients)
+
+                # Timeout to allow for the remote audio output player
+                #   buffers to empty to resynchronize audio
+                if len(clients.keys()) > previous_num_players:
+
+                    # Logging
+                    self.logger.info(
+                        "Restarting the audio stream."
+                    )
+
+                    # Reset
+                    previous_num_players = len(clients.keys())
+
+                    await asyncio.sleep(audera.TIME_OUT)
+                    continue
+
+                if len(clients.keys()) != previous_num_players:
+                    previous_num_players = len(clients.keys())
 
                 # Broadcast the packet to the clients concurrently and drain
                 #    the writer with timeout for flow control, disconnecting
