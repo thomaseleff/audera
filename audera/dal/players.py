@@ -281,7 +281,8 @@ def disable(uuid: str) -> player.Player:
         return player_
 
     player_.enabled = False
-    return player.Player.from_config(stop(player_.uuid))  # A player cannot be playing if it is disabled
+    player_.playing = False  # A player cannot be playing if it is disabled
+    return player.Player.from_config(update(player_))
 
 
 def connect(uuid: str) -> player.Player:
@@ -317,7 +318,8 @@ def disconnect(uuid: str) -> player.Player:
         return player_
 
     player_.connected = False
-    return player.Player.from_config(stop(player_.uuid))  # A player cannot be playing if it is disconnected
+    player_.playing = False  # A player cannot be playing if it is disconnected
+    return player.Player.from_config(update(player_))
 
 
 def update_volume(uuid: str, volume: float) -> player.Player:
@@ -373,60 +375,72 @@ def query_to_players(cursor: duckdb.DuckDBPyConnection) -> List[player.Player]:
 
 def get_all_players() -> List[player.Player]:
     """ Returns all players as a list of `audera.struct.player.Player` objects. """
-    with connection() as conn:
-        return query_to_players(
-            conn.execute(
-                """
-                SELECT *
-                FROM players
-                """
+    try:
+        with connection() as conn:
+            return query_to_players(
+                conn.execute(
+                    """
+                    SELECT *
+                    FROM players
+                    """
+                )
             )
-        )
+    except duckdb.IOException:
+        return []
 
 
 def get_all_available_players() -> List[player.Player]:
     """ Returns all available players as a list of `audera.struct.player.Player` objects. An
     available player is enabled and connected to the network.
     """
-    with connection() as conn:
-        return query_to_players(
-            conn.execute(
-                """
-                SELECT *
-                FROM players
-                WHERE enabled = True
-                    AND connected = True
-                """
+    try:
+        with connection() as conn:
+            return query_to_players(
+                conn.execute(
+                    """
+                    SELECT *
+                    FROM players
+                    WHERE enabled = True
+                        AND connected = True
+                    """
+                )
             )
-        )
+    except duckdb.IOException:
+        return []
 
 
 def get_all_available_player_uuids() -> List[str]:
     """ Returns the uuid of all available players as a list. An
     available player is enabled and connected to the network.
     """
-    with connection() as conn:
-        return [
-            uuid[0] for uuid in conn.execute(
-                """
-                SELECT uuid
-                FROM players
-                WHERE enabled = True
-                    AND connected = True
-                """
-            ).fetchall()
-        ]
+    try:
+        with connection() as conn:
+            return [
+                str(uuid[0]) for uuid in conn.execute(
+                    """
+                    SELECT uuid
+                    FROM players
+                    WHERE enabled = True
+                        AND connected = True
+                    """
+                ).fetchall()  # Duckdb converts uuid-like objects into `UUID` objects.
+            ]
+    except duckdb.IOException:
+        return []
 
 
 def get_all_playing_players() -> List[player.Player]:
     """ Returns all currently playing players as a list of `audera.struct.player.Player` objects."""
-    with connection() as conn:
-        return query_to_players(
-            conn.execute(
-                """
-                SELECT *
-                FROM players
-                WHERE playing = True
-                """
+    try:
+        with connection() as conn:
+            return query_to_players(
+                conn.execute(
+                    """
+                    SELECT *
+                    FROM players
+                    WHERE playing = True
+                    """
+                )
             )
-        )
+    except duckdb.IOException:
+        return []

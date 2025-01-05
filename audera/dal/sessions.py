@@ -44,13 +44,13 @@ def exists(uuid: str) -> bool:
         return False
 
 
-def create(session: session.Session) -> config.Handler:
+def create(session_: session.Session) -> config.Handler:
     """ Creates the session configuration file and returns the contents
     as a `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    session: `audera.struct.session.Session`
+    session_: `audera.struct.session.Session`
         An instance of a `audera.struct.session.Session` object.
     """
 
@@ -61,10 +61,10 @@ def create(session: session.Session) -> config.Handler:
     # Create the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name='.'.join([session.uuid, 'json']),
+        file_name='.'.join([session_.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'session': session.to_dict()})
+    Config = Config.from_dict({'session': session_.to_dict()})
 
     return Config
 
@@ -91,27 +91,27 @@ def get(uuid: str) -> config.Handler:
     return Config
 
 
-def get_or_create(session: session.Session) -> config.Handler:
+def get_or_create(session_: session.Session) -> config.Handler:
     """ Creates or reads the session player configuration file and returns the contents as
     a `pytensils.config.Handler` object.
 
     Parameters
     ----------
-    session: `audera.struct.session.Session`
+    session_: `audera.struct.session.Session`
         An instance of an `audera.struct.session.Session` object.
     """
-    if exists(session.uuid):
-        return get(session.uuid)
+    if exists(session_.uuid):
+        return get(session_.uuid)
     else:
-        return create(session)
+        return create(session_)
 
 
-def save(session: session.Session) -> config.Handler:
+def save(session_: session.Session) -> config.Handler:
     """ Saves the session player configuration to `~/.audera/sessions/{session.uuid}.json`.
 
     Parameters
     ----------
-    session: `audera.struct.session.Session`
+    session_: `audera.struct.session.Session`
         An instance of an `audera.struct.session.Session` object.
     """
 
@@ -122,10 +122,10 @@ def save(session: session.Session) -> config.Handler:
     # Create the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name='.'.join([session.uuid, 'json']),
+        file_name='.'.join([session_.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'session': session.to_dict()})
+    Config = Config.from_dict({'session': session_.to_dict()})
 
     return Config
 
@@ -221,7 +221,7 @@ def _generate_name(
 
     Parameters
     ----------
-    session: `audera.struct.session.Session`
+    session_: `audera.struct.session.Session`
         An instance of an `audera.struct.session.Session` object.
     """
 

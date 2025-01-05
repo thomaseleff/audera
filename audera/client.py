@@ -37,6 +37,9 @@ class Service():
                 )
             )
         )
+        self.player: audera.struct.player.Player = audera.struct.player.Player.from_config(
+            audera.dal.players.get_or_create(self.identity)
+        )
 
         # Initialize mDNS
         # self.mdns: audera.mdns.Connection = audera.mdns.Connection(
@@ -59,12 +62,7 @@ class Service():
                 port=audera.STREAM_PORT,
                 weight=0,
                 priority=0,
-                properties={
-                    "name": self.identity.name,
-                    "uuid": self.identity.uuid,
-                    "mac_address": self.identity.mac_address,
-                    "description": audera.DESCRIPTION
-                }
+                properties={**self.player.to_dict(), **{"description": audera.DESCRIPTION}}
             )
         )
         self.server_ip_address: str = None
@@ -486,7 +484,7 @@ class Service():
         )
 
         # Play audio stream data
-        while self.mdns_runner_event.is_set():
+        while self.mdns_runner_event.is_set() and self.server_ip_address:
             try:
 
                 # Wait for enough packets in the buffer queue,
@@ -615,12 +613,11 @@ class Service():
         """
 
         # Communicate with the server
-        while self.mdns_runner_event.is_set():
+        while self.mdns_runner_event.is_set() and self.server_ip_address:
 
             # Measure round-trip time (rtt)
             try:
-                if self.server_ip_address:
-                    await self.communicate()
+                await self.communicate()
 
             except asyncio.TimeoutError:  # Server-communication timed-out
 

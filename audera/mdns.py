@@ -6,10 +6,11 @@ that do not include a local name server.
 
 from typing import Union, Dict
 import logging
-import socket
 import uuid
+import socket
 from zeroconf import Zeroconf, ServiceInfo, ServiceBrowser, ServiceStateChange
 from threading import Event
+from audera import dal, struct
 
 
 def get_local_ip_address() -> str:
@@ -108,7 +109,7 @@ class Runner():
 
 
 class Connection():
-    """ A `class` that represents a multi-cast DNS service client connection.
+    """ A `class` that represents a multi-cast DNS service connection.
 
     Parameters
     ----------
@@ -132,7 +133,7 @@ class Connection():
         name: str,
         time_out: float
     ):
-        """ Creates an instance of the multi-cast DNS service client connection.
+        """ Creates an instance of the multi-cast DNS service connection.
 
         Parameters
         ----------
@@ -210,8 +211,8 @@ class Connection():
         return info
 
 
-class Browser():
-    """ A `class` that represents a multi-cast DNS service client browser.
+class PlayerBrowser():
+    """ A `class` that represents a multi-cast DNS service browser.
 
     Parameters
     ----------
@@ -232,7 +233,8 @@ class Browser():
         type_: str,
         time_out: float
     ):
-        """ Creates an instance of the multi-cast DNS service client browser.
+        """ Creates an instance of the multi-cast DNS service browser for remote
+        audio output players.
 
         Parameters
         ----------
@@ -270,7 +272,7 @@ class Browser():
         name: str,
         state_change: int
     ):
-        """ Callback that manages the list of client devices available on the local network
+        """ Callback that manages the list of remote audio output players available on the local network
         for a specific multi-cast DNS service.
 
         Parameters
@@ -280,59 +282,72 @@ class Browser():
         service_type: `str`
             The type of multi-cast DNS service to browse.
         name: `str`
-            The name of the multi-cast DNS client device.
+            The name of the multi-cast DNS remote audio output player.
         state_change: `int`
-            The browser state of the client device.
+            The browser state of the remote audio output player.
         """
 
-        # Add client device
+        # Add remote audio output player
         if state_change == ServiceStateChange.Added:
             info = zeroconf.get_service_info(service_type, name)
             if info:
-                self.players[name] = info
+
+                Player: struct.player.Player = struct.player.Player.from_service_info(info)
+                Player.connected = True
+                _ = dal.players.update(Player)
+                self.players[name] = Player
 
                 # Logging
                 self.logger.info(
-                    "Client device {%s} with mDNS service {%s} discovered." % (
-                        name,
-                        service_type
+                    "Remote audio output player {%s (%s)} connected." % (
+                        Player.name,
+                        Player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
 
-        # Remove client device
+        # Remove remote audio output player
         elif state_change == ServiceStateChange.Removed:
             if name in self.players:
+
+                Player = self.players[name]
+                Player = dal.players.disconnect(Player.uuid)
+
+                # --TODO Remove the player from the session
+
                 del self.players[name]
-
-            # Logging
-            self.logger.info(
-                "Client device {%s} with mDNS service {%s} removed." % (
-                    name,
-                    service_type
-                )
-            )
-
-        # Update client device
-        elif state_change == ServiceStateChange.Updated:
-            info = zeroconf.get_service_info(service_type, name)
-            if info and (name in self.players):
-                self.players[name] = info
 
                 # Logging
                 self.logger.info(
-                    "Client device {%s} with mDNS service {%s} updated." % (
-                        name,
-                        service_type
+                    "Remote audio output player {%s (%s)} disconnected." % (
+                        Player.name,
+                        Player.uuid.split('-')[0]  # Short uuid of the player
+                    )
+                )
+
+        # Update remote audio output player
+        elif state_change == ServiceStateChange.Updated:
+            info = zeroconf.get_service_info(service_type, name)
+            if info and (name in self.players):
+
+                Player: struct.player.Player = struct.player.Player.from_service_info(info)
+                _ = dal.players.update(Player)
+                self.players[name] = Player
+
+                # Logging
+                self.logger.info(
+                    "Remote audio output player {%s (%s)} updated." % (
+                        Player.name,
+                        Player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
 
     def browse(self) -> Union[ServiceInfo, None]:
-        """ Browse for a the mDNS service within the local network. """
+        """ Browses for the remote audio output player mDNS service within the local network. """
 
         # Logging
         self.logger.info(
             ''.join([
-                "Browsing for client devices with mDNS service {%s}." % (
+                "Browsing for mDNS service {%s}." % (
                     self.type_
                 )
             ])
@@ -345,6 +360,6 @@ class Browser():
         )
 
     def close(self):
-        """ Closes the mDNS service browser within the local network. """
+        """ Closes the remote audio output player mDNS service browser within the local network. """
         if self.browser:
             self.zc.close()

@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Literal, List
 from dataclasses import dataclass, field
 import json
-from pytensils import config
+from zeroconf import ServiceInfo
+from pytensils import config, utils
 
 
 @dataclass
@@ -92,6 +93,34 @@ class Player():
             An instance of an `pytensils.config.Handler` object.
         """
         return Player.from_dict(config.to_dict()['player'])
+
+    def from_service_info(info: ServiceInfo) -> Player:
+        """ Returns an `audera.struct.player.Player` object from a `zeroconf.ServiceInfo` object.
+
+        Parameters
+        ----------
+        info: `zeroconf.ServiceInfo`
+            An instance of the `zeroconf` multi-cast DNS service parameters.
+        """
+
+        # Unpack the mDNS service info into a dictionary
+        properties = {
+            key.decode('utf-8'): value.decode('utf-8') if isinstance(value, bytes) else value
+            for key, value in info.properties.items()
+        }
+
+        return Player(
+            name=utils.as_type(properties['name'], 'str'),
+            uuid=utils.as_type(properties['uuid'], 'str'),
+            mac_address=utils.as_type(properties['mac_address'], 'str'),
+            address=utils.as_type(properties['address'], 'str'),
+            provider=utils.as_type(properties['provider'], 'str'),
+            volume=utils.as_type(properties['volume'], 'float'),
+            channels=utils.as_type(properties['channels'], 'int'),
+            enabled=utils.as_type(properties['enabled'], 'bool'),
+            connected=utils.as_type(properties['connected'], 'bool'),
+            playing=utils.as_type(properties['playing'], 'bool'),
+        )
 
     def to_dict(self):
         """ Returns an `audera.struct.player.Player` object as a `dict`. """

@@ -8,7 +8,7 @@ import time
 import struct
 import copy
 import concurrent.futures
-from zeroconf import Zeroconf, ServiceInfo
+from zeroconf import Zeroconf
 
 import audera
 
@@ -36,8 +36,24 @@ class Service():
             )
         )
 
+        # Initialize session
+        self.session: audera.struct.session.Session = audera.struct.session.Session.from_config(
+            audera.dal.sessions.create(
+                audera.struct.session.Session(
+                    name=self.identity.name,
+                    uuid=self.identity.uuid,
+                    mac_address=self.identity.mac_address,
+                    address=self.identity.address,
+                    group='',
+                    players=audera.dal.players.get_all_available_player_uuids(),
+                    provider='audera',
+                    volume=0.5
+                )
+            )
+        )
+
         # Initialize mDNS
-        self.mdns: audera.mdns.Browser = audera.mdns.Browser(
+        self.mdns: audera.mdns.PlayerBrowser = audera.mdns.PlayerBrowser(
             logger=self.logger,
             zc=Zeroconf(),
             type_=audera.MDNS_TYPE,
@@ -105,9 +121,11 @@ class Service():
             #   since zeroconf relies on its own async event loop that must be run
             #   separately from the `server` async event loop.
 
+            # Remote audio output player registration / disconnection / removal
+            #   takes place within the mDNS browser.
+
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 mdns_server = loop.run_in_executor(pool, self.mdns.browse)
-
                 await asyncio.gather(mdns_server)
 
             # Start the `server` services
@@ -116,14 +134,17 @@ class Service():
             # Yield to other tasks in the event loop
             while self.mdns_browser_event.is_set():
 
-                # Register / update each remote audio output player discovered
-                #    by the mDNS service browser concurrently.
-
                 if self.mdns.players:
+
+                    # Manage active players in the playback session
+                    self.session.players = audera.dal.players.get_all_available_player_uuids()
+                    _ = audera.dal.sessions.update(self.session)
+
+                    # Open connections to all active players
                     await asyncio.gather(
                         *[
-                            self.register_player(info=info)
-                            for info in self.mdns.players.values()
+                            self.open_connection(player) for player
+                            in audera.dal.sessions.get_session_players(self.session.uuid)
                         ],
                         return_exceptions=True
                     )
@@ -144,6 +165,17 @@ class Service():
 
         # Close the mDNS service
         self.mdns.close()
+
+        # Stop playback
+        audera.dal.sessions.detach_players(
+            self.session.uuid,
+            [
+                player_.uuid for player_ in audera.dal.sessions.get_session_players(
+                    self.session.uuid
+                )
+            ]
+        )
+        audera.dal.sessions.delete(self.session.uuid)
 
         # """ Starts the async service for the multi-cast DNS service.
 
@@ -476,12 +508,12 @@ class Service():
             return False
         return True
 
-    async def register_player(
+    async def open_connection(
         self,
-        info: ServiceInfo
+        player: audera.struct.player.Player
     ):
-        """ Registers a remote audio output player when it is discovered by
-        the mDNS browser.
+        """ Opens a connection to a remote audio output player when attached to the
+        current playback session.
 
         Parameters
         ----------
@@ -489,31 +521,14 @@ class Service():
             An instance of the `zeroconf` multi-cast DNS service parameters.
         """
 
-        # Unpack the mDNS service info into a dictionary
-        properties = {
-            key.decode('utf-8'): value.decode('utf-8') if isinstance(value, bytes) else value
-            for key, value in info.properties.items()
-        }
-
-        # Update the player configuration-file
-        player: audera.struct.player.Player = audera.struct.player.Player.from_config(
-            audera.dal.players.update(
-                audera.struct.player.Player(
-                    name=properties['name'],
-                    uuid=properties['uuid'],
-                    mac_address=properties['mac_address'],
-                    address=socket.inet_ntoa(info.addresses[0])
-                )
-            )
-        )
-
         # Register the client ip-address
         if player.address not in self.clients.keys():
 
             # Logging
             self.logger.info(
-                'Registered client {%s}.' % (
-                    player.address
+                'Streaming audio to remote audio output player {%s (%s)}.' % (
+                    player.name,
+                    player.uuid.split('-')[0]  # Short uuid of the player
                 )
             )
 
@@ -539,8 +554,9 @@ class Service():
 
                 # Logging
                 self.logger.warning(
-                    'Client {%s} unable to operate with TCP_NODELAY.' % (
-                        player.address
+                    'Remote audio output player {%s (%s)} unable to operate with TCP_NODELAY.' % (
+                        player.name,
+                        player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
 
