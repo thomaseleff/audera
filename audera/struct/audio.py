@@ -17,6 +17,28 @@ RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: int = 0
 
 
+def format_to_bitrate(format: int) -> int:
+    """ Converts the audio format to a bit-rate. """
+    bitrates = {
+        pyaudio.paInt8: 8,
+        pyaudio.paInt16: 16,
+        pyaudio.paInt24: 24,
+        pyaudio.paInt32: 32
+    }
+    return bitrates[format]
+
+
+def bitrate_to_format(bitrate: int) -> int:
+    """ Converts the audio bit-rate to a format. """
+    formats = {
+        8: pyaudio.paInt8,
+        16: pyaudio.paInt16,
+        24: pyaudio.paInt24,
+        32: pyaudio.paInt32
+    }
+    return formats[bitrate]
+
+
 @dataclass
 class Interface():
     """ A `class` that represents an audio stream interface.
@@ -24,7 +46,7 @@ class Interface():
     Attributes
     ----------
     format : `int`
-        The bit-rate of the audio stream.
+        The format of the audio stream.
     rate : `Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000]`
         The sampling frequency of the audio stream.
     channels : `Literal[1, 2]`
@@ -36,6 +58,10 @@ class Interface():
     rate: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = field(default=RATE)
     channels: Literal[1, 2] = field(default=CHANNELS)
     chunk: int = field(default=CHUNK)
+
+    def __post_init__(self):
+        """ Adds bit-rate. """
+        self.bit_rate: int = format_to_bitrate(self.format)
 
     def from_dict(dict_object: dict) -> Interface:
         """ Returns an `Interface` object from a `dict`.
@@ -62,7 +88,12 @@ class Interface():
                 )
             )
 
-        return Interface(**dict_object)
+        return Interface(
+            format=dict_object['format'],
+            rate=dict_object['rate'],
+            channels=dict_object['channels'],
+            chunk=dict_object['chunk']
+        )
 
     def from_config(config: config.Handler) -> Interface:
         """ Returns a `audera.struct.audio.Interface` object from a `pytensils.config.Handler` object.
@@ -78,6 +109,7 @@ class Interface():
         """ Returns the `audera.struct.audio.Interface` object as a `dict`. """
         return {
             'format': self.format,
+            'bit_rate': self.bit_rate,
             'rate': self.rate,
             'channels': self.channels,
             'chunk': self.chunk

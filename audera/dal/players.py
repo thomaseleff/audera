@@ -373,6 +373,30 @@ def query_to_players(cursor: duckdb.DuckDBPyConnection) -> List[player.Player]:
     return [player.Player.from_dict(dict(zip(columns, row))) for row in cursor.fetchall()]
 
 
+def get_player_by_address(address: str) -> player.Player:
+    """ Returns the player associated with the ip-address on the local network as an
+    `audera.struct.player.Player` object.
+
+    Parameters
+    ----------
+    address: `str`
+        The ip-address of the player.
+    """
+    try:
+        with connection() as conn:
+            return query_to_players(
+                conn.execute(
+                    """
+                    SELECT *
+                    FROM players
+                    WHERE address = '%s'
+                    """ % (str(address))
+                )
+            )
+    except duckdb.IOException:
+        return None
+
+
 def get_all_players() -> List[player.Player]:
     """ Returns all players as a list of `audera.struct.player.Player` objects. """
     try:

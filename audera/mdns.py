@@ -212,7 +212,8 @@ class Connection():
 
 
 class PlayerBrowser():
-    """ A `class` that represents a multi-cast DNS service browser.
+    """ A `class` that represents a multi-cast DNS service browser for remote
+    audio output players.
 
     Parameters
     ----------
@@ -265,6 +266,24 @@ class PlayerBrowser():
         # Initialize service browser
         self.browser: Union[ServiceBrowser, None] = None
 
+    def browse(self) -> Union[ServiceInfo, None]:
+        """ Browses for the remote audio output player mDNS service within the local network. """
+
+        # Logging
+        self.logger.info(
+            ''.join([
+                "Browsing for mDNS service {%s}." % (
+                    self.type_
+                )
+            ])
+        )
+
+        self.browser = ServiceBrowser(
+            zc=self.zc,
+            type_=self.type_,
+            handlers=[self.on_service_state_change_callback]
+        )
+
     def on_service_state_change_callback(
         self,
         zeroconf: Zeroconf,
@@ -292,16 +311,16 @@ class PlayerBrowser():
             info = zeroconf.get_service_info(service_type, name)
             if info:
 
-                Player: struct.player.Player = struct.player.Player.from_service_info(info)
-                Player.connected = True
-                _ = dal.players.update(Player)
-                self.players[name] = Player
+                player: struct.player.Player = struct.player.Player.from_service_info(info)
+                player.connected = True
+                _ = dal.players.update(player)
+                self.players[name] = player
 
                 # Logging
                 self.logger.info(
                     "Remote audio output player {%s (%s)} connected." % (
-                        Player.name,
-                        Player.uuid.split('-')[0]  # Short uuid of the player
+                        player.name,
+                        player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
 
@@ -309,8 +328,8 @@ class PlayerBrowser():
         elif state_change == ServiceStateChange.Removed:
             if name in self.players:
 
-                Player = self.players[name]
-                Player = dal.players.disconnect(Player.uuid)
+                player = self.players[name]
+                player = dal.players.disconnect(player.uuid)
 
                 # --TODO Remove the player from the session
 
@@ -319,8 +338,8 @@ class PlayerBrowser():
                 # Logging
                 self.logger.info(
                     "Remote audio output player {%s (%s)} disconnected." % (
-                        Player.name,
-                        Player.uuid.split('-')[0]  # Short uuid of the player
+                        player.name,
+                        player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
 
@@ -329,35 +348,17 @@ class PlayerBrowser():
             info = zeroconf.get_service_info(service_type, name)
             if info and (name in self.players):
 
-                Player: struct.player.Player = struct.player.Player.from_service_info(info)
-                _ = dal.players.update(Player)
-                self.players[name] = Player
+                player: struct.player.Player = struct.player.Player.from_service_info(info)
+                _ = dal.players.update(player)
+                self.players[name] = player
 
                 # Logging
                 self.logger.info(
                     "Remote audio output player {%s (%s)} updated." % (
-                        Player.name,
-                        Player.uuid.split('-')[0]  # Short uuid of the player
+                        player.name,
+                        player.uuid.split('-')[0]  # Short uuid of the player
                     )
                 )
-
-    def browse(self) -> Union[ServiceInfo, None]:
-        """ Browses for the remote audio output player mDNS service within the local network. """
-
-        # Logging
-        self.logger.info(
-            ''.join([
-                "Browsing for mDNS service {%s}." % (
-                    self.type_
-                )
-            ])
-        )
-
-        self.browser = ServiceBrowser(
-            zc=self.zc,
-            type_=self.type_,
-            handlers=[self.on_service_state_change_callback]
-        )
 
     def close(self):
         """ Closes the remote audio output player mDNS service browser within the local network. """

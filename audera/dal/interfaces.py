@@ -12,6 +12,7 @@ FILE_NAME: str = 'interface.json'
 DTYPES: dict = {
     'interface': {
         'format': 'int',
+        'bit_rate': 'int',
         'rate': 'int',
         'channels': 'int',
         'chunk': 'int'

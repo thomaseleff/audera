@@ -132,7 +132,7 @@ def update(new: identity.Identity) -> config.Handler:
         Config = Config.from_dict(
             {
                 'identity': {
-                    'name': identity_.name,  # Retain the existing name
+                    'name': identity_.name,  # Retain the existing name, name is immutable
                     'uuid': new.uuid,
                     'mac_address': new.mac_address,
                     'address': new.address
