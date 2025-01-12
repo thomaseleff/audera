@@ -22,7 +22,7 @@ class Service():
         - Multi-player synchronization
         - Audio stream capture and broadcasting
 
-    The streamer service can be run using the command-line,
+    The streamer service can be run from the command-line,
 
     ``` bash
     audera run streamer
@@ -44,7 +44,7 @@ class Service():
         """ Initializes an instance of the `audera` streamer service. """
 
         # Logging
-        self.logger = audera.logging.get_server_logger()
+        self.logger = audera.logging.get_streamer_logger()
 
         # Initialize identity
 
@@ -56,14 +56,14 @@ class Service():
         #   the same name is always retained.
 
         self.mac_address = audera.mdns.get_local_mac_address()
-        self.server_ip_address = audera.mdns.get_local_ip_address()
+        self.streamer_ip_address = audera.mdns.get_local_ip_address()
         self.identity: audera.struct.identity.Identity = audera.struct.identity.Identity.from_config(
             audera.dal.identities.update(
                 audera.struct.identity.Identity(
                     name=audera.struct.identity.generate_cool_name(),
                     uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
                     mac_address=self.mac_address,
-                    address=self.server_ip_address
+                    address=self.streamer_ip_address
                 )
             )
         )
@@ -92,7 +92,7 @@ class Service():
         # Initialize mDNS
 
         # The streamer browses the network for remote audio output players that are broadcasting
-        #   the `audera` mDNS service, `roap@{mac_address}._audera._tcp.local`. The browser
+        #   the `audera` mDNS service, `raop@{mac_address}._audera._tcp.local`. The browser
         #   automatically attaches players to the current session when they connect, removes
         #   players when they disconnect, and updates players when any of the mDNS service
         #   properties change.
@@ -125,7 +125,7 @@ class Service():
         # Initialize playback delay
         self.playback_delay: float = audera.PLAYBACK_DELAY
 
-        # Initialize clients for broadcasting the audio stream
+        # Initialize players for broadcasting the audio stream
         self.players: Dict[str, asyncio.StreamWriter] = {}
 
         # Initialize process control parameters
@@ -152,8 +152,8 @@ class Service():
         # Browse for remote audio output players broadcasting the mDNS service
         try:
 
-            # The mDNS service must be started in a separate thread
-            #   since zeroconf relies on its own async event loop.
+            # The mDNS service must be started in a separate thread since zeroconf relies on
+            #   its own async event loop.
 
             # Remote audio output player registration / disconnection / removal
             #   takes place within the mDNS browser.
@@ -167,14 +167,14 @@ class Service():
 
             self.mdns_browser_event.set()
 
-            # Manage the playback session, opening connections to all remote audio
+            # Update the playback session, opening connections to all remote audio
             #   output players attached to the session continuously
 
             while self.mdns_browser_event.is_set():
 
                 if self.mdns.players:
 
-                    # Automatically attach any / all available players to the current playback session
+                    # Attach any / all available players to the current playback session
                     self.session.players = audera.dal.players.get_all_available_player_uuids()
                     _ = audera.dal.sessions.update(self.session)
 
@@ -299,7 +299,7 @@ class Service():
         """ The async `micro-service` for network time protocol (ntp) synchronization.
 
         The purpose of ntp synchronization is to ensure that the time on the streamer
-        coincides with all other `audera` remote audio output players on the local network
+        coincides with all `audera` remote audio output players on the local network
         by regularly synchronizing the clocks with a reference time source.
 
         The streamer attempts to start the time-synchronization service as an _independent_ task,
@@ -385,7 +385,7 @@ class Service():
         )
 
         # Serve player connections forever
-        async with (multi_player_synchronizer):
+        async with multi_player_synchronizer:
             await asyncio.gather(multi_player_synchronizer.serve_forever())
 
         # Stop all services
@@ -589,7 +589,7 @@ class Service():
                 #   the packet as well as the packet terminator.
 
                 # Assign the timestamp as the target playback time accounting for a fixed playback
-                #   delay from the current time on the server
+                #   delay from the current time on the streamer
 
                 length = struct.pack(">I", len(chunk))
                 target_play_time = struct.pack(
@@ -724,11 +724,11 @@ class Service():
         self.mdns_browser_event.clear()
 
     async def start_services(self):
-        """ Runs the async mDNS service, time-synchronization service, multi-player
-        synchronization service and the audio stream service.
+        """ Runs the async mDNS browser service, time-synchronization service, multi-player
+        synchronization service, and the audio stream service.
         """
 
-        # Schedule the mDNS service
+        # Schedule the mDNS browser service
         mdns_browser = asyncio.create_task(self.mdns_browser())
 
         # Schedule the time-synchronization service
@@ -758,14 +758,14 @@ class Service():
                 done: set[asyncio.Future]
                 services: set[asyncio.Future]
 
-                for task in done:
-                    if task.exception():
+                for service in done:
+                    if service.exception():
 
                         # Logging
                         self.logger.error(
                             '[%s] An unhandled exception was raised. %s.' % (
-                                type(task.exception()).__name__,
-                                task.exception()
+                                type(service.exception()).__name__,
+                                service.exception()
                             )
                         )
 
@@ -786,16 +786,11 @@ class Service():
         self.logger.message('')
         self.logger.message('    Running the streamer service.')
         self.logger.message('')
-        self.logger.message(
-            '    Audio stream address: {%s:%s}' % (
-                self.server_ip_address,
-                audera.STREAM_PORT
-            ))
-        self.logger.message(
-            '    Multi-player synchronization address: {%s:%s}' % (
-                self.server_ip_address,
-                audera.PING_PORT
-            ))
+        self.logger.message('    Streamer information')
+        self.logger.message('')
+        self.logger.message('        name    : %s' % self.identity.name)
+        self.logger.message('        uuid    : %s' % self.identity.uuid)
+        self.logger.message('        address : %s' % self.identity.address)
         self.logger.message('')
 
         # Start services

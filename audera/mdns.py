@@ -31,8 +31,8 @@ def get_local_mac_address() -> str:
     return str(mac)
 
 
-class Runner():
-    """ A `class` that represents a multi-cast DNS service runner.
+class Broadcaster():
+    """ A `class` that represents a multi-cast DNS service broadcaster.
 
     Parameters
     ----------
@@ -50,7 +50,7 @@ class Runner():
         zc: Zeroconf,
         info: ServiceInfo
     ):
-        """ Creates an instance of the multi-cast DNS service runner.
+        """ Creates an instance of the multi-cast DNS service broadcaster.
 
         Parameters
         ----------
@@ -74,7 +74,7 @@ class Runner():
 
         # Register the mDNS service
         try:
-            self.zc.register_service(self.info)
+            self.zc.register_service(self.info, allow_name_change=True)
 
             # Logging
             self.logger.info(
@@ -88,13 +88,54 @@ class Runner():
         except Exception as e:  # All other `mDNS service errors`
 
             # Logging
-            self.logger.critical(
+            self.logger.error(
                 '[%s] mDNS service {%s} registration failed. %s.' % (
                     type(e).__name__,
                     self.info.type,
                     str(e)
                 )
             )
+
+    def update(self, info: ServiceInfo):
+        """ Updates the mDNS service within the local network.
+
+        Parameters
+        ----------
+        info: `zeroconf.ServiceInfo`
+            An instance of the `zeroconf` multi-cast DNS service parameters.
+        """
+
+        # Update the mDNS service
+        if not (
+            self.info.type == info.type and
+            self.info.name == info.name and
+            self.info.addresses == info.addresses and
+            self.info.port == info.port and
+            self.info.properties == info.properties
+        ):
+            try:
+                self.info = info
+                self.zc.register_service(info, allow_name_change=True)
+
+                # Logging
+                self.logger.info(
+                    "mDNS service {%s} updated successfully at {%s:%s}." % (
+                        self.info.type,
+                        socket.inet_ntoa(self.info.addresses[0]),
+                        self.info.port
+                    )
+                )
+
+            except Exception as e:  # All other `mDNS service errors`
+
+                # Logging
+                self.logger.error(
+                    '[%s] mDNS service {%s} update failed. %s.' % (
+                        type(e).__name__,
+                        self.info.type,
+                        str(e)
+                    )
+                )
 
     def unregister(self):
         """ Unregisters the mDNS service within the local network. """

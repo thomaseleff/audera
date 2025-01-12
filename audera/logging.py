@@ -135,11 +135,11 @@ class logger():
 
 
 # Create application-loggers
-def get_server_logger() -> logger:
-    """ Get the `audera` server console logger. """
-    return logger(name='server')
+def get_streamer_logger() -> logger:
+    """ Get the `audera` streamer console logger. """
+    return logger(name='streamer')
 
 
-def get_client_logger() -> logger:
-    """ Get the `audera` client console logger. """
-    return logger(name='client')
+def get_player_logger() -> logger:
+    """ Get the `audera` player console logger. """
+    return logger(name=' player ')

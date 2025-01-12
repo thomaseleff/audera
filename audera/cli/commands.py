@@ -2,7 +2,7 @@
 
 from typing import Literal
 import asyncio
-from audera import client, streamer
+from audera import player, streamer
 
 
 # Define audera sub-command function(s)
@@ -46,7 +46,7 @@ def run(
     if type_.strip().lower() == 'player':
 
         # Initialize the remote audio output player service
-        service = client.Service()
+        service = player.Service()
 
     # Run services
     try:
