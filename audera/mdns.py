@@ -347,10 +347,10 @@ class PlayerBrowser():
             The browser state of the remote audio output player.
         """
 
-        # Add remote audio output player
+        # Connect remote audio output player
         if state_change == ServiceStateChange.Added:
             info = zeroconf.get_service_info(service_type, name)
-            if info:
+            if info and (name not in self.players):
 
                 player: struct.player.Player = struct.player.Player.from_service_info(info)
                 player.connected = True
@@ -365,14 +365,12 @@ class PlayerBrowser():
                     )
                 )
 
-        # Remove remote audio output player
+        # Disconnect remote audio output player
         elif state_change == ServiceStateChange.Removed:
             if name in self.players:
 
                 player = self.players[name]
                 player = dal.players.disconnect(player.uuid)
-
-                # --TODO Remove the player from the session
 
                 del self.players[name]
 

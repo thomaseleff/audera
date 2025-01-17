@@ -147,9 +147,12 @@ class Device():
         The name of the audio device.
     index: `int`
         The hardware index of the audio device.
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
     """
     name: str = field(default='default')
     index: int = field(default=DEVICE_INDEX)
+    type: Literal['input', 'output'] = field(default='input')
 
     def from_dict(dict_object: dict) -> Device:
         """ Returns a `audera.struct.audio.Device` object from a `dict`.
@@ -166,7 +169,7 @@ class Device():
 
         # Assert keys
         missing_keys = [
-            key for key in ['index']
+            key for key in ['name', 'index', 'type']
             if key not in dict_object
         ]
         if missing_keys:
@@ -178,14 +181,26 @@ class Device():
 
         return Device(**dict_object)
 
-    def get_default_device() -> Device:
-        """ Gets the default audio device and returns a `audera.struct.audio.Device` object. """
+    def get_default_device(type_: Literal['input', 'output']) -> Device:
+        """ Gets the default input audio device and returns a `audera.struct.audio.Device`
+        object.
+
+        Parameters
+        ----------
+        type: `Literal['intput', 'output']`
+            The type of the audio device.
+        """
 
         # Open a temporary audio port
         _audio = pyaudio.PyAudio()
 
         # Get the default audio input device
-        device_index = _audio.get_default_input_device_info()['index']
+        if type_.strip().lower() == 'input':
+            device_index = _audio.get_default_input_device_info()['index']
+
+        if type_.strip().lower() == 'output':
+            device_index = _audio.get_default_output_device_info()['index']
+
         device_info = _audio.get_device_info_by_index(device_index)
         name = device_info['name']
 
@@ -194,7 +209,8 @@ class Device():
 
         return Device(
             name=name,
-            index=device_index
+            index=device_index,
+            type=type_
         )
 
     def from_config(config: config.Handler) -> Device:
@@ -211,7 +227,8 @@ class Device():
         """ Returns the `audera.struct.audio.Device` object as a `dict`. """
         return {
             'name': self.name,
-            'index': self.index
+            'index': self.index,
+            'type': self.type
         }
 
     def __repr__(self):
@@ -230,6 +247,7 @@ class Device():
             return (
                 self.name == compare.name
                 and self.index == compare.index
+                and self.type == compare.type
             )
         return False
 
@@ -242,7 +260,7 @@ class Input():
     interface: `audera.struct.audio.Interface`
         An `audera.struct.audio.Interface` object.
     device: `audera.struct.audio.Device`
-        An `audera.struct.audio.Device` object.
+        An `audera.struct.audio.Device` object that represents an audio input.
     """
 
     def __init__(
@@ -257,7 +275,7 @@ class Input():
         interface: `audera.struct.audio.Interface`
             An `audera.struct.audio.Interface` object.
         device: `audera.struct.audio.Device`
-            An `audera.struct.audio.Device` object.
+            An `audera.struct.audio.Device` object that represents an audio input.
         """
 
         # Initialize the audio stream
@@ -277,7 +295,9 @@ class Input():
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
         return {
             'state': 'active' if self.stream.is_active() else 'stopped',
+            'type': self.device.type,
             'format': self.interface.format,
+            'bit_rate': self.interface.bit_rate,
             'rate': self.interface.rate,
             'channels': self.interface.channels,
             'chunk': self.interface.chunk,
@@ -303,12 +323,13 @@ class Input():
                 and self.interface.channels == compare.interface.channels
                 and self.interface.chunk == compare.interface.chunk
                 and self.device.index == compare.device.index
+                and self.device.type == compare.device.type
             )
         return False
 
     def update(self, interface: Interface, device: Device):
         """ Opens a new audio stream with an updated interface and device settings and
-        returns `True` when a the stream is updated.
+        returns `True` when the stream is updated.
 
         Parameters
         ----------
@@ -344,6 +365,139 @@ class Input():
                 frames_per_buffer=self.interface.chunk,
                 input=True,
                 input_device_index=self.device.index
+            )
+
+            return True
+
+        else:
+            return False
+
+
+class Output():
+    """ A `class` that represents an audio device output.
+
+    Parameters
+    ----------
+    interface: `audera.struct.audio.Interface`
+        An `audera.struct.audio.Interface` object.
+    device: `audera.struct.audio.Device`
+        An `audera.struct.audio.Device` object that represents an audio output.
+    """
+
+    def __init__(
+        self,
+        interface: Interface,
+        device: Device
+    ):
+        """ Initializes an instance of an audio input.
+
+        Parameters
+        ----------
+        interface: `audera.struct.audio.Interface`
+            An `audera.struct.audio.Interface` object.
+        device: `audera.struct.audio.Device`
+            An `audera.struct.audio.Device` object that represents an audio output.
+        """
+
+        # Initialize the audio stream
+        self.interface = interface
+        self.device = device
+        self.port = pyaudio.PyAudio()
+        self.stream = self.port.open(
+            format=interface.format,
+            rate=interface.rate,
+            channels=interface.channels,
+            frames_per_buffer=interface.chunk,
+            output=True,
+            output_device_index=device.index
+        )
+
+    @property
+    def silent_chunk(self) -> bytes:
+        """ A silent audio chunk. """
+        return (
+            b'\x00'
+            * (
+                self.interface.chunk,
+                self.interface.channels
+                * 2
+            )
+        )
+
+    def to_dict(self):
+        """ Returns the `audera.struct.audio.Input` object as a `dict`. """
+        return {
+            'state': 'active' if self.stream.is_active() else 'stopped',
+            'type': self.device.type,
+            'format': self.interface.format,
+            'bit_rate': self.interface.bit_rate,
+            'rate': self.interface.rate,
+            'channels': self.interface.channels,
+            'chunk': self.interface.chunk,
+            'device_index': self.device.index
+        }
+
+    def __repr__(self):
+        """ Returns the `audera.struct.audio.Input` object as a json-formatted `str`. """
+        return json.dumps(self.to_dict(), indent=2)
+
+    def __eq__(self, compare):
+        """ Returns `True` when compare is an instance of self.
+
+        Parameters
+        ----------
+        compare: `audera.audio.Input`
+            An instance of an `audera.audio.Input` object.
+        """
+        if isinstance(compare, Input):
+            return (
+                self.interface.format == compare.interface.format
+                and self.interface.rate == compare.interface.rate
+                and self.interface.channels == compare.interface.channels
+                and self.interface.chunk == compare.interface.chunk
+                and self.device.index == compare.device.index
+                and self.device.type == compare.device.type
+            )
+        return False
+
+    def update(self, interface: Interface, device: Device):
+        """ Opens a new audio stream with an updated interface and device settings and
+        returns `True` when the stream is updated.
+
+        Parameters
+        ----------
+        interface: `audera.audio.Interface`
+            An instance of an `audera.audio.Interface` object.
+        device: `audera.struct.audio.Device`
+            An instance of an `audera.struct.audio.Device` object.
+        """
+
+        if not (
+            self.interface == interface
+            and self.device == device
+        ):
+
+            # Manage / close the audio stream
+            if self.stream.is_active():
+                self.stream.stop_stream()
+            self.stream.close()
+
+            # Update the input interface
+            if not self.interface == interface:
+                self.interface = copy.deepcopy(interface)
+
+            # Update the input device
+            if not self.device == device:
+                self.device = copy.deepcopy(device)
+
+            # Open a new audio stream with the latest settings
+            self.stream = self.port.open(
+                format=self.interface.format,
+                rate=self.interface.rate,
+                channels=self.interface.channels,
+                frames_per_buffer=self.interface.chunk,
+                output=True,
+                output_device_index=self.device.index
             )
 
             return True

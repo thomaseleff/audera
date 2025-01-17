@@ -84,6 +84,9 @@ class Identity():
                 )
             )
 
+        # Convert datatypes
+        dict_object['uuid'] = str(dict_object['uuid'])
+
         return Identity(**dict_object)
 
     def from_config(config: config.Handler) -> Identity:

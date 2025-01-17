@@ -1,13 +1,12 @@
 """ Player service """
 
 from typing import Union
-import pyaudio
 import ntplib
 import asyncio
 import socket
-import platform
 import time
 import struct
+import platform
 from collections import deque
 import concurrent.futures
 from zeroconf import Zeroconf, ServiceInfo
@@ -104,9 +103,19 @@ class Service():
         )
         self.streamer_ip_address: str = None
 
-        # TODO: Implement digital audio stream output
-        #   - Initialize the PyAudio stream
-        #   - Implement `audera.struct.audio.Output()`
+        # Initialize audio stream
+
+        # The `get-interface` and `get-device` methods will either get the existing audio
+        #   interface / output device or will create a new default audio interface / output device.
+        #   The interface describes the parameters of the digital audio stream (format, sampling
+        #   frequency, number of channels, and the number of frames for each broadcasted audio
+        #   chunk). The device determines which hardware output device is playing the audio
+        #   stream. The system default audio output device is automatically selected.
+
+        self.audio_output = audera.struct.audio.Output(
+            interface=audera.dal.interfaces.get_interface(),
+            device=audera.dal.devices.get_device('output')
+        )
 
         # Initialize playback session
 
@@ -123,25 +132,12 @@ class Service():
 
         # Initialize buffer and rtt-history
         self.buffer: deque = deque()
-        self.buffer_event: asyncio.Event = asyncio.Event()
         self.rtt_history: list[float] = []
-
-        # Initialize silent packet
-
-        # TODO: Implement digital audio stream output
-        #   - Move to `playback()`, update from the audio interface configuration
-
-        self.silent_data: bytes = (
-            b'\x00'
-            * (
-                audera.CHUNK
-                * audera.CHANNELS
-                * 2
-            )
-        )
 
         # Initialize process control parameters
         self.mdns_broadcaster_event: asyncio.Event = asyncio.Event()
+        self.sync_event: asyncio.Event = asyncio.Event()
+        self.buffer_event: asyncio.Event = asyncio.Event()
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, streamer time offset and
@@ -172,7 +168,7 @@ class Service():
                 mdns_broadcaster = loop.run_in_executor(pool, self.mdns.register)
                 await asyncio.gather(mdns_broadcaster)
 
-            # Set the mDNS broadcaster  event to allow for the streamer synchronization,
+            # Set the mDNS broadcaster event to allow for the streamer synchronization,
             #   audio stream capture and playback `micro-services` to start.
 
             self.mdns_broadcaster_event.set()
@@ -180,26 +176,26 @@ class Service():
             # Update the mDNS parameters with the latest player attributes continuously
             while self.mdns_broadcaster_event.is_set():
 
-                # Get the latest player attributes
-                self.player: audera.struct.player.Player = audera.struct.player.Player.from_config(
-                    audera.dal.players.get_or_create(self.identity)
-                )
+                # # Get the latest player attributes
+                # self.player: audera.struct.player.Player = audera.struct.player.Player.from_config(
+                #     audera.dal.players.get_or_create(self.identity)
+                # )
 
-                # Update the mDNS service
-                self.mdns.update(
-                    info=ServiceInfo(
-                        type_=audera.MDNS_TYPE,
-                        name='raop@%s.%s' % (
-                            self.identity.mac_address.replace(':', ''),
-                            audera.MDNS_TYPE
-                        ),  # (r)emote (a)udio (o)utput (p)layer
-                        addresses=[socket.inet_aton(self.identity.address)],
-                        port=audera.STREAM_PORT,
-                        weight=0,
-                        priority=0,
-                        properties={**self.player.to_dict(), **{"description": audera.DESCRIPTION}}
-                    )
-                )
+                # # Update the mDNS service
+                # self.mdns.update(
+                #     info=ServiceInfo(
+                #         type_=audera.MDNS_TYPE,
+                #         name='raop@%s.%s' % (
+                #             self.identity.mac_address.replace(':', ''),
+                #             audera.MDNS_TYPE
+                #         ),  # (r)emote (a)udio (o)utput (p)layer
+                #         addresses=[socket.inet_aton(self.identity.address)],
+                #         port=audera.STREAM_PORT,
+                #         weight=0,
+                #         priority=0,
+                #         properties={**self.player.to_dict(), **{"description": audera.DESCRIPTION}}
+                #     )
+                # )
 
                 await asyncio.sleep(audera.TIME_OUT)
 
@@ -406,25 +402,19 @@ class Service():
         while self.mdns_broadcaster_event.is_set():
             try:
 
+                # Schedule the audio stream synchronizer service
+                streamer_synchronizer = asyncio.create_task(self.streamer_synchronizer())
+
                 # Schedule the audio stream receiver server
-                audio_receiver = asyncio.create_task(
-                    self.audio_receiver()
-                )
+                audio_receiver = asyncio.create_task(self.audio_receiver())
 
                 # Schedule the audio stream playback service
-                playback = asyncio.create_task(
-                    self.playback()
-                )
-
-                # Schedule the audio stream synchronizer service
-                streamer_synchronizer = asyncio.create_task(
-                    self.streamer_synchronizer()
-                )
+                playback = asyncio.create_task(self.playback())
 
                 await asyncio.gather(
+                    streamer_synchronizer,
                     audio_receiver,
                     playback,
-                    streamer_synchronizer,
                     return_exceptions=True
                 )
 
@@ -481,326 +471,6 @@ class Service():
                 # Exit the loop
                 break
 
-    async def audio_receiver(self):
-        """ Starts the async server for audio receiving and buffering.
-
-        The player attempts to start the server as a _dependent_ tasks, receiving continuous
-        connections with streamers forever until the task completes, is cancelled by the event
-        loop or is cancelled manually through `KeyboardInterrupt`.
-        """
-
-        # Initialize the audio receiver
-        audio_receiver = await asyncio.start_server(
-            client_connected_cb=(
-                lambda reader, writer: self.audio_receiver_callback(
-                    reader=reader,
-                    writer=writer
-                )
-            ),
-            host='0.0.0.0',  # No specific destination address
-            port=audera.STREAM_PORT
-        )
-
-        # Serve streamer connections forever
-        async with audio_receiver:
-            await asyncio.gather(audio_receiver.serve_forever())
-
-    async def audio_receiver_callback(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter
-    ):
-        """ The async audio receiver callback that is started when an audio streamer connects
-        to `https://0.0.0.0:{audera.STREAM_PORT}`.
-
-        Parameters
-        ----------
-        reader: `asyncio.StreamReader`
-            The asynchronous network stream reader passed from `asyncio.start_server()` used to
-                receive the audio stream from the streamer.
-        writer: `asyncio.StreamWriter`
-            The unused asynchronous network stream writer passed from `asyncio.start_server()`.
-        """
-
-        # Retrieve the streamer ip-address
-        self.streamer_ip_address, _ = writer.get_extra_info('peername')
-
-        # Logging
-        self.logger.info(
-            'Streamer {%s} connected.' % (
-                self.streamer_ip_address
-            )
-        )
-
-        # Clear any existing playback session
-        if self.playback_session:
-
-            # Close the connection
-            self.playback_session.close()
-            try:
-                await self.playback_session.wait_closed()
-            except (
-                ConnectionResetError,  # Streamer disconnected
-                ConnectionAbortedError,  # Streamer aborted the connection
-            ):
-                pass
-
-            # Logging
-            self.logger.info('Closing the previous playback session.')
-
-        # Retain the latest playback session
-        self.playback_session = writer
-
-        # Receive audio stream
-        while self.playback_session:
-            try:
-
-                # Parse audio stream packet
-                packet = await reader.readuntil(
-                    separator=(
-                        audera.PACKET_TERMINATOR  # 4 bytes
-                        + audera.NAME.encode()  # 6 bytes
-                        + audera.PACKET_ESCAPE  # 1 byte
-                        + audera.PACKET_ESCAPE  # 1 byte
-                    )
-                )
-
-                # Add audio stream packet to the buffer
-                self.buffer.append(packet)
-
-                # Trigger playback
-                if len(self.buffer) >= audera.BUFFER_SIZE:
-                    self.buffer_event.set()
-
-                # Yield to other tasks in the event loop
-                await asyncio.sleep(0)
-
-            except (
-                asyncio.TimeoutError,  # Streamer communication timed-out
-                ConnectionResetError,  # Streamer disconnected
-                ConnectionAbortedError,  # Streamer aborted the connection
-            ):
-
-                # Logging
-                self.logger.info(
-                    'Streamer {%s} disconnected.' % (
-                        self.streamer_ip_address
-                    )
-                )
-
-                # Exit the loop
-                break
-
-            except (
-                asyncio.CancelledError,  # Player services cancelled
-                asyncio.IncompleteReadError,  # Player incomplete read
-                KeyboardInterrupt  # Player services cancelled manually
-            ):
-
-                # Logging
-                self.logger.info(
-                    ''.join([
-                        'The audio stream from streamer',
-                        ' {%s} was cancelled.' % (
-                            self.streamer_ip_address
-                        )
-                    ])
-                )
-
-                # Exit the loop
-                break
-
-        # Clear the connection
-        if self.playback_session:
-            self.streamer_ip_address = None
-            self.playback_session = None
-
-        # Close the connection
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except (
-            ConnectionResetError,  # Streamer disconnected
-            ConnectionAbortedError,  # Streamer aborted the connection
-        ):
-            pass
-
-    async def playback(self):
-        """ Plays a timestamped audio stream packet from the playback buffer, discarding incomplete
-        or late packets.
-
-        The player attempts to start the audio stream playback service as a _dependent_ task along
-        with the receive stream service and the handle communication service.
-        """
-
-        # TODO Implement digital audio stream output
-        #   - Initialize the PyAudio stream within `__init__()` instead
-
-        # Initialize PyAudio
-        audio = pyaudio.PyAudio()
-
-        # Initialize audio stream-playback
-        stream = audio.open(
-            rate=audera.RATE,
-            channels=audera.CHANNELS,
-            format=audera.FORMAT,
-            output=True,
-            frames_per_buffer=audera.CHUNK
-        )
-
-        # Play audio stream data
-        while self.playback_session:
-
-            # Set the playback state of the remote audio output player
-            self.player = audera.dal.players.play(self.player.uuid)
-
-            try:
-
-                # Wait for enough packets in the buffer queue, timeout if the buffer is not
-                #   populating to yield to other tasks in the event loop
-
-                await asyncio.wait_for(
-                    self.buffer_event.wait(),
-                    timeout=audera.TIME_OUT
-                )
-
-                # Parse the audio stream packet from the buffer queue
-                while self.buffer:
-
-                    # TODO Implement digital audio stream output
-                    #   - Manage / update from the audio interface configuration
-
-                    # # Manage / update the parameters of the digital audio stream
-
-                    # # The `update` method opens a new audio stream with an updated interface and
-                    # #   device settings and returns `True` when the stream is updated, closing the
-                    # #   previous audio stream. If the interface and device settings are unchanged
-                    # #   then the previous audio stream is retained.
-
-                    # if self.audio_input.update(
-                    #     interface=audera.dal.interfaces.get_interface(),
-                    #     device=audera.dal.devices.get_device()
-                    # ):
-
-                    #     # Logging
-                    #     self.logger.info(
-                    #         ' '.join([
-                    #             "Streaming {%s}-bit audio at {%s}" % (
-                    #                 self.audio_input.interface.bit_rate,
-                    #                 self.audio_input.interface.rate
-                    #             ),
-                    #             "with {%s} channel(s) from input device {%s (%s)}." % (
-                    #                 self.audio_input.interface.channels,
-                    #                 self.audio_input.device.name,
-                    #                 self.audio_input.device.index
-                    #             )
-                    #         ])
-                    #     )
-
-                    packet = self.buffer.popleft()
-
-                    # Parse the timestamp and audio data from the packet, adding offset to adjust
-                    #   player side timestamps
-
-                    length = struct.unpack(">I", packet[:4])[0]
-                    target_play_time = struct.unpack("d", packet[4:12])[0]
-                    chunk = packet[12:-12]
-
-                    # Discard incomplete packets
-                    if len(chunk) != length:
-
-                        # Logging
-                        self.logger.warning(
-                            'Incomplete packet with target playback time %.6f [sec.].' % (
-                                target_play_time
-                            )
-                        )
-                        continue
-
-                    # Discard late packets
-                    playback_time = self.get_playback_time()
-                    if playback_time > target_play_time:
-
-                        # Logging
-                        self.logger.warning(
-                            'Late packet %.6f [sec.] with target playback time %.6f [sec.].' % (
-                                target_play_time - playback_time,
-                                target_play_time
-                            )
-                        )
-                        continue
-
-                    # Calculate the time to wait until the target playback time
-                    sleep_time = target_play_time - playback_time
-
-                    # Sleep until the target playback time
-                    if sleep_time >= 0:
-                        await asyncio.sleep(sleep_time)
-
-                        # Play the audio stream data
-                        stream.write(chunk)
-
-                # Play silence when the buffer is empty
-                stream.write(self.silent_data)
-
-                # Reset the buffer event when the buffer is empty
-                if not self.buffer:
-                    self.buffer_event.clear()
-
-            except asyncio.TimeoutError:  # Audio playback buffer queue is empty
-
-                # Logging
-                self.logger.info(
-                    'Streamer {%s} disconnected.' % (
-                        self.streamer_ip_address
-                    )
-                )
-
-                # Reset the buffer and the buffer event
-                self.buffer.clear()
-                self.buffer_event.clear()
-
-                # Exit the loop
-                break
-
-            except (
-                asyncio.CancelledError,  # Player services cancelled
-                KeyboardInterrupt  # Player services cancelled manually
-            ):
-
-                # Logging
-                self.logger.info(
-                    ''.join([
-                        'The audio stream from streamer',
-                        ' {%s} was cancelled.' % (
-                            self.streamer_ip_address
-                        )
-                    ])
-                )
-
-                # Exit the loop
-                break
-
-            except OSError as e:  # All other streamer communication I / O errors
-
-                # Logging
-                self.logger.error(
-                    '[%s] [playback()] %s.' % (
-                        type(e).__name__, str(e)
-                    )
-                )
-
-                # Exit the loop
-                break
-
-        # Set the playback state of the remote audio output player
-        self.player = audera.dal.players.stop(self.player.uuid)
-
-        # Close audio services
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
     async def streamer_synchronizer(self):
         """ The async streamer synchronizer `micro-service` for streamer time synchronization.
 
@@ -810,11 +480,19 @@ class Service():
         """
 
         # Communicate with the streamer
-        while self.playback_session:
+        while True:
 
             # Measure round-trip time (rtt)
             try:
-                await self.sync()
+                await asyncio.wait_for(
+                    self.sync(),
+                    timeout=audera.TIME_OUT
+                )
+
+                # Set the streamer synchronizer event to allow for the audio stream capture
+                #   and playback `micro-services` to start.
+
+                self.sync_event.set()
 
             except (
                 asyncio.TimeoutError,  # Streamer communication timed-out
@@ -823,13 +501,16 @@ class Service():
 
                 # Logging
                 self.logger.info(
-                    'Streamer {%s} disconnected.' % (
-                        self.streamer_ip_address
-                    )
+                    ''.join([
+                        "Unable to synchronize with the streamer,",
+                        " retrying in %.2f [sec.]." % (
+                            audera.TIME_OUT
+                        )
+                    ])
                 )
 
-                # Exit the loop
-                break
+                # Timeout
+                await asyncio.sleep(audera.TIME_OUT)
 
             except (
                 asyncio.CancelledError,  # Player services cancelled
@@ -916,16 +597,16 @@ class Service():
 
             await asyncio.sleep(audera.PING_INTERVAL)
 
+        # Stop all services
+        await self.stop_services()
+
     async def sync(self):
         """ Synchronizes with the streamer and measures round-trip time (rtt). """
 
         # Open the connection to the streamer
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(
-                self.streamer_ip_address,
-                audera.PING_PORT
-            ),
-            timeout=audera.TIME_OUT
+        reader, writer = await asyncio.open_connection(
+            self.streamer_ip_address,
+            audera.PING_PORT
         )
 
         # Record the start-time
@@ -935,8 +616,8 @@ class Service():
         writer.write(b"ping")
         await writer.drain()
 
-        # Wait for return response containing the current time on the streamer for calculating time
-        #   offset
+        # Wait for return response containing the current time on the streamer for
+        #   calculating time offset
 
         packet = await reader.read(8)  # 8 bytes
         timestamp = struct.unpack("d", packet)[0]
@@ -964,6 +645,330 @@ class Service():
         await writer.wait_closed()
 
         # return rtt
+
+    async def audio_receiver(self):
+        """ Starts the async server for audio receiving and buffering.
+
+        The player attempts to start the server as a _dependent_ tasks, receiving continuous
+        connections with streamers forever until the task completes, is cancelled by the event
+        loop or is cancelled manually through `KeyboardInterrupt`.
+
+        The audio receiver service depends on the streamer synchronizer.
+        """
+
+        # Wait for the streamer synchronizer
+        await self.sync_event.wait()
+
+        while self.sync_event.is_set():
+
+            # Initialize the audio receiver
+            audio_receiver = await asyncio.start_server(
+                client_connected_cb=(
+                    lambda reader, writer: self.audio_receiver_callback(
+                        reader=reader,
+                        writer=writer
+                    )
+                ),
+                host='0.0.0.0',  # No specific destination address
+                port=audera.STREAM_PORT
+            )
+
+            # Serve streamer connections forever
+            async with audio_receiver:
+                await asyncio.gather(audio_receiver.serve_forever())
+
+    async def audio_receiver_callback(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter
+    ):
+        """ The async audio receiver callback that is started when an audio streamer connects
+        to `https://0.0.0.0:{audera.STREAM_PORT}`.
+
+        Parameters
+        ----------
+        reader: `asyncio.StreamReader`
+            The asynchronous network stream reader passed from `asyncio.start_server()` used to
+                receive the audio stream from the streamer.
+        writer: `asyncio.StreamWriter`
+            The unused asynchronous network stream writer passed from `asyncio.start_server()`.
+        """
+
+        # Retrieve the streamer ip-address
+        self.streamer_ip_address, _ = writer.get_extra_info('peername')
+
+        # Logging
+        self.logger.info(
+            'Streamer {%s} connected.' % (
+                self.streamer_ip_address
+            )
+        )
+
+        # Clear any existing playback session
+        if self.playback_session:
+
+            # Close the connection
+            self.playback_session.close()
+            try:
+                await self.playback_session.wait_closed()
+            except (
+                ConnectionResetError,  # Streamer disconnected
+                ConnectionAbortedError  # Streamer aborted the connection
+            ):
+                pass
+
+            # Logging
+            self.logger.info('Closing the previous playback session.')
+
+        # Retain the latest playback session
+        self.playback_session = writer
+
+        # Receive audio stream
+        while self.playback_session == writer:
+            try:
+
+                # Parse audio stream packet
+                packet = await reader.readuntil(
+                    separator=(
+                        audera.PACKET_TERMINATOR  # 4 bytes
+                        + audera.NAME.encode()  # 6 bytes
+                        + audera.PACKET_ESCAPE  # 1 byte
+                        + audera.PACKET_ESCAPE  # 1 byte
+                    )
+                )
+
+                # Add audio stream packet to the buffer
+                self.buffer.append(packet)
+
+                # Trigger playback
+                if len(self.buffer) >= audera.BUFFER_SIZE:
+                    self.buffer_event.set()
+
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
+
+            except (
+                asyncio.TimeoutError,  # Streamer communication timed-out
+                ConnectionResetError,  # Streamer disconnected
+                ConnectionAbortedError  # Streamer aborted the connection
+            ):
+
+                # Logging
+                self.logger.info(
+                    'Streamer {%s} disconnected.' % (
+                        self.streamer_ip_address
+                    )
+                )
+
+                # Exit the loop
+                break
+
+            except (
+                asyncio.CancelledError,  # Player services cancelled
+                asyncio.IncompleteReadError,  # Player incomplete read
+                KeyboardInterrupt  # Player services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'The audio stream from streamer',
+                        ' {%s} was cancelled.' % (
+                            self.streamer_ip_address
+                        )
+                    ])
+                )
+
+                # Exit the loop
+                break
+
+        # Clear the connection
+        if self.playback_session:
+            self.streamer_ip_address = None
+            self.playback_session = None
+
+        # Close the connection
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except (
+            ConnectionResetError,  # Streamer disconnected
+            ConnectionAbortedError  # Streamer aborted the connection
+        ):
+            pass
+
+    async def playback(self):
+        """ Plays a timestamped audio stream packet from the playback buffer, discarding incomplete
+        or late packets.
+
+        The player attempts to start the audio stream playback service as a _dependent_ task along
+        with the receive stream service and the handle communication service.
+
+        The audio stream playback service depends on the streamer synchronizer.
+        """
+
+        # Wait for the streamer synchronizer
+        await self.sync_event.wait()
+
+        # Logging
+        self.logger.info(
+            ' '.join([
+                "Playing {%s}-bit audio at {%s}" % (
+                    self.audio_output.interface.bit_rate,
+                    self.audio_output.interface.rate
+                ),
+                "with {%s} channel(s) through output device {%s (%s)}." % (
+                    self.audio_output.interface.channels,
+                    self.audio_output.device.name,
+                    self.audio_output.device.index
+                )
+            ])
+        )
+
+        while self.sync_event.is_set():
+
+            try:
+
+                # Wait for enough packets in the buffer queue, timeout if the buffer is not
+                #   populating to yield to other tasks in the event loop
+
+                await asyncio.wait_for(
+                    self.buffer_event.wait(),
+                    timeout=audera.TIME_OUT
+                )
+
+                # Parse the audio stream packet from the buffer queue
+                while self.buffer:
+
+                    # Set the playback state of the remote audio output player
+                    self.player = audera.dal.players.play(self.player.uuid)
+
+                    # Manage / update the parameters of the digital audio stream
+
+                    # The `update` method opens a new audio stream with an updated interface and
+                    #   device settings and returns `True` when the stream is updated, closing the
+                    #   previous audio stream. If the interface and device settings are unchanged
+                    #   then the previous audio stream is retained.
+
+                    if self.audio_output.update(
+                        interface=audera.dal.interfaces.get_interface(),
+                        device=audera.dal.devices.get_device('output')
+                    ):
+
+                        # Logging
+                        self.logger.info(
+                            ' '.join([
+                                "Playing {%s}-bit audio at {%s}" % (
+                                    self.audio_output.interface.bit_rate,
+                                    self.audio_output.interface.rate
+                                ),
+                                "with {%s} channel(s) through output device {%s (%s)}." % (
+                                    self.audio_output.interface.channels,
+                                    self.audio_output.device.name,
+                                    self.audio_output.device.index
+                                )
+                            ])
+                        )
+
+                    packet = self.buffer.popleft()
+
+                    # Parse the timestamp and audio data from the packet, adding offset to adjust
+                    #   player side timestamps
+
+                    length = struct.unpack(">I", packet[:4])[0]
+                    target_play_time = struct.unpack("d", packet[4:12])[0]
+                    chunk = packet[12:-12]
+
+                    # Discard incomplete packets
+                    if len(chunk) != length:
+
+                        # Logging
+                        self.logger.warning(
+                            'Incomplete packet with target playback time %.6f [sec.].' % (
+                                target_play_time
+                            )
+                        )
+                        continue
+
+                    # Discard late packets
+                    playback_time = self.get_playback_time()
+                    if playback_time > target_play_time:
+
+                        # Logging
+                        self.logger.warning(
+                            'Late packet %.6f [sec.] with target playback time %.6f [sec.].' % (
+                                target_play_time - playback_time,
+                                target_play_time
+                            )
+                        )
+                        continue
+
+                    # Calculate the time to wait until the target playback time
+                    sleep_time = target_play_time - playback_time
+
+                    # Sleep until the target playback time
+                    if sleep_time >= 0:
+                        await asyncio.sleep(sleep_time)
+
+                        # Play the audio stream data
+                        self.audio_output.stream.write(chunk)
+
+                # Play silence when the buffer is empty
+                self.audio_output.stream.write(self.audio_output.silent_chunk)
+
+                # Reset the buffer event when the buffer is empty
+                if not self.buffer:
+                    self.buffer_event.clear()
+
+                # Set the playback state of the remote audio output player
+                self.player = audera.dal.players.stop(self.player.uuid)
+
+            except asyncio.TimeoutError:  # Audio playback buffer queue is empty
+
+                # Reset the buffer and the buffer event
+                self.buffer.clear()
+                self.buffer_event.clear()
+
+            except (
+                asyncio.CancelledError,  # Player services cancelled
+                KeyboardInterrupt  # Player services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    ''.join([
+                        'The audio stream from streamer',
+                        ' {%s} was cancelled.' % (
+                            self.streamer_ip_address
+                        )
+                    ])
+                )
+
+                # Exit the loop
+                break
+
+            except OSError as e:  # All other streamer communication I / O errors
+
+                # Logging
+                self.logger.error(
+                    '[%s] [playback()] %s.' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+
+                # Exit the loop
+                break
+
+        # Close audio services
+        self.audio_output.stream.stop_stream()
+        self.audio_output.stream.close()
+        self.audio_output.port.terminate()
+
+    async def stop_services(self):
+        """ Stops the async `micro-services`. """
+        self.mdns_broadcaster_event.clear()
+        self.sync_event.clear()
+        self.buffer_event.clear()
 
     async def start_services(self):
         """ Runs the async mDNS broadcaster service, time-synchronization service, shairport-sync
@@ -997,16 +1002,17 @@ class Service():
                     return_when=asyncio.FIRST_COMPLETED
                 )
 
-                done: set[asyncio.Future]
-                services: set[asyncio.Future]
+                done: set[asyncio.Task]
+                services: set[asyncio.Task]
 
                 for service in done:
                     if service.exception():
 
                         # Logging
                         self.logger.error(
-                            '[%s] An unhandled exception was raised. %s.' % (
+                            '[%s] [%s()] %s.' % (
                                 type(service.exception()).__name__,
+                                service.get_coro().__name__,
                                 service.exception()
                             )
                         )
@@ -1026,7 +1032,7 @@ class Service():
             self.logger.message(line)
         self.logger.message('')
         self.logger.message('')
-        self.logger.message('    Running the player service.')
+        self.logger.message('>>> Running the player service.')
         self.logger.message('')
         self.logger.message('    Player information')
         self.logger.message('')

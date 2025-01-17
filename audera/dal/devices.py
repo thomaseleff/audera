@@ -1,6 +1,6 @@
 """ Device configuration-layer """
 
-from typing import Union
+from typing import Union, Literal
 import os
 from pytensils import config
 from audera.struct import audio
@@ -8,28 +8,39 @@ from audera.dal import path
 
 
 PATH: Union[str, os.PathLike] = path.HOME
-FILE_NAME: str = 'device.json'
 DTYPES: dict = {
     'device': {
         'name': 'str',
-        'index': 'int'
+        'index': 'int',
+        'type': 'str'
     }
 }
 
 
-def exists() -> bool:
-    """ Returns `True` when the device configuration file exists. """
+def exists(type_: Literal['input', 'output']) -> bool:
+    """ Returns `True` when the device configuration file exists.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
     if os.path.isfile(
-        os.path.abspath(os.path.join(PATH, FILE_NAME))
+        os.path.abspath(os.path.join(PATH, '%s_device.json' % type_))
     ):
         return True
     else:
         return False
 
 
-def create() -> config.Handler:
+def create(type_: Literal['input', 'output']) -> config.Handler:
     """ Creates the device configuration file and returns the contents
     as a `pytensils.config.Handler` object.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
     """
 
     # Create the device configuration-layer directory
@@ -39,23 +50,28 @@ def create() -> config.Handler:
     # Create the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name=FILE_NAME,
+        file_name='%s_device.json' % type_,
         create=True
     )
-    Config = Config.from_dict({'device': audio.Device.get_default_device().to_dict()})
+    Config = Config.from_dict({'device': audio.Device.get_default_device(type_).to_dict()})
 
     return Config
 
 
-def get() -> config.Handler:
+def get(type_: Literal['input', 'output']) -> config.Handler:
     """ Returns the contents of the device configuration as a
     `pytensils.config.Handler` object.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
     """
 
     # Read the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name=FILE_NAME
+        file_name='%s_device.json' % type_
     )
 
     # Validate
@@ -64,14 +80,19 @@ def get() -> config.Handler:
     return Config
 
 
-def get_or_create() -> config.Handler:
+def get_or_create(type_: Literal['input', 'output']) -> config.Handler:
     """ Creates or reads the device configuration file and returns the contents as
     a `pytensils.config.Handler` object.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
     """
-    if exists():
-        return get()
+    if exists(type_):
+        return get(type_)
     else:
-        return create()
+        return create(type_)
 
 
 def save(device: audio.Device) -> config.Handler:
@@ -90,7 +111,7 @@ def save(device: audio.Device) -> config.Handler:
     # Create the configuration file
     Config = config.Handler(
         path=PATH,
-        file_name=FILE_NAME,
+        file_name='%s_device.json' % device.type,
         create=True
     )
     Config = Config.from_dict({'device': device.to_dict()})
@@ -108,7 +129,7 @@ def update(new: audio.Device) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create()
+    Config = get_or_create(new.type)
 
     # Convert the config to an audio device object
     Device = audio.Device.from_config(config=Config)
@@ -125,20 +146,66 @@ def update(new: audio.Device) -> config.Handler:
         return Config
 
 
-def delete():
-    """ Deletes the configuration file associated with a `audera.struct.audio.Device` object. """
-    if exists():
-        os.remove(os.path.join(PATH, FILE_NAME))
+def delete(type_: Literal['input', 'output']):
+    """ Deletes the configuration file associated with a `audera.struct.audio.Device` object.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
+    if exists(type_):
+        os.remove(os.path.join(PATH, '%s_device.json' % type_))
 
 
-def get_device() -> audio.Device:
-    """ Returns the current selected audio device as an `audera.struct.audio.Device` object. """
-    return audio.Device.from_config(get_or_create())
+def get_device(type_: Literal['input', 'output']) -> audio.Device:
+    """ Returns the current selected audio device as an `audera.struct.audio.Device` object.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
+    return audio.Device.from_config(get_or_create(type_))
 
 
-def get_device_index() -> int:
-    """ Returns the current selected audio device index as an `int`. """
+def get_device_name(type_: Literal['input', 'output']) -> int:
+    """ Returns the current selected audio device name as an `str`.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
 
     # Read the configuration file
-    Device = get_device()
-    return Device.index
+    device = get_device(type_)
+    return device.name
+
+
+def get_device_index(type_: Literal['input', 'output']) -> int:
+    """ Returns the current selected audio device index as an `int`.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
+
+    # Read the configuration file
+    device = get_device(type_)
+    return device.index
+
+
+def get_device_type(type_: Literal['input', 'output']) -> int:
+    """ Returns the current selected audio device type as an `str`.
+
+    Parameters
+    ----------
+    type: `Literal['intput', 'output']`
+        The type of the audio device.
+    """
+
+    # Read the configuration file
+    device = get_device(type_)
+    return device.type

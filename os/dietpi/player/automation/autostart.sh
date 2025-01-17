@@ -20,5 +20,5 @@ else
    exit 1
 fi
 
-audera run client
+audera run player
 exit 0

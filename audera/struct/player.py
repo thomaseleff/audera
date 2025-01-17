@@ -82,6 +82,9 @@ class Player():
                 )
             )
 
+        # Convert datatypes
+        dict_object['uuid'] = str(dict_object['uuid'])
+
         return Player(**dict_object)
 
     def from_config(config: config.Handler) -> Player:
@@ -227,6 +230,9 @@ class Group():
                     ','.join(["'%s'" % (key) for key in missing_keys])
                 )
             )
+
+        # Convert datatypes
+        dict_object['uuid'] = str(dict_object['uuid'])
 
         return Group(**dict_object)
 

@@ -4,7 +4,7 @@
 for DIY home audio enthusiasts.
 """
 
-from typing import Union, List, Literal
+from typing import List
 import errno
 
 from audera import mdns, ntp, dal, logging, struct
@@ -26,13 +26,6 @@ DESCRIPTION: str = ''.join([
     '`audera` is an open-source multi-room audio streaming system written in',
     ' Python for DIY home audio enthusiasts.'
 ])
-
-# Interface configuration
-CHUNK: int = struct.audio.CHUNK
-FORMAT: int = struct.audio.FORMAT
-CHANNELS: Literal[1, 2] = struct.audio.CHANNELS
-RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = struct.audio.RATE
-DEVICE_INDEX: Union[int, None] = struct.audio.DEVICE_INDEX
 
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."

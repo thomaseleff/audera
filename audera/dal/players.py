@@ -392,7 +392,7 @@ def get_player_by_address(address: str) -> player.Player:
                     WHERE address = '%s'
                     """ % (str(address))
                 )
-            )
+            )[0]
     except duckdb.IOException:
         return None
 
@@ -447,7 +447,7 @@ def get_all_available_player_uuids() -> List[str]:
                     WHERE enabled = True
                         AND connected = True
                     """
-                ).fetchall()  # Duckdb converts uuid-like objects into `UUID` objects.
+                ).fetchall()  # Duckdb converts uuid-like objects into `uuid.UUID` objects.
             ]
     except duckdb.IOException:
         return []

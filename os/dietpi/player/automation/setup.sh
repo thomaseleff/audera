@@ -16,11 +16,11 @@ RESET='\033[0m'
 GIT_REPO_URL="https://github.com/thomaseleff/audera.git"
 WORKSPACE="/home/dietpi/audera"
 SHAIRPORT_CONFIG="/usr/local/etc/shairport-sync.conf"
-REPO_SHAIRPORT_CONFIG="$WORKSPACE/os/dietpi/client/conf/shairport-sync.conf"
+REPO_SHAIRPORT_CONFIG="$WORKSPACE/os/dietpi/player/conf/shairport-sync.conf"
 
 AUTOSTART_DIRECTORY="/var/lib/dietpi/dietpi-autostart"
 AUTOSTART_SCRIPT="$AUTOSTART_DIRECTORY/custom.sh"
-REPO_AUTOSTART_SCRIPT="$WORKSPACE/os/dietpi/client/automation/autostart.sh"
+REPO_AUTOSTART_SCRIPT="$WORKSPACE/os/dietpi/player/automation/autostart.sh"
 
 # Start console logging
 #   The logo must be wrapped in single quotes ' ' to avoid escaping characters
@@ -33,9 +33,9 @@ echo '  \ \  \ \  \ \  \\\  \ \  \_\\ \ \  \_|_\ \  \  \ \ \  \ \  \  '
 echo '   \ \__\ \__\ \______/\ \______/\ \______\ \__\\ _\\ \__\ \__\ '
 echo '    \|__|\|__|\|______| \|______| \|______|\|__|\|__|\|__|\|__| '
 echo
-echo ">>> Running the Audera playback-client setup & installation..."
+echo ">>> Running the Audera player setup & installation..."
 echo
-echo "    Script source {https://raw.githubusercontent.com/thomaseleff/audera/refs/heads/main/os/dietpi/client/automation/setup.sh}."
+echo "    Script source {https://raw.githubusercontent.com/thomaseleff/audera/refs/heads/main/os/dietpi/player/automation/setup.sh}."
 
 # Ensure the script is running as root
 echo
@@ -135,9 +135,9 @@ echo -e "[  ${GREEN}OK${RESET}  ] Custom autostart script created successfully"
 
 # Log
 echo
-echo -e "[  ${GREEN}OK${RESET}  ] The Audera playback-client setup & installation completed successfully"
+echo -e "[  ${GREEN}OK${RESET}  ] The Audera player setup & installation completed successfully"
 
 # Restart
-echo ">>> Restarting the Audera playback-client in 5 [sec.] ..."
+echo ">>> Restarting the Audera player in 5 [sec.] ..."
 sleep 5
 reboot

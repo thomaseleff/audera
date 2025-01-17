@@ -111,11 +111,11 @@ class Service():
         #   The interface describes the parameters of the digital audio stream (format, sampling
         #   frequency, number of channels, and the number of frames for each broadcasted audio
         #   chunk). The device determines which hardware input device is supplying the audio
-        #   stream. The system default audio input device is automatically selected by default.
+        #   stream. The system default audio input device is automatically selected.
 
         self.audio_input = audera.struct.audio.Input(
             interface=audera.dal.interfaces.get_interface(),
-            device=audera.dal.devices.get_device()
+            device=audera.dal.devices.get_device('input')
         )
 
         # Initialize time synchronization
@@ -205,36 +205,31 @@ class Service():
         self.mdns.close()
 
         # Detach any / all remote audio output players
-        audera.dal.sessions.detach_players(
-            self.session.uuid,
-            [
-                player.uuid for player
-                in audera.dal.sessions.get_session_players(self.session.uuid)
-            ]
-        )
-
-        # Close any / all remote audio output player streams
-        for ip_address, connection in self.players.items():
-
-            # Logging
-            self.logger.info(
-                'Remote audio output player {%s} disconnected.' % (
-                    ip_address
-                )
+        attached_players = audera.dal.sessions.get_session_players(self.session.uuid)
+        if attached_players:
+            audera.dal.sessions.detach_players(
+                self.session.uuid,
+                [player.uuid for player in attached_players]
             )
 
-            # Close the connection
-            connection.close()
-            try:
-                await connection.wait_closed()
-            except (
-                ConnectionResetError,  # Player disconnected
-                ConnectionAbortedError,  # Player aborted the connection
-            ):
-                pass
+        # Close any / all remote audio output player streams
+        players = copy.copy(self.players)
+        if players:
+            for address, connection in players.items():
+                connection: asyncio.StreamWriter
 
-            # Remove the remote audio output player
-            del self.players[ip_address]
+                # Close the connection
+                connection.close()
+                try:
+                    await connection.wait_closed()
+                except (
+                    ConnectionResetError,  # Player disconnected
+                    ConnectionAbortedError  # Player aborted the connection
+                ):
+                    pass
+
+                # Remove the remote audio output player
+                del self.players[address]
 
     async def open_connection(
         self,
@@ -469,7 +464,7 @@ class Service():
                 await writer.wait_closed()
             except (
                 ConnectionResetError,  # Player disconnected
-                ConnectionAbortedError,  # Player aborted the connection
+                ConnectionAbortedError  # Player aborted the connection
             ):
                 pass
 
@@ -525,7 +520,7 @@ class Service():
 
                 if self.audio_input.update(
                     interface=audera.dal.interfaces.get_interface(),
-                    device=audera.dal.devices.get_device()
+                    device=audera.dal.devices.get_device('input')
                 ):
 
                     # Logging
@@ -619,12 +614,19 @@ class Service():
                     return_exceptions=True
                 )
 
-                # Detach disconnected players
+                # Disconnect and detach players
                 for address, result in zip(players.keys(), results):
                     if result is False and address in self.players:
 
+                        # Disconnect
                         player = audera.dal.players.get_player_by_address(address)
                         player = audera.dal.players.disconnect(player.uuid)
+
+                        # Detach
+                        self.session = audera.dal.sessions.detach_players_or_group(
+                            self.session.uuid,
+                            player
+                        )
 
                         del self.players[address]
 
@@ -703,7 +705,7 @@ class Service():
         except (
             asyncio.TimeoutError,  # Player communication timed-out
             ConnectionResetError,  # Player disconnected
-            ConnectionAbortedError,  # Player aborted the connection
+            ConnectionAbortedError  # Player aborted the connection
         ):
 
             # Close the connection
@@ -712,7 +714,7 @@ class Service():
                 await writer.wait_closed()
             except (
                 ConnectionResetError,  # Player disconnected
-                ConnectionAbortedError,  # Player aborted the connection
+                ConnectionAbortedError  # Player aborted the connection
             ):
                 pass
 
@@ -755,16 +757,17 @@ class Service():
                     return_when=asyncio.FIRST_COMPLETED
                 )
 
-                done: set[asyncio.Future]
-                services: set[asyncio.Future]
+                done: set[asyncio.Task]
+                services: set[asyncio.Task]
 
                 for service in done:
                     if service.exception():
 
                         # Logging
                         self.logger.error(
-                            '[%s] An unhandled exception was raised. %s.' % (
+                            '[%s] [%s()] %s.' % (
                                 type(service.exception()).__name__,
+                                service.get_coro().__name__,
                                 service.exception()
                             )
                         )
@@ -784,7 +787,7 @@ class Service():
             self.logger.message(line)
         self.logger.message('')
         self.logger.message('')
-        self.logger.message('    Running the streamer service.')
+        self.logger.message('>>> Running the streamer service.')
         self.logger.message('')
         self.logger.message('    Streamer information')
         self.logger.message('')
