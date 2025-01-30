@@ -9,6 +9,7 @@ import struct
 import copy
 import concurrent.futures
 from zeroconf import Zeroconf
+# import statistics
 
 import audera
 
@@ -122,8 +123,9 @@ class Service():
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
         self.ntp_offset: float = 0.0
 
-        # Initialize playback delay
+        # Initialize playback delay and rtt-history
         self.playback_delay: float = audera.PLAYBACK_DELAY
+        self.rtt_history: list[float] = []
 
         # Initialize players for broadcasting the audio stream
         self.players: Dict[str, asyncio.StreamWriter] = {}
@@ -230,6 +232,9 @@ class Service():
 
                 # Remove the remote audio output player
                 del self.players[address]
+
+        # Stop all services
+        await self.stop_services()
 
     async def open_connection(
         self,
@@ -351,15 +356,11 @@ class Service():
                 break
 
     async def multi_player_synchronizer(self):
-        """ Starts the async server for multi-player synchronization.
+        """ The async multi-player synchronizer `micro-service` for streamer time synchronization.
 
-        The purpose of multi-player synchronization is to ensure that the time on the streamer
-        coincides with all other `audera` remote audio output players on the local network
-        by regularly sending its current time as a reference time source.
-
-        The streamer attempts to start the server as an _dependent_ task, serving continuous
-        connections with remote audio output players forever until the task completes, is
-        cancelled by the event loop or is cancelled manually through `KeyboardInterrupt`.
+        The purpose of streamer time synchronization is to ensure that the time on the remote
+        audio output player coincides with the audio streamer on the local network by regularly
+        receiving the current time as a reference time source.
 
         The multi-player synchronization service depends on the mDNS browser.
         """
@@ -367,106 +368,233 @@ class Service():
         # Wait for the mDNS browser
         await self.mdns_browser_event.wait()
 
-        # Initialize the multi-player synchronizer
-        multi_player_synchronizer = await asyncio.start_server(
-            client_connected_cb=(
-                lambda reader, writer: self.multi_player_synchronizer_callback(
-                    reader=reader,
-                    writer=writer
+        # Communicate with the remote audio output players until the mDNS browser is cancelled by the event
+        #   loop or cancelled manually through `KeyboardInterrupt`
+
+        while self.mdns_browser_event.is_set():
+            try:
+
+                # Retain the current connected remote audio output players for broadcasting
+                players = copy.copy(self.players)
+
+                # Synchronize the players concurrently and drain the writer with timeout for flow control,
+                #   disconnecting any / all players that are too slow
+
+                results = await asyncio.gather(
+                    *[
+                        self.sync(
+                            address=address
+                        ) for address in players.keys()
+                    ],
+                    return_exceptions=True
                 )
-            ),
-            host='0.0.0.0',  # No specific destination address
-            port=audera.PING_PORT
-        )
 
-        # Serve player connections forever
-        async with multi_player_synchronizer:
-            await asyncio.gather(multi_player_synchronizer.serve_forever())
+                # Disconnect and detach players
+                for address, result in zip(players.keys(), results):
+                    if result is False and address in self.players:
 
-        # Stop all services
-        await self.stop_services()
+                        # Disconnect
+                        player = audera.dal.players.get_player_by_address(address)
+                        player = audera.dal.players.disconnect(player.uuid)
 
-    async def multi_player_synchronizer_callback(
+                        # Detach
+                        self.session = audera.dal.sessions.detach_players_or_group(
+                            self.session.uuid,
+                            player
+                        )
+
+                        del self.players[address]
+
+                        # Logging
+                        self.logger.info(
+                            'Remote audio output player {%s (%s)} detached.' % (
+                                player.name,
+                                player.uuid.split('-')[0]  # Short uuid of the player
+                            )
+                        )
+
+            except (
+                asyncio.CancelledError,  # Streamer services cancelled
+                KeyboardInterrupt  # Streamer services cancelled manually
+            ):
+
+                # Logging
+                self.logger.info(
+                    'Multi-player synchronization was cancelled.'
+                )
+
+                # Exit the loop
+                break
+
+            except OSError as e:  # All other streamer communication I / O errors
+
+                # Logging
+                self.logger.error(
+                    '[%s] [multi_player_synchronizer_v2()] %s.' % (
+                        type(e).__name__, str(e)
+                    )
+                )
+                self.logger.info(
+                    ''.join([
+                        "Multi-player synchronization encountered",
+                        " an error, retrying in %.2f [sec.]." % (
+                            audera.PING_INTERVAL
+                        )
+                    ])
+                )
+
+            await asyncio.sleep(audera.PING_INTERVAL)
+
+    async def sync(
         self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter
-    ):
-        """ The async multi-player synchronizer callback that is started when a remote audio
-        output player connects to `https://0.0.0.0:{audera.PING_PORT}`.
+        address: str
+    ) -> bool:
+        """ Synchronizes with the remote audio output player and measures round-trip time (rtt).
 
         Parameters
         ----------
-        reader: `asyncio.StreamReader`
-            The asynchronous network stream reader passed from `asyncio.start_server()` used to
-                receive a `ping` response from the player.
-        writer: `asyncio.StreamWriter`
-            The asynchronous network stream writer passed from `asyncio.start_server()` used to
-                serve the current streamer time response to the player.
+        address: `str`
+            The ip-address of a remote audio output player.
         """
 
-        # Retrieve the remote audio output player ip-address
-        address, _ = writer.get_extra_info('peername')
+        # Retrieve the remote audio output player information
         player = audera.dal.players.get_player_by_address(address)
 
-        # Communicate with the player
+        # Communicate with the remote audio output player
         try:
 
-            # Read the ping-communication
-            message = await reader.read(4)
-            if message == b"ping":
+            # Open a connection to the remote audio output player
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(
+                    address,
+                    audera.PING_PORT
+                ),
+                timeout=audera.TIME_OUT
+            )
 
-                # Serve the response-communication containing the current time on the streamer
-                #   for the player to calculate the time offset and wait for the response to be
-                #   received.
+            # Record the start-time
+            start_time = time.time() + self.ntp_offset
 
-                writer.write(
-                    struct.pack(
-                        "d",
-                        time.time() + self.ntp_offset
-                    )
-                )  # 8 bytes
-                await writer.drain()
+            # Serve the current time on the audio streamer for the remote audio output player to calculate
+            #   the time offset and wait for the response to be received.
+
+            writer.write(
+                struct.pack(
+                    "d",
+                    time.time() + self.ntp_offset
+                )
+            )  # 8 bytes
+            await writer.drain()
+
+            # Wait for the return response containing the time offset of the remote audio output player
+            packet = await reader.read(8)  # 8 bytes
+            player_offset = struct.unpack("d", packet)[0]
+            current_time = time.time() + self.ntp_offset
+
+            # Calculate round-trip time
+            rtt = current_time - start_time
 
             # Logging
             self.logger.info(
-                'Remote audio output player {%s (%s)} synchronized.' % (
+                'Remote audio output player {%s (%s)} synchronized with rount-trip time (rtt) %.4f [sec.]' % (
                     player.name,
-                    player.uuid.split('-')[0]  # Short uuid of the player
+                    player.uuid.split('-')[0],  # Short uuid of the player
+                    rtt
+                ),
+                ' and time offset %.7f [sec.].' % (
+                    player_offset
                 )
             )
 
+            # # Perform audio playback playback delay adjustment
+            # if rtt:
+
+            #     # Add the rtt measurement to the history
+            #     self.rtt_history.append(rtt)
+
+            #     # Adjust the playback delay based on rtt and jitter
+            #     #   Only adjust after the RTT_HISTORY_SIZE is met
+            #     if len(self.rtt_history) >= audera.RTT_HISTORY_SIZE:
+            #         mean_rtt = statistics.mean(self.rtt_history)
+            #         jitter = statistics.stdev(self.rtt_history)
+
+            #         # Logging
+            #         self.logger.info(
+            #             ''.join([
+            #                 'Latency statistics',
+            #                 ' (jitter {%.4f},' % (jitter),
+            #                 ' avg. rtt {%.4f}).' % (mean_rtt)
+            #             ])
+            #         )
+
+            #         # Decrease the playback delay for low jitter and rtt
+            #         if (
+            #             jitter < audera.LOW_JITTER
+            #             and mean_rtt < audera.LOW_RTT
+            #         ):
+            #             new_buffer_time = max(
+            #                 audera.MIN_PLAYBACK_DELAY, self.playback_delay - 0.05
+            #             )
+
+            #         # Increase the playback delay for high jitter or rtt
+            #         elif (
+            #             jitter > audera.HIGH_JITTER
+            #             or mean_rtt > audera.HIGH_RTT
+            #         ):
+            #             new_buffer_time = min(
+            #                 audera.MAX_PLAYBACK_DELAY, self.playback_delay + 0.05
+            #             )
+
+            #         # Otherwise maintain the current playback delay
+            #         else:
+            #             new_buffer_time = self.playback_delay
+
+            #         # Update the playback delay and clear the rtt history
+            #         self.playback_delay = new_buffer_time
+            #         self.rtt_history.clear()
+
+            #         # Logging
+            #         self.logger.info(
+            #             ''.join([
+            #                 'Audio playback playback delay adjusted',
+            #                 ' to %.2f [sec.].' % (
+            #                     self.playback_delay
+            #                 )
+            #             ])
+            #         )
+
         except (
-            asyncio.TimeoutError,  # Streamer communication timed-out
-            asyncio.CancelledError,  # Streamer services cancelled
-            KeyboardInterrupt  # Streamer services cancelled manually
+            asyncio.TimeoutError,  # Player communication timed-out
+            ConnectionResetError,  # Player disconnected
+            ConnectionAbortedError  # Player aborted the connection
         ):
 
             # Logging
             self.logger.info(
-                'Multi-player sync with remote audio output player {%s (%s)} cancelled.' % (
-                    player.name,
-                    player.uuid.split('-')[0]  # Short uuid of the player
-                )
+                ''.join([
+                    "Unable to synchronize with audio player {%s (%s)}," % (
+                        player.name,
+                        player.uuid.split('-')[0]  # Short uuid of the player
+                    ),
+                    " retrying in %.2f [sec.]." % (
+                        audera.TIME_OUT
+                    )
+                ])
             )
 
-        except OSError as e:
+            return False
 
-            # Logging
-            self.logger.error(
-                '[%s] [multi_player_synchronizer()] %s.' % (
-                    type(e).__name__, str(e)
-                )
-            )
+        # Close the connection
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except (
+            ConnectionResetError,  # Player disconnected
+            ConnectionAbortedError  # Player aborted the connection
+        ):
+            pass
 
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except (
-                ConnectionResetError,  # Player disconnected
-                ConnectionAbortedError  # Player aborted the connection
-            ):
-                pass
+        return True
 
     async def audio_streamer(self):
         """ The async audio stream `micro-service` for audio capturing and broadcasting. The
@@ -658,7 +786,7 @@ class Service():
 
                 # Logging
                 self.logger.error(
-                    '[%s] %s.' % (
+                    '[%s] [audio_streamer()] %s.' % (
                         type(e).__name__, str(e)
                     )
                 )
