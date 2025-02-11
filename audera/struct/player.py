@@ -47,6 +47,13 @@ class Player():
     connected: bool = field(default=True)
     playing: bool = field(default=True)
 
+    @property
+    def short_uuid(self) -> str:
+        """ Returns the short unique universal identifier of the `audera.struct.player.Player`
+        object.
+        """
+        return self.uuid.split('-')[0]
+
     def from_dict(dict_object: dict) -> Player:
         """ Returns an `audera.struct.player.Player` object from a `dict`.
 

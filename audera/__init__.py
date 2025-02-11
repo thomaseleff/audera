@@ -7,9 +7,9 @@ for DIY home audio enthusiasts.
 from typing import List
 import errno
 
-from audera import mdns, ntp, dal, logging, struct
+from audera import ntp, mdns, struct, dal, devices, sessions, logging
 
-__all__ = ['mdns', 'ntp', 'dal', 'logging', 'struct']
+__all__ = ['ntp', 'mdns', 'struct', 'dal', 'devices', 'sessions', 'logging']
 
 # Logo
 LOGO: List[str] = [
@@ -29,7 +29,6 @@ DESCRIPTION: str = ''.join([
 
 # Server configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
-# MDNS_NAME = f"stream.{MDNS_TYPE}"
 STREAM_PORT: int = 5000
 PING_PORT: int = 5001
 
