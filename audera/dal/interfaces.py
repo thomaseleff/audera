@@ -40,14 +40,14 @@ def create() -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME,
         create=True
     )
-    Config = Config.from_dict({'interface': audio.Interface().to_dict()})
+    config_ = config_.from_dict({'interface': audio.Interface().to_dict()})
 
-    return Config
+    return config_
 
 
 def get() -> config.Handler:
@@ -56,15 +56,15 @@ def get() -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create() -> config.Handler:
@@ -91,17 +91,17 @@ def save(interface: audio.Interface) -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME,
         create=True
     )
-    Config = Config.from_dict({'interface': interface.to_dict()})
+    config_ = config_.from_dict({'interface': interface.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: audio.Interface) -> config.Handler:
+def update(new: audio.Interface) -> audio.Interface:
     """ Updates the interface configuration file `~/.audera/interface.json`.
 
     Parameters
@@ -111,21 +111,21 @@ def update(new: audio.Interface) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create()
+    config_ = get_or_create()
 
     # Convert the config to an audio interface object
-    Interface = audio.Interface.from_config(config=Config)
+    interface = audio.Interface.from_config(config=config_)
 
     # Compare and update
-    if not Interface == new:
+    if not interface == new:
 
         # Update the interface configuration object and write to the configuration file
-        Config = Config.from_dict({'interface': new.to_dict()})
+        config_ = config_.from_dict({'interface': new.to_dict()})
 
-        return Config
+        return new
 
     else:
-        return Config
+        return interface
 
 
 def delete():

@@ -59,14 +59,14 @@ def create(session_: session.Session) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([session_.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'session': session_.to_dict()})
+    config_ = config_.from_dict({'session': session_.to_dict()})
 
-    return Config
+    return config_
 
 
 def get(uuid: str) -> config.Handler:
@@ -80,15 +80,15 @@ def get(uuid: str) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([uuid, 'json'])
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create(session_: session.Session) -> config.Handler:
@@ -120,17 +120,17 @@ def save(session_: session.Session) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([session_.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'session': session_.to_dict()})
+    config_ = config_.from_dict({'session': session_.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: session.Session) -> config.Handler:
+def update(new: session.Session) -> session.Session:
     """ Updates the session player configuration file `~/.audera/sessions/{session.uuid}.json`.
 
     Parameters
@@ -140,20 +140,20 @@ def update(new: session.Session) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create(new)
+    config_ = get_or_create(new)
 
     # Convert the config to a playback session object
-    Player = session.Session.from_config(config=Config)
+    session_ = session.Session.from_config(config=config_)
 
     # Compare and update
-    if not Player == new:
+    if not session_ == new:
 
         # Update the session configuration object and write to the configuration file
-        Config = Config.from_dict({'session': new.to_dict()})
-        return Config
+        config_ = config_.from_dict({'session': new.to_dict()})
+        return new
 
     else:
-        return Config
+        return session_
 
 
 def delete(uuid: str):
@@ -190,7 +190,7 @@ def rename(uuid: str, name: str) -> session.Session:
         return session_
 
     session_.name = utils.as_type(name, 'str')
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def update_volume(uuid: str, volume: float) -> session.Session:
@@ -211,7 +211,7 @@ def update_volume(uuid: str, volume: float) -> session.Session:
         return session_
 
     session_.volume = utils.as_type(volume, 'float')
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def _generate_name(
@@ -294,7 +294,7 @@ def attach_players(
     session_.players = sorted(list(extended_players))
     session_.name = _generate_name(session_)
 
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def detach_players(
@@ -343,7 +343,7 @@ def detach_players(
     session_.players = sorted(list(reduced_players))
     session_.name = _generate_name(session_)
 
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def attach_group(session_uuid: str, group_uuid: str) -> session.Session:
@@ -387,7 +387,7 @@ def attach_group(session_uuid: str, group_uuid: str) -> session.Session:
     session_.players = copy.deepcopy(group.players)
     session_.volume = group.volume
 
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def detach_group(session_uuid: str, group_uuid: str) -> session.Session:
@@ -422,7 +422,7 @@ def detach_group(session_uuid: str, group_uuid: str) -> session.Session:
     session_.group = ''
     session_.players = []
 
-    return session.Session.from_config(update(session_))
+    return update(session_)
 
 
 def attach_players_or_group(

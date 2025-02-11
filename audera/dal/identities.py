@@ -44,14 +44,14 @@ def create(identity_: identity.Identity) -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME,
         create=True
     )
-    Config = Config.from_dict({'identity': identity_.to_dict()})
+    config_ = config_.from_dict({'identity': identity_.to_dict()})
 
-    return Config
+    return config_
 
 
 def get() -> config.Handler:
@@ -60,15 +60,15 @@ def get() -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create(identity_: identity.Identity) -> config.Handler:
@@ -100,17 +100,17 @@ def save(identity_: identity.Identity) -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name=FILE_NAME,
         create=True
     )
-    Config = Config.from_dict({'identity': identity_.to_dict()})
+    config_ = config_.from_dict({'identity': identity_.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: identity.Identity) -> config.Handler:
+def update(new: identity.Identity) -> identity.Identity:
     """ Updates the identity configuration file `~/.audera/identity.json`.
 
     Parameters
@@ -120,16 +120,16 @@ def update(new: identity.Identity) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create(new)
+    config_ = get_or_create(new)
 
     # Convert the config to an audio identity object
-    identity_: identity.Identity = identity.Identity.from_config(config=Config)
+    identity_: identity.Identity = identity.Identity.from_config(config=config_)
 
     # Compare and update
     if not identity_ == new:
 
         # Update the identity configuration object and write to the configuration file
-        Config = Config.from_dict(
+        config_ = config_.from_dict(
             {
                 'identity': {
                     'name': identity_.name,  # Retain the existing name, name is immutable
@@ -140,10 +140,10 @@ def update(new: identity.Identity) -> config.Handler:
             }
         )
 
-        return Config
+        return new
 
     else:
-        return Config
+        return identity_
 
 
 def delete():

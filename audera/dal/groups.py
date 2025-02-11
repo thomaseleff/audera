@@ -58,14 +58,14 @@ def create(group: player.Group) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([group.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'group': group.to_dict()})
+    config_ = config_.from_dict({'group': group.to_dict()})
 
-    return Config
+    return config_
 
 
 def get(uuid: str) -> config.Handler:
@@ -79,15 +79,15 @@ def get(uuid: str) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([uuid, 'json'])
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create(group: player.Group) -> config.Handler:
@@ -119,17 +119,17 @@ def save(group: player.Group) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([group.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'group': group.to_dict()})
+    config_ = config_.from_dict({'group': group.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: player.Group) -> config.Handler:
+def update(new: player.Group) -> player.Group:
     """ Updates the group player configuration file `~/.audera/groups/{group.uuid}.json`.
 
     Parameters
@@ -139,21 +139,21 @@ def update(new: player.Group) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create(new)
+    config_ = get_or_create(new)
 
     # Convert the config to an audio group player object
-    Player = player.Group.from_config(config=Config)
+    group = player.Group.from_config(config=config_)
 
     # Compare and update
-    if not Player == new:
+    if not group == new:
 
         # Update the group player configuration object and write to the configuration file
-        Config = Config.from_dict({'group': new.to_dict()})
+        config_ = config_.from_dict({'group': new.to_dict()})
 
-        return Config
+        return new
 
     else:
-        return Config
+        return group
 
 
 def delete(uuid: str):
@@ -190,7 +190,7 @@ def rename(uuid: str, name: str) -> player.Group:
         return group
 
     group.name = utils.as_type(name, 'str')
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def play(uuid: str) -> player.Group:
@@ -213,7 +213,7 @@ def play(uuid: str) -> player.Group:
             players.play(player_)
 
     group.playing = True
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def stop(uuid: str) -> player.Group:
@@ -236,7 +236,7 @@ def stop(uuid: str) -> player.Group:
             players.stop(player_)
 
     group.playing = False
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def enable(uuid: str) -> player.Group:
@@ -254,7 +254,7 @@ def enable(uuid: str) -> player.Group:
         return group
 
     group.enabled = True
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def disable(uuid: str) -> player.Group:
@@ -293,7 +293,7 @@ def update_volume(uuid: str, volume: float) -> player.Group:
         return group
 
     group.volume = utils.as_type(volume, 'float')
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def attach_player(group_uuid: str, player_uuid: str) -> player.Group:
@@ -314,7 +314,7 @@ def attach_player(group_uuid: str, player_uuid: str) -> player.Group:
         return group
 
     group.players.append(player_uuid)
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def detach_player(group_uuid: str, player_uuid: str) -> player.Group:
@@ -334,7 +334,7 @@ def detach_player(group_uuid: str, player_uuid: str) -> player.Group:
         return group
 
     group.players.remove(player_uuid)
-    return player.Group.from_config(update(group))
+    return update(group)
 
 
 def connection() -> duckdb.DuckDBPyConnection:

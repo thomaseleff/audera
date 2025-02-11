@@ -48,14 +48,14 @@ def create(type_: Literal['input', 'output']) -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='%s_device.json' % type_,
         create=True
     )
-    Config = Config.from_dict({'device': audio.Device.get_default_device(type_).to_dict()})
+    config_ = config_.from_dict({'device': audio.Device.get_default_device(type_).to_dict()})
 
-    return Config
+    return config_
 
 
 def get(type_: Literal['input', 'output']) -> config.Handler:
@@ -69,15 +69,15 @@ def get(type_: Literal['input', 'output']) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='%s_device.json' % type_
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create(type_: Literal['input', 'output']) -> config.Handler:
@@ -109,17 +109,17 @@ def save(device: audio.Device) -> config.Handler:
         os.mkdir(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='%s_device.json' % device.type,
         create=True
     )
-    Config = Config.from_dict({'device': device.to_dict()})
+    config_ = config_.from_dict({'device': device.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: audio.Device) -> config.Handler:
+def update(new: audio.Device) -> audio.Device:
     """ Updates the device configuration file `~/.audera/device.json`.
 
     Parameters
@@ -129,21 +129,21 @@ def update(new: audio.Device) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create(new.type)
+    config_ = get_or_create(new.type)
 
     # Convert the config to an audio device object
-    Device = audio.Device.from_config(config=Config)
+    device = audio.Device.from_config(config=config_)
 
     # Compare and update
-    if not Device == new:
+    if not device == new:
 
         # Update the device configuration object and write to the configuration file
-        Config = Config.from_dict({'device': new.to_dict()})
+        config_ = config_.from_dict({'device': new.to_dict()})
 
-        return Config
+        return new
 
     else:
-        return Config
+        return device
 
 
 def delete(type_: Literal['input', 'output']):

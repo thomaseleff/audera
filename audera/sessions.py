@@ -192,7 +192,7 @@ class StreamerConnection():
 
     def __init__(
         self,
-        streamer_address: str,
+        streamer_address: Union[str, None] = None,
         stream_writer: Union[asyncio.StreamWriter, None] = None
     ):
         """ Initializes an instance of a streamer connection.
@@ -204,7 +204,7 @@ class StreamerConnection():
         stream_writer: `asyncio.StreamWriter`
             The asynchronous network stream writer registered to the streamer.
         """
-        self.streamer_address: str = streamer_address
+        self.streamer_address: Union[str, None] = streamer_address
         self.stream_writer: Union[asyncio.StreamWriter, None] = stream_writer
 
     def connect(self, stream_writer: asyncio.StreamWriter) -> StreamerConnection:
@@ -239,7 +239,7 @@ class Playback():
 
     def __init__(self):
         """ Initializes an instance of an audio playback session. """
-        self.streamer_connection: Union[StreamerConnection, None] = None
+        self.streamer_connection: StreamerConnection = StreamerConnection()
 
     async def attach_streamer(
         self,

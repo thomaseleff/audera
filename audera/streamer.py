@@ -1,6 +1,5 @@
 """ Streamer service """
 
-from typing import Dict
 import ntplib
 import asyncio
 import socket
@@ -57,14 +56,12 @@ class Service():
 
         self.mac_address = audera.mdns.get_local_mac_address()
         self.streamer_ip_address = audera.mdns.get_local_ip_address()
-        self.identity: audera.struct.identity.Identity = audera.struct.identity.Identity.from_config(
-            audera.dal.identities.update(
-                audera.struct.identity.Identity(
-                    name=audera.struct.identity.generate_cool_name(),
-                    uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
-                    mac_address=self.mac_address,
-                    address=self.streamer_ip_address
-                )
+        self.identity: audera.struct.identity.Identity = audera.dal.identities.update(
+            audera.struct.identity.Identity(
+                name=audera.struct.identity.generate_cool_name(),
+                uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
+                mac_address=self.mac_address,
+                address=self.streamer_ip_address
             )
         )
 
@@ -77,16 +74,14 @@ class Service():
         #   player that is both enabled and connected to the local network.
 
         self.stream_session: audera.sessions.Stream = audera.sessions.Stream(
-            session=audera.struct.session.Session.from_config(
-                audera.dal.sessions.update(
-                    audera.struct.session.Session(
-                        name=self.identity.name,
-                        uuid=self.identity.uuid,
-                        mac_address=self.identity.mac_address,
-                        address=self.identity.address,
-                        players=[],
-                        provider='audera'
-                    )
+            session=audera.dal.sessions.update(
+                audera.struct.session.Session(
+                    name=self.identity.name,
+                    uuid=self.identity.uuid,
+                    mac_address=self.identity.mac_address,
+                    address=self.identity.address,
+                    players=[],
+                    provider='audera'
                 )
             )
         )
@@ -127,9 +122,6 @@ class Service():
         # Initialize playback delay and rtt-history
         self.playback_delay: float = audera.PLAYBACK_DELAY
         self.rtt_history: list[float] = []
-
-        # Initialize players for broadcasting the audio stream
-        self.players: Dict[str, asyncio.StreamWriter] = {}
 
         # Initialize process control parameters
         self.mdns_browser_event: asyncio.Event = asyncio.Event()

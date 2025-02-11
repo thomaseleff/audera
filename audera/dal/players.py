@@ -61,12 +61,12 @@ def create(identity_: identity.Identity) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([identity_.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict(
+    config_ = config_.from_dict(
         {
             'player': player.Player(
                 name=identity_.name,
@@ -77,7 +77,7 @@ def create(identity_: identity.Identity) -> config.Handler:
         }
     )
 
-    return Config
+    return config_
 
 
 def get(uuid: str) -> config.Handler:
@@ -91,15 +91,15 @@ def get(uuid: str) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([uuid, 'json'])
     )
 
     # Validate
-    Config.validate(DTYPES)
+    config_.validate(DTYPES)
 
-    return Config
+    return config_
 
 
 def get_or_create(identity_: identity.Identity) -> config.Handler:
@@ -131,17 +131,17 @@ def save(player: player.Player) -> config.Handler:
         os.makedirs(PATH)
 
     # Create the configuration file
-    Config = config.Handler(
+    config_ = config.Handler(
         path=PATH,
         file_name='.'.join([player.uuid, 'json']),
         create=True
     )
-    Config = Config.from_dict({'player': player.to_dict()})
+    config_ = config_.from_dict({'player': player.to_dict()})
 
-    return Config
+    return config_
 
 
-def update(new: player.Player) -> config.Handler:
+def update(new: player.Player) -> player.Player:
     """ Updates the player configuration file `~/.audera/players/{player.uuid}.json`.
 
     Parameters
@@ -151,7 +151,7 @@ def update(new: player.Player) -> config.Handler:
     """
 
     # Read the configuration file
-    Config = get_or_create(
+    config_ = get_or_create(
         identity.Identity(
             name=new.name,
             uuid=new.uuid,
@@ -161,18 +161,18 @@ def update(new: player.Player) -> config.Handler:
     )
 
     # Convert the config to an audio player object
-    Player = player.Player.from_config(config=Config)
+    player_ = player.Player.from_config(config=config_)
 
     # Compare and update
-    if not Player == new:
+    if not player_ == new:
 
         # Update the player configuration object and write to the configuration file
-        Config = Config.from_dict({'player': new.to_dict()})
+        config_ = config_.from_dict({'player': new.to_dict()})
 
-        return Config
+        return new
 
     else:
-        return Config
+        return player_
 
 
 def delete(uuid: str):
@@ -209,7 +209,7 @@ def rename(uuid: str, name: str) -> player.Player:
         return player_
 
     player_.name = utils.as_type(name, 'str')
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def play(uuid: str) -> player.Player:
@@ -227,7 +227,7 @@ def play(uuid: str) -> player.Player:
         return player_
 
     player_.playing = True
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def stop(uuid: str) -> player.Player:
@@ -245,7 +245,7 @@ def stop(uuid: str) -> player.Player:
         return player_
 
     player_.playing = False
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def enable(uuid: str) -> player.Player:
@@ -263,7 +263,7 @@ def enable(uuid: str) -> player.Player:
         return player_
 
     player_.enabled = True
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def disable(uuid: str) -> player.Player:
@@ -282,7 +282,7 @@ def disable(uuid: str) -> player.Player:
 
     player_.enabled = False
     player_.playing = False  # A player cannot be playing if it is disabled
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def connect(uuid: str) -> player.Player:
@@ -300,7 +300,7 @@ def connect(uuid: str) -> player.Player:
         return player_
 
     player_.connected = True
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def disconnect(uuid: str) -> player.Player:
@@ -319,7 +319,7 @@ def disconnect(uuid: str) -> player.Player:
 
     player_.connected = False
     player_.playing = False  # A player cannot be playing if it is disconnected
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def update_volume(uuid: str, volume: float) -> player.Player:
@@ -340,7 +340,7 @@ def update_volume(uuid: str, volume: float) -> player.Player:
         return player_
 
     player_.volume = utils.as_type(volume, 'float')
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def update_channels(uuid: str, channels: int) -> player.Player:
@@ -358,7 +358,7 @@ def update_channels(uuid: str, channels: int) -> player.Player:
         return player_
 
     player_.channels = utils.as_type(channels, 'int')
-    return player.Player.from_config(update(player_))
+    return update(player_)
 
 
 def connection() -> duckdb.DuckDBPyConnection:

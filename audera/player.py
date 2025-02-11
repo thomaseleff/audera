@@ -54,14 +54,12 @@ class Service():
 
         self.mac_address = audera.mdns.get_local_mac_address()
         self.player_ip_address = audera.mdns.get_local_ip_address()
-        self.identity: audera.struct.identity.Identity = audera.struct.identity.Identity.from_config(
-            audera.dal.identities.update(
-                audera.struct.identity.Identity(
-                    name=audera.struct.identity.generate_cool_name(),
-                    uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
-                    mac_address=self.mac_address,
-                    address=self.player_ip_address
-                )
+        self.identity: audera.struct.identity.Identity = audera.dal.identities.update(
+            audera.struct.identity.Identity(
+                name=audera.struct.identity.generate_cool_name(),
+                uuid=audera.struct.identity.generate_uuid_from_mac_address(self.mac_address),
+                mac_address=self.mac_address,
+                address=self.player_ip_address
             )
         )
 

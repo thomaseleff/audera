@@ -404,7 +404,7 @@ class PlayerBrowser():
 
                 player: struct.player.Player = struct.player.Player.from_service_info(info)
                 player.connected = True
-                _ = dal.players.update(player)
+                player = dal.players.update(player)
                 self.players[name] = player
 
                 # Logging
@@ -438,7 +438,7 @@ class PlayerBrowser():
             if info and (name in self.players):
 
                 player: struct.player.Player = struct.player.Player.from_service_info(info)
-                _ = dal.players.update(player)
+                player = dal.players.update(player)
                 self.players[name] = player
 
                 # Logging
