@@ -12,9 +12,9 @@ import audera
 
 
 class Service():
-    """ A `class` that represents the `audera` player service.
+    """ A `class` that represents the `audera` remote audio output player service.
 
-    The player service runs the following services within an async event loop,
+    The player service runs the following tasks within an async event loop,
         - Network time protocol (ntp) synchronization
         - Shairport-sync remote audio output player service for `airplay` connectivity
         - Audera remote audio output player service for `audera` connectivity
@@ -854,7 +854,7 @@ class Service():
         self.audio_output.port.terminate()
 
     async def stop_services(self):
-        """ Stops the async services. """
+        """ Stops the async tasks. """
         self.mdns_broadcaster_event.clear()
         self.sync_event.clear()
         self.buffer_event.clear()

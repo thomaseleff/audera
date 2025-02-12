@@ -15,11 +15,11 @@ import audera
 class Service():
     """ A `class` that represents the `audera` streamer service.
 
-    The streamer service runs the following `micro-services` within an async event loop,
+    The streamer service runs the following tasks within an async event loop,
         - Network time protocol (ntp) synchronization
         - Remote audio output player mDNS browsing with player connection, playback session management
             and multi-player synchronization.
-        - Audio stream capture and broadcasting
+        - Audio stream capturing and broadcasting
 
     The streamer service can be run from the command-line,
 
@@ -208,7 +208,7 @@ class Service():
             await self.mdns.browse()
 
             # Set the mDNS browser event to allow for the multi-player synchronization,
-            #   audio stream capture and broadcasting `micro-services` to start.
+            #   audio stream capture and broadcasting tasks to start.
 
             self.mdns_browser_event.set()
 
@@ -797,7 +797,7 @@ class Service():
         return True
 
     async def stop_services(self):
-        """ Stops the async `micro-services`. """
+        """ Stops the async tasks. """
         self.mdns_browser_event.clear()
 
     async def start_services(self):
@@ -851,7 +851,7 @@ class Service():
             )
 
     async def run(self):
-        """ Starts all async streamer `micro-services`. """
+        """ Starts all async streamer services. """
 
         # Logging
         for line in audera.LOGO:
