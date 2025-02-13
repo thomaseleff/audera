@@ -52,8 +52,8 @@ class Service():
         #   mac address. Finally, the name of an identity is immutable, when an identity is updated
         #   the same name is always retained.
 
-        self.mac_address = audera.mdns.get_local_mac_address()
-        self.player_ip_address = audera.mdns.get_local_ip_address()
+        self.mac_address = audera.netifaces.get_local_mac_address()
+        self.player_ip_address = audera.netifaces.get_local_ip_address()
         self.identity: audera.struct.identity.Identity = audera.dal.identities.update(
             audera.struct.identity.Identity(
                 name=audera.struct.identity.generate_cool_name(),
@@ -110,7 +110,7 @@ class Service():
         )
 
         # Initialize time synchronization
-        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
+        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer(server='pool.ntp.org')
         self.ntp_offset: float = 0.0
         self.streamer_offset: float = 0.0
 
@@ -279,7 +279,7 @@ class Service():
                             ])
                         )
 
-                    # Timeout
+                    # Wait, yielding to other tasks in the event loop
                     await asyncio.sleep(audera.TIME_OUT)
 
             except (

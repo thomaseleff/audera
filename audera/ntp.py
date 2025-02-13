@@ -20,13 +20,13 @@ class Synchronizer:
             The network time protocol server.
         """
         self.server = server
-        self.Client = ntplib.NTPClient()
+        self.client = ntplib.NTPClient()
 
     def sync(self) -> ntplib.NTPStats:
         """ Retrieves the current time statistics from the network
         time protocol server.
         """
-        return self.Client.request(self.server, version=3)
+        return self.client.request(self.server, version=3, port=123)
 
     def offset(self) -> float:
         """ Reterns the offset between the network time protocol
