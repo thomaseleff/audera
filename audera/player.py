@@ -1,6 +1,6 @@
 """ Player service """
 
-import ntplib
+# import ntplib
 import asyncio
 import time
 import struct
@@ -110,8 +110,8 @@ class Service():
         )
 
         # Initialize time synchronization
-        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer(server='pool.ntp.org')
-        self.ntp_offset: float = 0.0
+        # self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer(server='pool.ntp.org')
+        # self.ntp_offset: float = 0.0
         self.streamer_offset: float = 0.0
 
         # Initialize buffer
@@ -126,67 +126,66 @@ class Service():
         """ Returns the playback time based on the current time, streamer time offset and
         network time protocol (ntp) server offset.
         """
-        return float(time.time() + self.streamer_offset + self.ntp_offset)
+        # return float(time.time() + self.streamer_offset + self.ntp_offset)
+        return float(time.time() + self.streamer_offset)
 
-    async def ntp_synchronizer(self):
-        """ The async `micro-service` for network time protocol (ntp) synchronization.
+    # async def ntp_synchronizer(self):
+    #     """ The async `micro-service` for network time protocol (ntp) synchronization.
 
-        The purpose of ntp synchronization is to ensure that the time on the player coincides with
-        all `audera` streamers on the local network by regularly synchronizing the clocks with a
-        reference time source.
+    #     The purpose of ntp synchronization is to ensure that the time on the player coincides with
+    #     all `audera` streamers on the local network by regularly synchronizing the clocks with a
+    #     reference time source.
 
-        The player attempts to start the time-synchronization service as an _independent_ task,
-        restarting the service forever until the task is either cancelled by the event loop or
-        cancelled manually through `KeyboardInterrupt`.
-        """
+    #     The player attempts to start the time-synchronization service as an _independent_ task,
+    #     restarting the service forever until the task is either cancelled by the event loop or
+    #     cancelled manually through `KeyboardInterrupt`.
+    #     """
 
-        while True:
-            try:
+    #     try:
+    #         while True:
+    #             try:
 
-                # Update the local machine time offset from the network time protocol (ntp) server
-                self.ntp_offset = self.ntp.offset()
+    #                 # Update the local machine time offset from the network time protocol (ntp) server
+    #                 self.ntp_offset = self.ntp.offset()
 
-                # Logging
-                self.logger.info(
-                    'The player ntp time offset is %.7f [sec.].' % (
-                        self.ntp_offset
-                    )
-                )
+    #                 # Logging
+    #                 self.logger.info(
+    #                     'The ntp server time offset is %.7f [sec.].' % (
+    #                         self.ntp_offset
+    #                     )
+    #                 )
 
-                # Wait, yielding to other tasks in the event loop
-                await asyncio.sleep(audera.SYNC_INTERVAL)
+    #                 # Wait, yielding to other tasks in the event loop
+    #                 await asyncio.sleep(audera.SYNC_INTERVAL)
 
-            except ntplib.NTPException:
+    #             except ntplib.NTPException:
 
-                # Logging
-                self.logger.info(
-                    ''.join([
-                        'Communication with the ntp server {%s} failed,' % (
-                            self.ntp.server
-                        ),
-                        ' retrying in %.2f [min.].' % (
-                            audera.SYNC_INTERVAL / 60
-                        )
-                    ])
-                )
+    #                 # Logging
+    #                 self.logger.info(
+    #                     ''.join([
+    #                         'Communication with the ntp server {%s} failed,' % (
+    #                             self.ntp.server
+    #                         ),
+    #                         ' retrying in %.2f [min.].' % (
+    #                             audera.SYNC_INTERVAL / 60
+    #                         )
+    #                     ])
+    #                 )
 
-                # Wait, yielding to other tasks in the event loop
-                await asyncio.sleep(audera.SYNC_INTERVAL)
+    #                 # Wait, yielding to other tasks in the event loop
+    #                 await asyncio.sleep(audera.SYNC_INTERVAL)
 
-            except (
-                asyncio.CancelledError,  # Player services cancelled
-                KeyboardInterrupt  # Player services cancelled manually
-            ):
+    #     except (
+    #         asyncio.CancelledError,  # Player services cancelled
+    #         KeyboardInterrupt  # Player services cancelled manually
+    #     ):
 
-                # Logging
-                self.logger.info(
-                    'Communication with the npt server {%s} cancelled.' % (
-                        self.ntp.server
-                    )
-                )
-
-                # Exit the loop
-                break
+    #         # Logging
+    #         self.logger.info(
+    #             'Communication with the npt server {%s} cancelled.' % (
+    #                 self.ntp.server
+    #             )
+    #         )
 
     async def shairport_sync_player(self):
         """ The async `micro-service` for the shairport-sync remote audio output player
@@ -292,9 +291,6 @@ class Service():
                     "sudo", "systemctl", "stop", "shairport-sync"
                 )
 
-                # Exit the loop
-                break
-
     async def audera_player(self):
         """ The async `micro-service` for the audera remote audio output player service that
         supports audio receiving, playback, and synchronization from / with `audera` streamers.
@@ -324,8 +320,7 @@ class Service():
             mdns_broadcaster,
             streamer_synchronizer,
             audio_receiver,
-            audio_playback,
-            return_exceptions=True
+            audio_playback
         )
 
     async def mdns_broadcaster(self):
@@ -460,7 +455,8 @@ class Service():
             timestamp = struct.unpack("d", packet)[0]
 
             # Update the player local machine time offset from the audio streamer
-            self.streamer_offset = timestamp - time.time() + self.ntp_offset
+            # self.streamer_offset = timestamp - time.time() + self.ntp_offset
+            self.streamer_offset = timestamp - time.time()
 
             # Respond to the audio streamer with the audio streamer offset time on the remote audio output
             #   player and wait for the response to be received.
@@ -616,9 +612,6 @@ class Service():
                 # Trigger audio stream playback
                 self.buffer_event.set()
 
-                # Yield to other tasks in the event loop
-                # await asyncio.sleep(0)
-
         except (
             asyncio.TimeoutError,  # Streamer communication timed-out
             ConnectionResetError,  # Streamer disconnected
@@ -654,7 +647,7 @@ class Service():
             await self.playback_session.close()
 
             # Reset the buffer and the buffer event
-            await self.buffer.join()
+            await self.clear_buffer()
             self.buffer_event.clear()
 
     async def audio_playback(self):
@@ -693,14 +686,6 @@ class Service():
 
         try:
             while self.buffer_event.is_set():
-
-                # Wait for packets in the buffer queue, timeout if the buffer is not
-                #   populating to yield to other tasks in the event loop
-
-                # await asyncio.wait_for(
-                #     self.buffer_event.wait(),
-                #     timeout=audera.TIME_OUT
-                # )
 
                 # Manage / update the parameters of the digital audio stream
 
@@ -784,18 +769,17 @@ class Service():
                 # Signal the end of the buffer queue task
                 self.buffer.task_done()
 
-                # Play silence when the buffer is empty
-                # self.audio_output.stream.write(self.audio_output.silent_chunk)
+        except OSError as e:  # All other streamer communication I / O errors
 
-                # Reset the buffer event when the buffer is empty
-                # if not self.buffer:
-                #     self.buffer_event.clear()
-
-                # Set the playback state of the remote audio output player
-                # self.player = audera.dal.players.stop(self.player.uuid)
-
-                # Yield to other tasks in the event loop
-                # await asyncio.sleep(0)
+            # Logging
+            self.logger.error(
+                '[%s] [audio_playback()] %s.' % (
+                    type(e).__name__, str(e)
+                )
+            )
+            self.logger.error(
+                    "The audio stream playback encountered an error."
+            )
 
         except (
             asyncio.CancelledError,  # Player services cancelled
@@ -807,42 +791,28 @@ class Service():
                 'The audio stream playback was cancelled.'
             )
 
-            # Reset the buffer and the buffer event
-            # self.buffer.clear()
-            # self.buffer_event.clear()
-
-            # Timeout
-            # await asyncio.sleep(audera.TIME_OUT)
-
-        except OSError as e:  # All other streamer communication I / O errors
-
-            # Logging
-            self.logger.error(
-                '[%s] [audio_playback()] %s.' % (
-                    type(e).__name__, str(e)
-                )
-            )
-
-            # Reset the buffer and the buffer event
-            # self.buffer.clear()
-            # self.buffer_event.clear()
-
-            # Timeout
-            # await asyncio.sleep(audera.TIME_OUT)
-
         finally:
 
             # Set the playback state of the remote audio output player
             self.player = audera.dal.players.stop(self.player.uuid)
 
             # Reset the buffer and the buffer event
-            await self.buffer.join()
+            await self.clear_buffer()
             self.buffer_event.clear()
 
             # Close the audio services
             self.audio_output.stream.stop_stream()
             self.audio_output.stream.close()
             self.audio_output.port.terminate()
+
+    async def clear_buffer(self):
+        """ Clears any / all unplayed audio stream packets from the buffer. """
+        while not self.buffer.empty():
+            try:
+                self.buffer.get_nowait()
+                self.buffer.task_done()
+            except asyncio.QueueEmpty:
+                break
 
     async def stop_services(self):
         """ Stops the async tasks. """
@@ -856,7 +826,7 @@ class Service():
         """
 
         # Schedule the time-synchronization service
-        ntp_synchronizer = asyncio.create_task(self.ntp_synchronizer())
+        # ntp_synchronizer = asyncio.create_task(self.ntp_synchronizer())
 
         # Schedule the shairport-sync player service
         shairport_sync_player = asyncio.create_task(self.shairport_sync_player())
@@ -865,7 +835,7 @@ class Service():
         audera_player = asyncio.create_task(self.audera_player())
 
         services = [
-            ntp_synchronizer,
+            # ntp_synchronizer,
             shairport_sync_player,
             audera_player
         ]

@@ -144,53 +144,51 @@ class Service():
         cancelled manually through `KeyboardInterrupt`.
         """
 
-        while True:
-            try:
+        try:
+            while True:
+                try:
 
-                # Update the local machine time offset from the network time protocol (ntp) server
-                self.ntp_offset = self.ntp.offset()
+                    # Update the local machine time offset from the network time protocol (ntp) server
+                    self.ntp_offset = self.ntp.offset()
 
-                # Logging
-                self.logger.info(
-                    'The streamer ntp time offset is %.7f [sec.].' % (
-                        self.ntp_offset
-                    )
-                )
-
-                # Wait, yielding to other tasks in the event loop
-                await asyncio.sleep(audera.SYNC_INTERVAL)
-
-            except ntplib.NTPException:
-
-                # Logging
-                self.logger.info(
-                    ''.join([
-                        'Communication with the ntp server {%s} failed,' % (
-                            self.ntp.server
-                        ),
-                        ' retrying in %.2f [min.].' % (
-                            audera.SYNC_INTERVAL / 60
+                    # Logging
+                    self.logger.info(
+                        'The ntp server time offset is %.7f [sec.].' % (
+                            self.ntp_offset
                         )
-                    ])
-                )
-
-                # Wait, yielding to other tasks in the event loop
-                await asyncio.sleep(audera.SYNC_INTERVAL)
-
-            except (
-                asyncio.CancelledError,  # Streamer services cancelled
-                KeyboardInterrupt  # Streamer services cancelled manually
-            ):
-
-                # Logging
-                self.logger.info(
-                    'Communication with the npt server {%s} cancelled.' % (
-                        self.ntp.server
                     )
-                )
 
-                # Exit the loop
-                break
+                    # Wait, yielding to other tasks in the event loop
+                    await asyncio.sleep(audera.SYNC_INTERVAL)
+
+                except ntplib.NTPException:
+
+                    # Logging
+                    self.logger.info(
+                        ''.join([
+                            'Communication with the ntp server {%s} failed,' % (
+                                self.ntp.server
+                            ),
+                            ' retrying in %.2f [min.].' % (
+                                audera.SYNC_INTERVAL / 60
+                            )
+                        ])
+                    )
+
+                    # Wait, yielding to other tasks in the event loop
+                    await asyncio.sleep(audera.SYNC_INTERVAL)
+
+        except (
+            asyncio.CancelledError,  # Streamer services cancelled
+            KeyboardInterrupt  # Streamer services cancelled manually
+        ):
+
+            # Logging
+            self.logger.info(
+                'Communication with the npt server {%s} cancelled.' % (
+                    self.ntp.server
+                )
+            )
 
     async def mdns_browser(self):
         """ The async `micro-service` for the multi-cast DNS remote audio output player service
@@ -251,14 +249,16 @@ class Service():
                 )
             )
 
-        # Close the mDNS service browser
-        self.mdns.close()
+        finally:
 
-        # Close the stream session
-        await self.stream_session.close()
+            # Close the mDNS service browser
+            self.mdns.close()
 
-        # Stop all services
-        await self.stop_services()
+            # Close the stream session
+            await self.stream_session.close()
+
+            # Stop all services
+            await self.stop_services()
 
     async def synchronize(self):
         """ Synchronizes any / all connected remote audio output players . """
@@ -313,7 +313,7 @@ class Service():
                 ''.join([
                     "Multi-player synchronization encountered",
                     " an error, retrying in %.2f [sec.]." % (
-                        audera.PING_INTERVAL
+                        audera.TIME_OUT
                     )
                 ])
             )
@@ -351,7 +351,7 @@ class Service():
             writer.write(
                 struct.pack(
                     "d",
-                    time.time() + self.ntp_offset
+                    start_time
                 )
             )  # 8 bytes
             await writer.drain()
@@ -438,6 +438,8 @@ class Service():
             #             ])
             #         )
 
+            return True
+
         except (
             asyncio.TimeoutError,  # Player communication timed-out
             ConnectionResetError,  # Player disconnected
@@ -459,17 +461,17 @@ class Service():
 
             return False
 
-        # Close the connection
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except (
-            ConnectionResetError,  # Player disconnected
-            ConnectionAbortedError  # Player aborted the connection
-        ):
-            pass
+        finally:
 
-        return True
+            # Close the connection
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (
+                ConnectionResetError,  # Player disconnected
+                ConnectionAbortedError  # Player aborted the connection
+            ):
+                pass
 
     async def open_audio_stream_connection(
         self,
@@ -593,9 +595,8 @@ class Service():
         # Serve the audio stream until the mDNS browser is cancelled by the event loop or
         #   cancelled manually through `KeyboardInterrupt`
 
-        while self.mdns_browser_event.is_set():
-
-            try:
+        try:
+            while self.mdns_browser_event.is_set():
 
                 # Manage / update the parameters of the digital audio stream
 
@@ -717,43 +718,34 @@ class Service():
                 # Yield to other tasks in the event loop
                 await asyncio.sleep(0)
 
-            except (
-                asyncio.CancelledError,  # Streamer services cancelled
-                KeyboardInterrupt  # Streamer services cancelled manually
-            ):
+        except OSError as e:  # All other streamer communication I / O errors
 
-                # Logging
-                self.logger.info(
-                    'The audio stream was cancelled.'
+            # Logging
+            self.logger.error(
+                '[%s] [audio_streamer()] %s.' % (
+                    type(e).__name__, str(e)
                 )
+            )
+            self.logger.error(
+                    "The audio stream capture encountered an error."
+            )
 
-                # Exit the loop
-                break
+        except (
+            asyncio.CancelledError,  # Streamer services cancelled
+            KeyboardInterrupt  # Streamer services cancelled manually
+        ):
 
-            except OSError as e:  # All other streamer communication I / O errors
+            # Logging
+            self.logger.info(
+                'The audio stream capture was cancelled.'
+            )
 
-                # Logging
-                self.logger.error(
-                    '[%s] [audio_streamer()] %s.' % (
-                        type(e).__name__, str(e)
-                    )
-                )
-                self.logger.error(
-                    ''.join([
-                        "The audio stream capture encountered",
-                        " an error, retrying in %.2f [sec.]." % (
-                            audera.TIME_OUT
-                        )
-                    ])
-                )
+        finally:
 
-                # Timeout
-                await asyncio.sleep(audera.TIME_OUT)
-
-        # Close the audio stream
-        self.audio_input.stream.stop_stream()
-        self.audio_input.stream.close()
-        self.audio_input.port.terminate()
+            # Close the audio stream
+            self.audio_input.stream.stop_stream()
+            self.audio_input.stream.close()
+            self.audio_input.port.terminate()
 
     async def broadcast(
         self,
@@ -778,24 +770,23 @@ class Service():
         try:
             writer.write(packet)
             await writer.drain()
+            return True
+
         except (
             asyncio.TimeoutError,  # Player communication timed-out
             ConnectionResetError,  # Player disconnected
             ConnectionAbortedError  # Player aborted the connection
         ):
+            return False
+
+        finally:
 
             # Close the connection
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except (
-                ConnectionResetError,  # Player disconnected
-                ConnectionAbortedError  # Player aborted the connection
-            ):
-                pass
 
-            return False
-        return True
+            # Typically the `async.StreamWriter` would be closed here, although the closing of the
+            #   writer actually occurs within the calling method as the writer is re-used for
+            #   broadcasting each and every audio stream packet
+            pass
 
     async def stop_services(self):
         """ Stops the async tasks. """
