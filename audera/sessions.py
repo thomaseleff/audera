@@ -295,11 +295,8 @@ class Playback():
 
         if self.streamer_connection.streamer_address == streamer_address:
 
-            # Close the streamer connection
-            await self.streamer_connection.disconnect()
-
-            # Remove the streamer connection
-            self.streamer_connection = None
+            # Close and reset the streamer connection
+            await self.close()
 
     async def clear(self):
         """ Clears the streamers from the playback session and closes the asynchronous
@@ -315,5 +312,5 @@ class Playback():
         # Close the streamer connection
         await self.clear()
 
-        # Reset streamer connections
-        self.streamer_connection = None
+        # Reset the streamer connection
+        self.streamer_connection = StreamerConnection()
