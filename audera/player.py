@@ -110,9 +110,9 @@ class Service():
         )
 
         # Initialize time synchronization
-        # self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer(server='pool.ntp.org')
-        # self.ntp_offset: float = 0.0
         self.streamer_offset: float = 0.0
+        self.streamer_delay: float = 0.0
+        self.rtt: float = 0.0
 
         # Initialize buffer
         self.buffer: asyncio.Queue = asyncio.Queue(audera.BUFFER_SIZE)
@@ -126,66 +126,7 @@ class Service():
         """ Returns the playback time based on the current time, streamer time offset and
         network time protocol (ntp) server offset.
         """
-        # return float(time.time() + self.streamer_offset + self.ntp_offset)
         return float(time.time() + self.streamer_offset)
-
-    # async def ntp_synchronizer(self):
-    #     """ The async `micro-service` for network time protocol (ntp) synchronization.
-
-    #     The purpose of ntp synchronization is to ensure that the time on the player coincides with
-    #     all `audera` streamers on the local network by regularly synchronizing the clocks with a
-    #     reference time source.
-
-    #     The player attempts to start the time-synchronization service as an _independent_ task,
-    #     restarting the service forever until the task is either cancelled by the event loop or
-    #     cancelled manually through `KeyboardInterrupt`.
-    #     """
-
-    #     try:
-    #         while True:
-    #             try:
-
-    #                 # Update the local machine time offset from the network time protocol (ntp) server
-    #                 self.ntp_offset = self.ntp.offset()
-
-    #                 # Logging
-    #                 self.logger.info(
-    #                     'The ntp server time offset is %.7f [sec.].' % (
-    #                         self.ntp_offset
-    #                     )
-    #                 )
-
-    #                 # Wait, yielding to other tasks in the event loop
-    #                 await asyncio.sleep(audera.SYNC_INTERVAL)
-
-    #             except ntplib.NTPException:
-
-    #                 # Logging
-    #                 self.logger.info(
-    #                     ''.join([
-    #                         'Communication with the ntp server {%s} failed,' % (
-    #                             self.ntp.server
-    #                         ),
-    #                         ' retrying in %.2f [min.].' % (
-    #                             audera.SYNC_INTERVAL / 60
-    #                         )
-    #                     ])
-    #                 )
-
-    #                 # Wait, yielding to other tasks in the event loop
-    #                 await asyncio.sleep(audera.SYNC_INTERVAL)
-
-    #     except (
-    #         asyncio.CancelledError,  # Player services cancelled
-    #         KeyboardInterrupt  # Player services cancelled manually
-    #     ):
-
-    #         # Logging
-    #         self.logger.info(
-    #             'Communication with the npt server {%s} cancelled.' % (
-    #                 self.ntp.server
-    #             )
-    #         )
 
     async def shairport_sync_player(self):
         """ The async `micro-service` for the shairport-sync remote audio output player
@@ -450,31 +391,65 @@ class Service():
         # Communicate with the audio streamer
         try:
 
-            # Read the current time from the audio streamer for calculating the time offset
-            packet = await reader.read(8)  # 8 bytes
-            timestamp = struct.unpack("d", packet)[0]
+            # Record the local start-time of time synchronization with the audio streamer
+            #   as the timestamp of the request packet transmission, `t1`
+
+            t1 = time.time()
+
+            # Send the audio streamer the local start-time
+            writer.write(
+                struct.pack(
+                    "d",
+                    t1
+                )
+            )  # 8 bytes
+            await writer.drain()
+
+            # Read the network times from the audio streamer for calculating the time offset
+            #   and network delay. The packet contains both the timestamp of the request packet
+            #   reception, `t2` as well as the timestamp of the response packet transmission, `t3`
+
+            packet = await reader.read(16)  # 16 bytes
+
+            # Record the local end-time of time synchronization with the audio streamer
+            #   as the timestamp of the response packet reception, `t4`
+
+            t4 = time.time()
+
+            # Unpack the network times from the audio streamer
+            t2, t3 = struct.unpack("!dd", packet)
 
             # Update the player local machine time offset from the audio streamer
-            # self.streamer_offset = timestamp - time.time() + self.ntp_offset
-            self.streamer_offset = timestamp - time.time()
+            self.streamer_offset = ((t2 - t1) + (t3 - t4)) / 2
+
+            # Update the player local machine time delay and round-trip time (rtt)
+            self.streamer_delay = (t4 - t1) - (t3 - t2)
+            self.rtt = (t4 - t1)
 
             # Respond to the audio streamer with the audio streamer offset time on the remote audio output
             #   player and wait for the response to be received.
 
             writer.write(
                 struct.pack(
-                    "d",
-                    self.streamer_offset
+                    "!ddd",
+                    self.streamer_offset,
+                    self.streamer_delay,
+                    self.rtt
                 )
-            )  # 8 bytes
+            )  # 24 bytes
             await writer.drain()
 
             # Logging
             self.logger.info(
-                'Remote audio output player synchronized with audio streamer {%s} with time offset %.7f [sec.].' % (
-                    streamer_address,
-                    self.streamer_offset
-                )
+                ''.join([
+                    'Remote audio output player synchronized with audio streamer {%s} with delay %.4f [sec.]' % (
+                        streamer_address,
+                        self.streamer_delay
+                    ),
+                    ' and time offset %.7f [sec.].' % (
+                        self.streamer_offset
+                    )
+                ])
             )
 
             # Set the audio streamer synchronizer event to allow for the audio stream capture
@@ -825,9 +800,6 @@ class Service():
         player service.
         """
 
-        # Schedule the time-synchronization service
-        # ntp_synchronizer = asyncio.create_task(self.ntp_synchronizer())
-
         # Schedule the shairport-sync player service
         shairport_sync_player = asyncio.create_task(self.shairport_sync_player())
 
@@ -835,7 +807,6 @@ class Service():
         audera_player = asyncio.create_task(self.audera_player())
 
         services = [
-            # ntp_synchronizer,
             shairport_sync_player,
             audera_player
         ]

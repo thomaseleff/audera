@@ -116,7 +116,7 @@ class Service():
         )
 
         # Initialize time synchronization
-        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer(server='pool.ntp.org')
+        self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
         self.ntp_offset: float = 0.0
 
         # Initialize playback delay and rtt-history
@@ -342,27 +342,29 @@ class Service():
                 timeout=audera.TIME_OUT
             )
 
-            # Record the start-time
-            start_time = time.time() + self.ntp_offset
+            # Wait for the remote audio output player to request time synchronization
+            _ = await reader.read(8)  # 8 bytes
 
-            # Serve the current time on the audio streamer to the remote audio output player in order
-            #   for the player to calculate the time offset and wait for the response to be received.
+            # Record the network time of the audio streamer as the timestamp of the request
+            #   packet reception, `t2`
+            t2 = time.time() + self.ntp_offset
+
+            # Serve the network times of the audio streamer to the remote audio output player.
+            #   The packet contains both the timestamp of the request packet reception, `t2` as
+            #   well as the timestamp of the response packet transmission, `t3`
 
             writer.write(
                 struct.pack(
-                    "d",
-                    start_time
+                    "!dd",
+                    t2,
+                    (time.time() + self.ntp_offset)
                 )
-            )  # 8 bytes
+            )  # 16 bytes
             await writer.drain()
 
             # Read the return response containing the time offset of the remote audio output player
-            packet = await reader.read(8)  # 8 bytes
-            player_offset = struct.unpack("d", packet)[0]
-            current_time = time.time() + self.ntp_offset
-
-            # Calculate round-trip time
-            rtt = current_time - start_time
+            packet = await reader.read(24)  # 24 bytes
+            player_offset, _, player_rtt = struct.unpack("!ddd", packet)
 
             # Logging
             self.logger.info(
@@ -370,7 +372,7 @@ class Service():
                     'Remote audio output player {%s (%s)} synchronized with round-trip time (rtt) %.4f [sec.]' % (
                         player.name,
                         player.short_uuid,
-                        rtt
+                        player_rtt
                     ),
                     ' and time offset %.7f [sec.].' % (
                         player_offset
