@@ -62,9 +62,7 @@ if __name__ == '__main__':
 ```
 
 ### Player
-A `class` that represents the `audera` remote audio output player service.
-
-The player service runs the following tasks within an async event loop,
+The player service runs the following tasks,
 - Shairport-sync remote audio output player service for `airplay` connectivity
 - Audera remote audio output player service for `audera` connectivity
 
