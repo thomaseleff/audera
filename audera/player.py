@@ -1,11 +1,9 @@
 """ Player service """
 
-# import ntplib
 import asyncio
 import time
 import struct
 import platform
-# from collections import deque
 from zeroconf import Zeroconf
 
 import audera
@@ -15,7 +13,6 @@ class Service():
     """ A `class` that represents the `audera` remote audio output player service.
 
     The player service runs the following tasks within an async event loop,
-        - Network time protocol (ntp) synchronization
         - Shairport-sync remote audio output player service for `airplay` connectivity
         - Audera remote audio output player service for `audera` connectivity
 
@@ -123,9 +120,7 @@ class Service():
         self.buffer_event: asyncio.Event = asyncio.Event()
 
     def get_playback_time(self) -> float:
-        """ Returns the playback time based on the current time, streamer time offset and
-        network time protocol (ntp) server offset.
-        """
+        """ Returns the playback time based on the current time and streamer time offset. """
         return float(time.time() + self.streamer_offset)
 
     async def shairport_sync_player(self):

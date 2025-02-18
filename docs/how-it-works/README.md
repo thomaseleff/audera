@@ -65,34 +65,33 @@ if __name__ == '__main__':
 A `class` that represents the `audera` remote audio output player service.
 
 The player service runs the following tasks within an async event loop,
-- Network time protocol (ntp) synchronization
 - Shairport-sync remote audio output player service for `airplay` connectivity
 - Audera remote audio output player service for `audera` connectivity
 
 #### Event loop flow diagram
 ```
-                                                                                         tasks                                                                                                                                
-                                                   +-------------------+-------------------+-------------------+                                                                                                              
-                                                   |                   |                   |                   |                                                                                                              
-                                                   |            +------v-----+      +------v-----+      +------v-----+                                                                                                        
-                                                   |            |            |      |            |      |            |                                                                                                        
-                                                   |            |            |      |            |      |            |                                     tasks                                                              
-                                                   |            |    ntp-    |      | shairport- |      |   audera   +-------------+---+----------------------------+                                                            
-                                                   |            |synchronizer|      |sync player |      |   player   |             |   |                            |                                                            
-    +------------+      +------------+      +------+-----+      |            |      |            |      |            |             |   |    mdns-broadcaster        |          sync                        buffer                 
-    |            |      |            |      |            |      |            |      |            |      |            |             |   |        +-------+           |        +-------+                    +-------+                    
-    |            |      |            |      |            |      +------+-----+      +------+-----+      +---+----^---+             |   +-----+--> event +-waits-+   +-----+--> event +-waits-+---------+--> event +-waits-+            
-    |   player   |      |    event   | run  |  services  |             | every 600 sec.    | every 5 sec.   |    |                 |         |  +-------+       |         |  +-------+       |         |  +-------+       |            
-    |            +------>    loop    +------>            <-------------+-------------------+----------------+    |          +------v-----+   |           +------v-----+   |           +------v-----+   |           +------v-----+      
-    |            |      |            |      |            |                     until tasks are cancelled         |          |            |  sets         |            |  sets         |            |  sets         |            |      
-    |            |      |            |      |            |                                                       |          |            |   |           |            |   |           |            |   |           |            |      
-    +------------+      +------^-----+      +------+-----+                                                       |          |    mdns-   |   |           |  streamer- |   |           |   audio-   |   |           |   audio    |      
-                               |                   |                                                             |          |   browser  +---+           |synchronizer+---+           |  receiver  +---+           |   player   |      
-                               |                   |                                                             |          |            |               |            |               |            |               |            |      
-                               +-------------------+                                                             |          |            |               |            |               |            |               |            |      
-                           until event loop is cancelled                                                         |          +------+-----+               +------+-----+               +------+-----+               +------+-----+      
-                                                                                                                 |                 | every 5 sec.               | continuous                 | continuous                 | every 0 sec.
-                                                                                                                 +-----------------+----------------------------+----------------------------+----------------------------+                                                                                   
+                                                                     tasks                                                                                                                                
+                                                   +-------------------+-------------------+                                                                                                              
+                                                   |                   |                   |                                                                                                              
+                                                   |            +------v-----+      +------v-----+                                                                                                        
+                                                   |            |            |      |            |                                                                                                        
+                                                   |            |            |      |            |                                     tasks                                                              
+                                                   |            | shairport- |      |   audera   +-------------+---+----------------------------+                                                            
+                                                   |            |sync player |      |   player   |             |   |                            |                                                            
+    +------------+      +------------+      +------+-----+      |            |      |            |             |   |    mdns-broadcaster        |          sync                        buffer                 
+    |            |      |            |      |            |      |            |      |            |             |   |        +-------+           |        +-------+                    +-------+                    
+    |            |      |            |      |            |      +------+-----+      +---+----^---+             |   +-----+--> event +-waits-+   +-----+--> event +-waits-+---------+--> event +-waits-+            
+    |   player   |      |    event   | run  |  services  |             | every 5 sec.   |    |                 |         |  +-------+       |         |  +-------+       |         |  +-------+       |            
+    |            +------>    loop    +------>            <-------------+----------------+    |          +------v-----+   |           +------v-----+   |           +------v-----+   |           +------v-----+      
+    |            |      |            |      |            |   until tasks are cancelled       |          |            |  sets         |            |  sets         |            |  sets         |            |      
+    |            |      |            |      |            |                                   |          |            |   |           |            |   |           |            |   |           |            |      
+    +------------+      +------^-----+      +------+-----+                                   |          |    mdns-   |   |           |  streamer- |   |           |   audio-   |   |           |   audio    |      
+                               |                   |                                         |          |   browser  +---+           |synchronizer+---+           |  receiver  +---+           |   player   |      
+                               |                   |                                         |          |            |               |            |               |            |               |            |      
+                               +-------------------+                                         |          |            |               |            |               |            |               |            |      
+                           until event loop is cancelled                                     |          +------+-----+               +------+-----+               +------+-----+               +------+-----+      
+                                                                                             |                 | every 5 sec.               | continuous                 | continuous                 |
+                                                                                             +-----------------+----------------------------+----------------------------+----------------------------+                                                                                   
 ```
 
 #### Getting-started
