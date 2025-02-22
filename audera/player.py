@@ -121,7 +121,7 @@ class Service():
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time and streamer time offset. """
-        return float(time.time() + self.streamer_offset)
+        return time.time() + self.streamer_offset
 
     async def shairport_sync_player(self):
         """ The async `micro-service` for the shairport-sync remote audio output player
@@ -711,7 +711,7 @@ class Service():
 
                 # Discard late packets
                 playback_time = self.get_playback_time()
-                if playback_time > target_play_time:
+                if playback_time >= target_play_time:
 
                     # Logging
                     self.logger.warning(
@@ -727,7 +727,7 @@ class Service():
                     continue
 
                 # Calculate the time to wait until the target playback time
-                sleep_time = target_play_time - playback_time
+                sleep_time = self.get_playback_time() - playback_time
 
                 # Sleep until the target playback time
                 if sleep_time >= 0:

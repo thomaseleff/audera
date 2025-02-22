@@ -130,7 +130,7 @@ class Service():
         """ Returns the playback time based on the current time, playback delay and
         network time protocol (ntp) server offset.
         """
-        return float(time.time() + self.playback_delay + self.ntp_offset)
+        return time.time() + self.playback_delay + self.ntp_offset
 
     async def ntp_synchronizer(self):
         """ The async `micro-service` for network time protocol (ntp) synchronization.
