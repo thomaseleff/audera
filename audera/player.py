@@ -721,7 +721,7 @@ class Service():
                     # Logging
                     self.logger.warning(
                         'Late packet %.6f [sec.] with playback time %.6f [sec.].' % (
-                            playback_time - target_playback_time,
+                            sleep_time,
                             playback_time
                         )
                     )
