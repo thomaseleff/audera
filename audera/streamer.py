@@ -126,11 +126,15 @@ class Service():
         # Initialize process control parameters
         self.mdns_browser_event: asyncio.Event = asyncio.Event()
 
+    def get_streamer_time(self) -> float:
+        """ Returns the network time protocol (ntp) synchronized time on the streamer. """
+        return time.time() + self.ntp_offset
+
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, playback delay and
         network time protocol (ntp) server offset.
         """
-        return time.time() + self.playback_delay + self.ntp_offset
+        return self.get_streamer_time() + self.playback_delay
 
     async def ntp_synchronizer(self):
         """ The async `micro-service` for network time protocol (ntp) synchronization.
@@ -672,13 +676,13 @@ class Service():
                 #   the streamer.
 
                 length = struct.pack(">I", len(chunk))
-                target_play_time = struct.pack(
+                playback_time = struct.pack(
                     "d",
                     self.get_playback_time()
                 )
                 packet = (
                     length  # 4 bytes
-                    + target_play_time  # 8 bytes
+                    + playback_time  # 8 bytes
                     + chunk
                     + audera.PACKET_TERMINATOR  # 4 bytes
                     + audera.NAME.encode()  # 6 bytes

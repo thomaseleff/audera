@@ -119,9 +119,9 @@ class Service():
         self.sync_event: asyncio.Event = asyncio.Event()
         self.buffer_event: asyncio.Event = asyncio.Event()
 
-    def get_playback_time(self) -> float:
-        """ Returns the playback time based on the current time and streamer time offset. """
-        return time.time() - self.streamer_offset
+    # def get_playback_time(self) -> float:
+    #     """ Returns the playback time based on the current time and streamer time offset. """
+    #     return time.time() + self.streamer_offset
 
     async def shairport_sync_player(self):
         """ The async `micro-service` for the shairport-sync remote audio output player
@@ -691,7 +691,7 @@ class Service():
                 #   player side timestamps
 
                 length = struct.unpack(">I", packet[:4])[0]
-                target_play_time = struct.unpack("d", packet[4:12])[0]
+                playback_time = struct.unpack("d", packet[4:12])[0]
                 chunk = packet[12:-12]
 
                 # Discard incomplete packets
@@ -699,8 +699,8 @@ class Service():
 
                     # Logging
                     self.logger.warning(
-                        'Incomplete packet with target playback time %.6f [sec.].' % (
-                            target_play_time
+                        'Incomplete packet with playback time %.6f [sec.].' % (
+                            playback_time
                         )
                     )
 
@@ -709,15 +709,20 @@ class Service():
 
                     continue
 
+                # Calculate the target playback time in the player local time
+                target_playback_time = playback_time - self.streamer_offset
+
+                # Calculate the time to wait until the target playback time
+                sleep_time = target_playback_time - time.time()
+
                 # Discard late packets
-                playback_time = self.get_playback_time()
-                if playback_time >= target_play_time:
+                if sleep_time < 0:
 
                     # Logging
                     self.logger.warning(
-                        'Late packet %.6f [sec.] with target playback time %.6f [sec.].' % (
-                            target_play_time - playback_time,
-                            target_play_time
+                        'Late packet %.6f [sec.] with playback time %.6f [sec.].' % (
+                            playback_time - target_playback_time,
+                            playback_time
                         )
                     )
 
@@ -725,9 +730,6 @@ class Service():
                     self.buffer.task_done()
 
                     continue
-
-                # Calculate the time to wait until the target playback time
-                sleep_time = self.get_playback_time() - playback_time
 
                 # Sleep until the target playback time
                 if sleep_time >= 0:
@@ -736,8 +738,8 @@ class Service():
                     # Play the audio stream data
                     self.audio_output.stream.write(chunk)
 
-                # Signal the end of the buffer queue task
-                self.buffer.task_done()
+                    # Signal the end of the buffer queue task
+                    self.buffer.task_done()
 
         except OSError as e:  # All other streamer communication I / O errors
 
