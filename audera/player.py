@@ -108,7 +108,6 @@ class Service():
 
         # Initialize time synchronization
         self.streamer_offset: float = 0.0
-        self.streamer_delay: float = 0.0
         self.rtt: float = 0.0
 
         # Initialize buffer
@@ -118,10 +117,6 @@ class Service():
         self.mdns_broadcaster_event: asyncio.Event = asyncio.Event()
         self.sync_event: asyncio.Event = asyncio.Event()
         self.buffer_event: asyncio.Event = asyncio.Event()
-
-    # def get_playback_time(self) -> float:
-    #     """ Returns the playback time based on the current time and streamer time offset. """
-    #     return time.time() + self.streamer_offset
 
     async def shairport_sync_player(self):
         """ The async `micro-service` for the shairport-sync remote audio output player
@@ -389,7 +384,7 @@ class Service():
             # Record the local start-time of time synchronization with the audio streamer
             #   as the timestamp of the request packet transmission, `t1`
 
-            t1 = time.time()
+            t1 = time.monotonic()
 
             # Send the audio streamer the local start-time
             writer.write(
@@ -404,12 +399,12 @@ class Service():
             #   and network delay. The packet contains both the timestamp of the request packet
             #   reception, `t2` as well as the timestamp of the response packet transmission, `t3`
 
-            packet = await reader.read(16)  # 16 bytes
+            packet = await reader.readexactly(16)  # 16 bytes
 
             # Record the local end-time of time synchronization with the audio streamer
             #   as the timestamp of the response packet reception, `t4`
 
-            t4 = time.time()
+            t4 = time.monotonic()
 
             # Unpack the network times from the audio streamer
             t2, t3 = struct.unpack("!dd", packet)
@@ -417,31 +412,29 @@ class Service():
             # Update the player local machine time offset from the audio streamer
             self.streamer_offset = ((t2 - t1) + (t3 - t4)) / 2
 
-            # Update the player local machine time delay and round-trip time (rtt)
-            self.streamer_delay = (t4 - t1) - (t3 - t2)
-            self.rtt = (t4 - t1)
+            # Update the round-trip time (rtt)
+            self.rtt = (t4 - t1) - (t3 - t2)
 
             # Respond to the audio streamer with the audio streamer offset time on the remote audio output
             #   player and wait for the response to be received.
 
             writer.write(
                 struct.pack(
-                    "!ddd",
+                    "!dd",
                     self.streamer_offset,
-                    self.streamer_delay,
                     self.rtt
                 )
-            )  # 24 bytes
+            )  # 16 bytes
             await writer.drain()
 
             # Logging
             self.logger.info(
                 ''.join([
-                    'Remote audio output player synchronized with audio streamer {%s} with delay %.4f [sec.]' % (
-                        streamer_address,
-                        self.streamer_delay
+                    'Remote audio output player synchronized with audio streamer {%s}' % (
+                        streamer_address
                     ),
-                    ' and time offset %.7f [sec.].' % (
+                    ' with round-trip time (rtt) %.4f [sec.] and time offset %.7f [sec.].' % (
+                        self.rtt,
                         self.streamer_offset
                     )
                 ])
@@ -699,7 +692,7 @@ class Service():
 
                     # Logging
                     self.logger.warning(
-                        'Incomplete packet with playback time %.6f [sec.].' % (
+                        'Incomplete packet with playback time %.7f [sec.].' % (
                             playback_time
                         )
                     )
@@ -713,14 +706,14 @@ class Service():
                 target_playback_time = playback_time - self.streamer_offset
 
                 # Calculate the time to wait until the target playback time
-                sleep_time = target_playback_time - time.time()
+                sleep_time = target_playback_time - time.monotonic()
 
                 # Discard late packets
                 if sleep_time < 0:
 
                     # Logging
                     self.logger.warning(
-                        'Late packet %.6f [sec.] with playback time %.6f [sec.].' % (
+                        'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
                             sleep_time,
                             playback_time
                         )

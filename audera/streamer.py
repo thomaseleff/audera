@@ -128,7 +128,7 @@ class Service():
 
     def get_streamer_time(self) -> float:
         """ Returns the network time protocol (ntp) synchronized time on the streamer. """
-        return time.time() + self.ntp_offset
+        return time.monotonic() + self.ntp_offset
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, playback delay and
@@ -347,13 +347,14 @@ class Service():
             )
 
             # Wait for the remote audio output player to request time synchronization
-            _ = await reader.read(8)  # 8 bytes
+            _ = await reader.readexactly(8)  # 8 bytes
 
             # Record the network time of the audio streamer as the timestamp of the request
             #   packet reception, `t2`
-            t2 = time.time() + self.ntp_offset
 
-            # Serve the network times of the audio streamer to the remote audio output player.
+            t2 = self.get_streamer_time()
+
+            # Serve the network time of the audio streamer to the remote audio output player.
             #   The packet contains both the timestamp of the request packet reception, `t2` as
             #   well as the timestamp of the response packet transmission, `t3`
 
@@ -361,14 +362,14 @@ class Service():
                 struct.pack(
                     "!dd",
                     t2,
-                    (time.time() + self.ntp_offset)
+                    (self.get_streamer_time())
                 )
             )  # 16 bytes
             await writer.drain()
 
             # Read the return response containing the time offset of the remote audio output player
-            packet = await reader.read(24)  # 24 bytes
-            player_offset, _, player_rtt = struct.unpack("!ddd", packet)
+            packet = await reader.readexactly(16)  # 16 bytes
+            player_offset, player_rtt = struct.unpack("!dd", packet)
 
             # Logging
             self.logger.info(
