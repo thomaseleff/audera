@@ -222,6 +222,9 @@ class Service():
                     "sudo", "systemctl", "stop", "shairport-sync"
                 )
 
+                # Exit the loop
+                break
+
     async def audera_player(self):
         """ The async `micro-service` for the audera remote audio output player service that
         supports audio receiving, playback, and synchronization from / with `audera` streamers.
