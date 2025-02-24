@@ -222,6 +222,11 @@ class Service():
                     "sudo", "systemctl", "stop", "shairport-sync"
                 )
 
+                # Logging
+                self.logger.info(
+                    'The shairport-sync service was cancelled.'
+                )
+
                 # Exit the loop
                 break
 
