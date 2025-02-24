@@ -58,7 +58,8 @@ apt-get install -y \
     python3-dev \
     build-essential \
     python3-pyaudio \
-    portaudio19-dev
+    portaudio19-dev \
+    cmake
 echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
 # Clone the git repository
