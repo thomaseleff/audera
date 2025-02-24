@@ -128,7 +128,7 @@ class Service():
 
     def get_streamer_time(self) -> float:
         """ Returns the network time protocol (ntp) synchronized time on the streamer. """
-        return time.monotonic() + self.ntp_offset
+        return time.time() + self.ntp_offset
 
     def get_playback_time(self) -> float:
         """ Returns the playback time based on the current time, playback delay and

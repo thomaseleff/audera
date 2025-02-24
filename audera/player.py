@@ -384,7 +384,7 @@ class Service():
             # Record the local start-time of time synchronization with the audio streamer
             #   as the timestamp of the request packet transmission, `t1`
 
-            t1 = time.monotonic()
+            t1 = time.time()
 
             # Send the audio streamer the local start-time
             writer.write(
@@ -404,7 +404,7 @@ class Service():
             # Record the local end-time of time synchronization with the audio streamer
             #   as the timestamp of the response packet reception, `t4`
 
-            t4 = time.monotonic()
+            t4 = time.time()
 
             # Unpack the network times from the audio streamer
             t2, t3 = struct.unpack("!dd", packet)
@@ -700,21 +700,18 @@ class Service():
                     # Signal the end of the buffer queue task
                     self.buffer.task_done()
 
-                    continue
+                    continue  # Continue to the next packet immediately
 
                 # Calculate the target playback time in the player local time
                 target_playback_time = playback_time - self.streamer_offset
 
-                # Calculate the time to wait until the target playback time
-                sleep_time = target_playback_time - time.monotonic()
-
                 # Discard late packets
-                if sleep_time < 0:
+                if target_playback_time - time.time() < 0:
 
                     # Logging
                     self.logger.warning(
                         'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                            sleep_time,
+                            target_playback_time - time.time(),
                             playback_time
                         )
                     )
@@ -722,17 +719,22 @@ class Service():
                     # Signal the end of the buffer queue task
                     self.buffer.task_done()
 
-                    continue
+                    continue  # Continue to the next packet immediately
 
-                # Sleep until the target playback time
-                if sleep_time >= 0:
-                    await asyncio.sleep(sleep_time)
+                # Sleep until the target playback time, ensuring that no unnecessary delay
+                #   is introduced when sleep time becomes very small
 
-                    # Play the audio stream data
-                    self.audio_output.stream.write(chunk)
+                while (adaptive_sleep_time := (target_playback_time - time.time())) > 0:
+                    await asyncio.sleep(adaptive_sleep_time)
 
-                    # Signal the end of the buffer queue task
-                    self.buffer.task_done()
+                # Play the audio stream data, resampling the audio data chunk based on latency
+                #   drift to ensure multi-player synchronization is maintained adaptively
+                #   over-time.
+
+                await self.audio_output.play(chunk, target_playback_time)
+
+                # Signal the end of the buffer queue task
+                self.buffer.task_done()
 
         except OSError as e:  # All other streamer communication I / O errors
 

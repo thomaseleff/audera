@@ -1,9 +1,13 @@
 """ Audio I / O device manager """
 
 from __future__ import annotations
+import asyncio
+import time
 import copy
 import json
+import numpy as np
 import pyaudio
+import samplerate
 
 from audera import struct
 
@@ -264,3 +268,91 @@ class Output():
 
         else:
             return False
+
+    async def play(
+        self,
+        chunk: bytes,
+        target_playback_time: float,
+        resample: bool = False
+    ):
+        """ Play the audio stream data, resampling the audio data chunk based on latency
+        drift to ensure multi-player synchronization is maintained adaptively over-time.
+
+        Parameters
+        ----------
+        chunk: `bytes`
+            The audio data chunk as bytes.
+        target_playback_time: `float`
+            The target playback time of the audio data chunk in reference to the current local
+                time.
+        resample: `bool`
+            `True` or `False` whether to resample the audio data chunk.
+        """
+        if resample:
+            await asyncio.to_thread(self.stream.write, self.resample(chunk, target_playback_time))
+        else:
+            await asyncio.to_thread(self.stream.write, chunk)
+
+    def resample(
+        self,
+        chunk: bytes,
+        target_playback_time: float
+    ) -> bytes:
+        """ Resample the audio data chunk based on latency drift to ensure multi-player
+        synchronization is maintained adaptively over-time.
+
+        Parameters
+        ----------
+        chunk: `bytes`
+            The audio data chunk as bytes.
+        target_playback_time: `float`
+            The target playback time of the audio data chunk in reference to the current local
+                time.
+        """
+
+        # Calculate speed adjustment factor
+        latency = target_playback_time - time.time()
+        if latency < 0:
+            speed_factor = min(1.05, 1.0 + abs(latency) * 0.05)  # Increase playback speed
+        elif latency > 0:
+            speed_factor = max(0.95, 1.0 - latency * 0.05)  # Decrease playback speed
+
+        # Skip resampling when there is no playback latency
+        else:
+            return chunk
+
+        # Select NumPy dtype based on the audio stream format
+        dtype_ = struct.audio.format_to_numpy_dtype(self.interface.format)
+
+        # Convert the audio data chunk to a NumPy array
+        sample_audio: np.typing.NDArray = np.frombuffer(chunk, dtype_)
+
+        # Reshape the NumPy array for multi-channel audio
+        if self.interface.channels > 1:
+            sample_audio = sample_audio.reshape(-1, self.interface.channels)
+
+        # Normalize the audio data to float32 for processing
+        if dtype_ == np.uint8:  # 8-bit
+            sample_audio = (sample_audio - 128) / 128.0
+        elif dtype_ == np.int16:  # 16-bit
+            sample_audio = sample_audio.astype(np.float32) / 32768.0
+        elif dtype_ == np.int32:  # 24-bit
+            sample_audio = (sample_audio.astype(np.float32) / 8388608.0)
+        elif dtype_ == np.float32:  # 32-bit
+            pass  # Already float32
+
+        # Resample
+        resampled_audio: np.typing.NDArray = samplerate.resample(sample_audio, speed_factor, "sinc_best")
+
+        # Convert the audio data back to the original bit depth
+        if dtype_ == np.uint8:  # 8-bit
+            resampled_audio = np.clip((resampled_audio * 128) + 128, 0, 255).astype(np.uint8)
+        elif dtype_ == np.int16:  # 16-bit
+            resampled_audio = np.clip(resampled_audio * 32768, -32768, 32767).astype(np.int16)
+        elif dtype_ == np.int32:  # 24-bit
+            resampled_audio = np.clip(resampled_audio * 8388608, -8388608, 8388607).astype(np.int32)
+        elif dtype_ == np.float32:  # 32-bit
+            pass  # Already float32
+
+        # Convert the audio data sample back into bytes
+        return resampled_audio.tobytes()

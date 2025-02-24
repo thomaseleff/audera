@@ -5,6 +5,7 @@ from typing import Literal
 from dataclasses import dataclass, field
 import json
 import pyaudio
+import numpy as np
 from pytensils import config
 
 
@@ -14,28 +15,39 @@ FORMAT: int = pyaudio.paInt16
 CHANNELS: Literal[1, 2] = 2
 RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
 DEVICE_INDEX: int = 0
+_BITRATES = {
+    pyaudio.paInt8: 8,
+    pyaudio.paInt16: 16,
+    pyaudio.paInt24: 24,
+    pyaudio.paInt32: 32
+}
+_NUMPY_DTYPES = {
+    pyaudio.paInt8: np.uint8,
+    pyaudio.paInt16: np.int16,
+    pyaudio.paInt24: np.int32,
+    pyaudio.paInt32: np.float32
+}
+_FORMATS = {
+    8: pyaudio.paInt8,
+    16: pyaudio.paInt16,
+    24: pyaudio.paInt24,
+    32: pyaudio.paInt32
+}
 
 
 def format_to_bitrate(format: int) -> int:
     """ Converts the audio format to a bit-rate. """
-    bitrates = {
-        pyaudio.paInt8: 8,
-        pyaudio.paInt16: 16,
-        pyaudio.paInt24: 24,
-        pyaudio.paInt32: 32
-    }
-    return bitrates[format]
+    return _BITRATES[format]
+
+
+def format_to_numpy_dtype(format: int) -> int:
+    """ Converts the audio format to a numpy data-type. """
+    return _NUMPY_DTYPES[format]
 
 
 def bitrate_to_format(bitrate: int) -> int:
     """ Converts the audio bit-rate to a format. """
-    formats = {
-        8: pyaudio.paInt8,
-        16: pyaudio.paInt16,
-        24: pyaudio.paInt24,
-        32: pyaudio.paInt32
-    }
-    return formats[bitrate]
+    return _FORMATS[bitrate]
 
 
 @dataclass
