@@ -727,10 +727,7 @@ class Service():
                 while (adaptive_sleep_time := (target_playback_time - time.time())) > 0:
                     await asyncio.sleep(adaptive_sleep_time)
 
-                # Play the audio stream data, resampling the audio data chunk based on latency
-                #   drift to ensure multi-player synchronization is maintained adaptively
-                #   over-time.
-
+                # Play the audio stream data asynchronously
                 await self.audio_output.play(chunk, target_playback_time)
 
                 # Signal the end of the buffer queue task
