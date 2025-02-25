@@ -480,7 +480,7 @@ class Output():
             pass  # Already float32
 
         # Resample
-        resampled_audio: np.typing.NDArray = samplerate.resample(sample_audio, speed_factor, "sinc_best")
+        resampled_audio: np.typing.NDArray = samplerate.resample(sample_audio, speed_factor, 'sinc_medium')
 
         # Convert the audio data back to the original bit depth
         if dtype_ == np.uint8:  # 8-bit
