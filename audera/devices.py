@@ -388,11 +388,10 @@ class Output():
             #   is introduced when sleep time becomes very small
 
             while time.time() < target_playback_time:
-                time.sleep(0.001)
-                # if target_playback_time - time.time() > 0.001:
-                #     time.sleep(target_playback_time - time.time())
-                # else:
-                #     break
+                if target_playback_time - time.time() > 0.001:
+                    time.sleep(target_playback_time - time.time())
+                else:
+                    break
 
             # Resample the audio data chunk based on latency drift to ensure multi-player
             #   synchronization is maintained adaptively over-time

@@ -43,7 +43,7 @@ PACKET_ESCAPE: bytes = b'\x00'  # The bytes escape character to avoid false pack
 # Audio playback configuration
 PLAYBACK_DELAY: float = 0.2  # The initial playback delay in seconds
 BUFFER_SIZE: int = 5  # The number of audio packets to buffer before playback
-RESAMPLE: bool = True  # `True` or `False`, whether to resample the audio stream to correct for latency
+RESAMPLE: bool = False  # `True` or `False`, whether to resample the audio stream to correct for latency
 MAX_PLAYBACK_DELAY: float = 5  # The max. playback delay in seconds for high jitter
 MIN_PLAYBACK_DELAY: float = 1  # The min. playback delay in seconds for low jitter
 RTT_HISTORY_SIZE: int = 10  # The history size for round-trip time measurements
