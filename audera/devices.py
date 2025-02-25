@@ -395,8 +395,6 @@ class Output():
             if self.resample_:
                 chunk = self.resample(chunk, target_playback_time)
 
-            print(target_playback_time - time.time())
-
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
             chunk = self.silent_chunk
@@ -419,7 +417,7 @@ class Output():
         while True:
             if (target_playback_time - time.time()) > 0.002:
                 time.sleep((target_playback_time - time.time()) - 0.001)  # Sleep slightly less than needed
-            elif (target_playback_time - time.time()) > 0:
+            elif (target_playback_time - time.time()) > 0.00001:
                 pass  # Spin-wait for the final microseconds
             else:
                 break  # Exit when the time is reached
