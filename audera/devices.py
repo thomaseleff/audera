@@ -448,15 +448,8 @@ class Output():
                 time.
         """
 
-        # Calculate speed adjustment factor
-        latency = target_playback_time - time.time()
-        if latency < 0:
-            speed_factor = min(1.05, 1.0 + abs(latency) * 0.05)  # Increase playback speed
-        elif latency > 0:
-            speed_factor = max(0.95, 1.0 - latency * 0.05)  # Decrease playback speed
-
         # Skip resampling when there is no playback latency
-        else:
+        if (target_playback_time - time.time()) == 0:
             return chunk
 
         # Select NumPy dtype based on the audio stream format
@@ -478,6 +471,12 @@ class Output():
             sample_audio = (sample_audio.astype(np.float32) / 8388608.0)
         elif dtype_ == np.float32:  # 32-bit
             pass  # Already float32
+
+        # Calculate speed adjustment factor
+        if target_playback_time - time.time() < 0:
+            speed_factor = min(1.05, 1.0 + abs(target_playback_time - time.time()) * 0.05)
+        elif target_playback_time - time.time() > 0:
+            speed_factor = max(0.95, 1.0 - (target_playback_time - time.time()) * 0.05)
 
         # Resample
         resampled_audio: np.typing.NDArray = samplerate.resample(sample_audio, speed_factor, 'sinc_fastest')
