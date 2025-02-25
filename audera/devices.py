@@ -475,7 +475,8 @@ class Output():
         # Calculate speed adjustment factor
         if target_playback_time - time.time() < 0:
             speed_factor = min(1.05, 1.0 + abs(target_playback_time - time.time()) * 0.05)
-        elif target_playback_time - time.time() > 0:
+
+        if target_playback_time - time.time() >= 0:
             speed_factor = max(0.95, 1.0 - (target_playback_time - time.time()) * 0.05)
 
         # Resample
