@@ -388,8 +388,8 @@ class Output():
             #   is introduced when sleep time becomes very small
 
             while time.time() < target_playback_time:
-                if (remaining_time := target_playback_time - time.time()) > 0.0001:
-                    time.sleep(remaining_time)
+                if target_playback_time - time.time() > 0.001:
+                    time.sleep(target_playback_time - time.time())
                 else:
                     break
 
