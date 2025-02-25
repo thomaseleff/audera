@@ -378,17 +378,26 @@ class Output():
             packet = self.buffer.get_nowait()
 
             # Parse the playback time and audio data from the packet
-            playback_time = struct.unpack("d", next_packet[4:12])[0]
+            playback_time = struct.unpack("d", packet[4:12])[0]
             chunk = packet[12:-12]
+
+            # Calculate the target playback time in the player local time
+            target_playback_time = playback_time - self.time_offset
+
+            # Sleep until the target playback time, ensuring that no unnecessary delay
+            #   is introduced when sleep time becomes very small
+
+            while time.time() < target_playback_time:
+                if (remaining_time := target_playback_time - time.time()) > 0.001:
+                    time.sleep(remaining_time)
+                else:
+                    break
 
             # Resample the audio data chunk based on latency drift to ensure multi-player
             #   synchronization is maintained adaptively over-time
 
             if self.resample_:
-                chunk = self.resample(
-                    chunk,
-                    (playback_time - self.time_offset)
-                )
+                chunk = self.resample(chunk, target_playback_time)
 
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
