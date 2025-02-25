@@ -1,6 +1,7 @@
 """ Audio I / O device manager """
 
 from __future__ import annotations
+import collections
 import logging
 import asyncio
 import time
@@ -205,6 +206,9 @@ class Output():
         self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
         self.time_offset: float = time_offset
 
+        # Initialize the processing latency deque
+        self.processing_latencies = collections.deque(maxlen=buffer_size)
+
     @property
     def chunk_length(self) -> int:
         """ The number of bytes in the audio data chunk. """
@@ -218,6 +222,13 @@ class Output():
     def silent_chunk(self) -> bytes:
         """ A silent audio data chunk. """
         return b'\x00' * self.chunk_length
+
+    @property
+    def processing_latency(self) -> float:
+        """ The average processing latency in seconds between when the audio playback callback
+        waits for the target playback time and when the audio data chunk is played.
+        """
+        return np.mean(self.processing_latencies) if self.processing_latencies else 0.0005
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -395,6 +406,11 @@ class Output():
             if self.resample_:
                 chunk = self.resample(chunk, target_playback_time)
 
+            # Record the processing latency from the latest packet in order to dynamically
+            #   adjust the time to sleep until playback and the resampling factor
+
+            self.processing_latencies.append(time.time() - target_playback_time)
+
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
             chunk = self.silent_chunk
@@ -415,12 +431,20 @@ class Output():
             The target playback time in the player local time.
         """
         while True:
-            if (target_playback_time - time.time()) > 0.002:
-                time.sleep((target_playback_time - time.time()) - 0.001)  # Sleep slightly less than needed
-            elif (target_playback_time - time.time()) > 0.00001:
-                pass  # Spin-wait for the final microseconds
+            average_processing_latency = self.processing_latency
+            remaining = target_playback_time - time.time()
+
+            # Sleep slightly less than the time until the target playback time
+            if remaining > 0.002:
+                time.sleep(max(remaining - 0.001, 0))
+
+            # Spin-wait until the average processing latency is reached
+            elif remaining > average_processing_latency:
+                pass
+
+            # Exit when the average processing latency is reached
             else:
-                break  # Exit when the time is reached
+                break
 
     def play(self):
         """ Starts the audio playback stream. """
@@ -495,7 +519,11 @@ class Output():
             speed_factor = max(0.95, 1.0 - (target_playback_time - time.time()) * 0.05)
 
         # Resample
-        resampled_audio: np.typing.NDArray = samplerate.resample(sample_audio, speed_factor, 'sinc_fastest')
+        resampled_audio: np.typing.NDArray = samplerate.resample(
+            sample_audio,
+            speed_factor,
+            'sinc_fastest'
+        )
 
         # Convert the audio data back to the original bit depth
         if dtype_ == np.uint8:  # 8-bit
