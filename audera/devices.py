@@ -387,11 +387,7 @@ class Output():
             # Sleep until the target playback time, ensuring that no unnecessary delay
             #   is introduced when sleep time becomes very small
 
-            while time.time() < target_playback_time:
-                if target_playback_time - time.time() > 0.001:
-                    time.sleep(target_playback_time - time.time())
-                else:
-                    break
+            self.sleep_until_playback_time(target_playback_time)
 
             # Resample the audio data chunk based on latency drift to ensure multi-player
             #   synchronization is maintained adaptively over-time
@@ -399,12 +395,34 @@ class Output():
             if self.resample_:
                 chunk = self.resample(chunk, target_playback_time)
 
+            print(target_playback_time - time.time())
+
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
             chunk = self.silent_chunk
 
         # Return the audio stream chunk
         return (chunk, pyaudio.paContinue)
+
+    def sleep_until_playback_time(
+        self,
+        target_playback_time: float
+    ):
+        """ Sleeps until the target playback time, ensuring that no unnecessary delay
+        is introduced when sleep time becomes very small.
+
+        Parameters
+        ----------
+        target_playback_time: `float`
+            The target playback time in the player local time.
+        """
+        while True:
+            if (target_playback_time - time.time()) > 0.002:
+                time.sleep((target_playback_time - time.time()) - 0.001)  # Sleep slightly less than needed
+            elif (target_playback_time - time.time()) > 0:
+                pass  # Spin-wait for the final microseconds
+            else:
+                break  # Exit when the time is reached
 
     def play(self):
         """ Starts the audio playback stream. """
