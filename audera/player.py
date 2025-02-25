@@ -734,13 +734,13 @@ class Service():
         """
 
         # Schedule the shairport-sync player service
-        shairport_sync_player = asyncio.create_task(self.shairport_sync_player())
+        # shairport_sync_player = asyncio.create_task(self.shairport_sync_player())
 
         # Schedule the `audera` player service
         audera_player = asyncio.create_task(self.audera_player())
 
         services = [
-            shairport_sync_player,
+            # shairport_sync_player,
             audera_player
         ]
 
