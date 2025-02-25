@@ -92,7 +92,7 @@ class Service():
             service_port=audera.STREAM_PORT
         )
 
-        # Initialize audio stream
+        # Initialize audio stream playback
 
         # The `get-interface` and `get-device` methods will either get the existing audio
         #   interface / output device or will create a new default audio interface / output device.
@@ -102,16 +102,15 @@ class Service():
         #   stream. The system default audio output device is automatically selected.
 
         self.audio_output = audera.devices.Output(
+            logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
-            device=audera.dal.devices.get_device('output')
+            device=audera.dal.devices.get_device('output'),
+            buffer_size=audera.BUFFER_SIZE,
+            resample=audera.RESAMPLE
         )
 
         # Initialize time synchronization
-        self.streamer_offset: float = 0.0
         self.rtt: float = 0.0
-
-        # Initialize buffer
-        self.buffer: asyncio.Queue = asyncio.Queue(audera.BUFFER_SIZE)
 
         # Initialize process control parameters
         self.mdns_broadcaster_event: asyncio.Event = asyncio.Event()
@@ -418,7 +417,7 @@ class Service():
             t2, t3 = struct.unpack("!dd", packet)
 
             # Update the player local machine time offset from the audio streamer
-            self.streamer_offset = ((t2 - t1) + (t3 - t4)) / 2
+            self.audio_output.time_offset = ((t2 - t1) + (t3 - t4)) / 2
 
             # Update the round-trip time (rtt)
             self.rtt = (t4 - t1) - (t3 - t2)
@@ -429,7 +428,7 @@ class Service():
             writer.write(
                 struct.pack(
                     "!dd",
-                    self.streamer_offset,
+                    self.audio_output.time_offset,
                     self.rtt
                 )
             )  # 16 bytes
@@ -443,7 +442,7 @@ class Service():
                     ),
                     ' with round-trip time (rtt) %.4f [sec.] and time offset %.7f [sec.].' % (
                         self.rtt,
-                        self.streamer_offset
+                        self.audio_output.time_offset
                     )
                 ])
             )
@@ -578,7 +577,7 @@ class Service():
                 )
 
                 # Add audio stream packet to the buffer
-                await self.buffer.put(packet)
+                await self.audio_output.buffer.put(packet)
 
                 # Trigger audio stream playback
                 self.buffer_event.set()
@@ -618,7 +617,7 @@ class Service():
             await self.playback_session.close()
 
             # Reset the buffer and the buffer event
-            await self.clear_buffer()
+            self.audio_output.clear_buffer()
             self.buffer_event.clear()
 
     async def audio_playback(self):
@@ -652,13 +651,14 @@ class Service():
         # Set the playback state of the remote audio output player
         self.player = audera.dal.players.play(self.player.uuid)
 
-        # Play the audio stream from the playback buffer until the streamer synchronizer is cancelled
+        # Play the audio stream from the playback buffer until audio playback is cancelled
         #   by the event loop or cancelled manually through `KeyboardInterrupt`
 
-        try:
-            while self.buffer_event.is_set():
+        self.audio_output.play()
 
-                # Manage / update the parameters of the digital audio stream
+        # Manage / update the parameters of the digital audio stream
+        try:
+            while True:
 
                 # The `update` method opens a new audio stream with an updated interface and
                 #   device settings and returns `True` when the stream is updated, closing the
@@ -685,61 +685,8 @@ class Service():
                         ])
                     )
 
-                # Get the next audio stream packet from the buffer queue
-                packet = await self.buffer.get()
-
-                # Parse the timestamp and audio data from the packet, adding offset to adjust
-                #   player side timestamps
-
-                length = struct.unpack(">I", packet[:4])[0]
-                playback_time = struct.unpack("d", packet[4:12])[0]
-                chunk = packet[12:-12]
-
-                # Discard incomplete packets
-                if len(chunk) != length:
-
-                    # Logging
-                    self.logger.warning(
-                        'Incomplete packet with playback time %.7f [sec.].' % (
-                            playback_time
-                        )
-                    )
-
-                    # Signal the end of the buffer queue task
-                    self.buffer.task_done()
-
-                    continue  # Continue to the next packet immediately
-
-                # Calculate the target playback time in the player local time
-                target_playback_time = playback_time - self.streamer_offset
-
-                # Discard late packets
-                if target_playback_time - time.time() < 0:
-
-                    # Logging
-                    self.logger.warning(
-                        'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                            target_playback_time - time.time(),
-                            playback_time
-                        )
-                    )
-
-                    # Signal the end of the buffer queue task
-                    self.buffer.task_done()
-
-                    continue  # Continue to the next packet immediately
-
-                # Sleep until the target playback time, ensuring that no unnecessary delay
-                #   is introduced when sleep time becomes very small
-
-                while (adaptive_sleep_time := (target_playback_time - time.time())) > 0:
-                    await asyncio.sleep(adaptive_sleep_time)
-
-                # Play the audio stream data asynchronously
-                await self.audio_output.play(chunk, target_playback_time)
-
-                # Signal the end of the buffer queue task
-                self.buffer.task_done()
+                # Yield to other tasks in the event loop
+                await asyncio.sleep(0)
 
         except OSError as e:  # All other streamer communication I / O errors
 
@@ -769,22 +716,11 @@ class Service():
             self.player = audera.dal.players.stop(self.player.uuid)
 
             # Reset the buffer and the buffer event
-            await self.clear_buffer()
+            self.audio_output.clear_buffer()
             self.buffer_event.clear()
 
-            # Close the audio services
-            self.audio_output.stream.stop_stream()
-            self.audio_output.stream.close()
-            self.audio_output.port.terminate()
-
-    async def clear_buffer(self):
-        """ Clears any / all unplayed audio stream packets from the buffer. """
-        while not self.buffer.empty():
-            try:
-                self.buffer.get_nowait()
-                self.buffer.task_done()
-            except asyncio.QueueEmpty:
-                break
+            # Stop the audio services
+            self.audio_output.stop()
 
     async def stop_services(self):
         """ Stops the async tasks. """
