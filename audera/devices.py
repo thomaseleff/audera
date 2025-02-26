@@ -1,16 +1,13 @@
 """ Audio I / O device manager """
 
 from __future__ import annotations
-import collections
 import logging
 import asyncio
 import time
 import struct
 import copy
 import json
-import numpy as np
 import pyaudio
-import samplerate
 
 from audera import struct as struct_
 
@@ -131,7 +128,6 @@ class Input():
             )
 
             return True
-
         else:
             return False
 
@@ -152,8 +148,6 @@ class Output():
     time_offset: `float`
         The time offset in seconds between the local time on the remote audio
         output player and the audio streamer for synchronizing the audio playback stream.
-    resample: `bool`
-        `True` or `False` whether to resample the audio data chunk.
     """
 
     def __init__(
@@ -162,8 +156,7 @@ class Output():
         interface: struct_.audio.Interface,
         device: struct_.audio.Device,
         buffer_size: int = 5,
-        time_offset: float = 0.0,
-        resample: bool = False
+        time_offset: float = 0.0
     ):
         """ Initializes an instance of an audio device output.
 
@@ -179,9 +172,7 @@ class Output():
             The number of audio packets to buffer before playback.
         time_offset: `float`
             The time offset in seconds between the local time on the remote audio
-            output player and the audio streamer for synchronizing the audio playback stream.
-        resample: `bool`
-            `True` or `False` whether to resample the audio data chunk.
+                output player and the audio streamer for synchronizing the audio playback stream.
         """
 
         # Logging
@@ -200,16 +191,10 @@ class Output():
             output_device_index=device.index,
             stream_callback=self.audio_playback_callback
         )
-        self.resample_: bool = resample
 
         # Initialize the audio buffer and time offset
         self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
         self.time_offset: float = time_offset
-        # self.dac_offset: float = time.time() - self.stream.get_time()
-
-        # Initialize the drift latency deque
-        self.processing_latencies = collections.deque(maxlen=buffer_size)
-        self.drift_latencies = collections.deque(maxlen=buffer_size)
 
     @property
     def chunk_length(self) -> int:
@@ -229,20 +214,6 @@ class Output():
     def silent_chunk(self) -> bytes:
         """ A silent audio data chunk. """
         return b'\x00' * self.chunk_length
-
-    @property
-    def processing_latency(self) -> float:
-        """ The average processing latency in seconds between when the audio playback callback
-        waits for the target playback time and when the audio data chunk is played.
-        """
-        return np.mean(self.processing_latencies) if self.processing_latencies else 0.0005
-
-    @property
-    def drift_latency(self) -> float:
-        """ The average drift latency in seconds between the target playback time of the audio data
-        chunk compared to the current local time.
-        """
-        return np.mean(self.drift_latencies) if self.drift_latencies else 0.0
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -324,9 +295,6 @@ class Output():
                 output_device_index=self.device.index,
                 stream_callback=self.audio_playback_callback
             )
-
-            # Reset the digital-to-analog converter (dac) time offset
-            # self.dac_offset = time.time() - self.stream.get_time()
 
             return True
         else:
@@ -416,62 +384,12 @@ class Output():
             playback_time = struct.unpack("d", packet[4:12])[0]
             chunk = packet[12:-12]
 
-            # Calculate the target playback time in the player local time
-            target_playback_time = playback_time - self.time_offset
-
-            # Sleep until the target playback time, ensuring that no unnecessary delay
-            #   is introduced when sleep time becomes very small
-
-            # self.sleep_until_playback_time(target_playback_time)
-
-            # Calculate the drift between the target playback time and the current time
-            # drift = dac_playback_time - current_time
-
-            # Resample the audio data chunk based on latency drift to ensure multi-player
-            #   synchronization is maintained adaptively over-time
-
-            # if self.resample_:
-            #     chunk = self.resample(chunk, drift)
-
-            # Record the processing latency from the latest packet in order to dynamically
-            #   adjust the time to sleep until playback and the resampling factor
-
-            # self.processing_latencies.append(abs(time.time() - target_playback_time))
-
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
             chunk = self.silent_chunk
 
         # Return the audio stream chunk
         return (chunk, pyaudio.paContinue)
-
-    def sleep_until_playback_time(
-        self,
-        target_playback_time: float
-    ):
-        """ Sleeps until the target playback time, ensuring that no unnecessary delay
-        is introduced when sleep time becomes very small.
-
-        Parameters
-        ----------
-        target_playback_time: `float`
-            The target playback time in the player local time.
-        """
-        average_processing_latency = self.processing_latency
-        while True:
-            remaining = target_playback_time - time.time()
-
-            # Sleep slightly less than the time until the target playback time
-            if remaining > 0.002:
-                time.sleep(max(remaining - 0.001, 0))
-
-            # Spin-wait until the average processing latency is reached
-            elif remaining > average_processing_latency:
-                pass
-
-            # Exit when the average processing latency is reached
-            else:
-                break
 
     def play(self):
         """ Starts the audio playback stream. """
@@ -496,73 +414,3 @@ class Output():
         # Close the audio services
         self.stream.close()
         self.port.terminate()
-
-    def resample(
-        self,
-        chunk: bytes,
-        drift: float
-    ) -> bytes:
-        """ Resample the audio data chunk based on latency drift to ensure multi-player
-        synchronization is maintained adaptively over-time.
-
-        Parameters
-        ----------
-        chunk: `bytes`
-            The audio data chunk as bytes.
-        drift: `float`
-            The difference between the target playback time of the audio data chunk compared
-                to the current local time.
-        """
-
-        # Skip resampling when the latency drift is less than 1% of the chunk duration
-        # if drift < (self.chunk_duration * 0.01):
-
-        #     print(drift, self.chunk_duration * 0.01)
-        #     return chunk
-
-        # Select NumPy dtype based on the audio stream format
-        dtype_ = struct_.audio.format_to_numpy_dtype(self.interface.format)
-
-        # Convert the audio data chunk to a NumPy array
-        sample_audio: np.typing.NDArray = np.frombuffer(chunk, dtype_)
-
-        # Reshape the NumPy array for multi-channel audio
-        if self.interface.channels > 1:
-            sample_audio = sample_audio.reshape(-1, self.interface.channels)
-
-        # Normalize the audio data to float32 for processing
-        if dtype_ == np.uint8:  # 8-bit
-            sample_audio = (sample_audio - 128) / 128.0
-        elif dtype_ == np.int16:  # 16-bit
-            sample_audio = sample_audio.astype(np.float32) / 32768.0
-        elif dtype_ == np.int32:  # 24-bit
-            sample_audio = sample_audio.astype(np.float32) / 8388608.0
-        elif dtype_ == np.float32:  # 32-bit
-            pass  # Already float32
-
-        # Calculate speed adjustment factor
-        if drift < 0:
-            speed_factor = min(1.05, 1.0 + abs(drift / self.chunk_duration) * 0.05)
-
-        if drift > 0:
-            speed_factor = max(0.95, 1.0 - drift / self.chunk_duration * 0.05)
-
-        # Resample
-        resampled_audio: np.typing.NDArray = samplerate.resample(
-            sample_audio,
-            speed_factor,
-            'sinc_fastest'
-        )
-
-        # Convert the audio data back to the original bit depth
-        if dtype_ == np.uint8:  # 8-bit
-            resampled_audio = np.clip((resampled_audio * 128) + 128, 0, 255).astype(np.uint8)
-        elif dtype_ == np.int16:  # 16-bit
-            resampled_audio = np.clip(resampled_audio * 32768, -32768, 32767).astype(np.int16)
-        elif dtype_ == np.int32:  # 24-bit
-            resampled_audio = np.clip(resampled_audio * 8388608, -8388608, 8388607).astype(np.int32)
-        elif dtype_ == np.float32:  # 32-bit
-            pass  # Already float32
-
-        # Convert the audio data sample back into bytes
-        return resampled_audio.tobytes()
