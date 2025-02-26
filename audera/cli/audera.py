@@ -49,7 +49,7 @@ def main():
         'type_',
         help="The type of `audera` service.",
         type=str,
-        choices=['server', 'client']
+        choices=['streamer', 'player']
     )
     _RUN_ARG_PARSER.set_defaults(func=commands.run)
 
