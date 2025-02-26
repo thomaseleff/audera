@@ -205,6 +205,7 @@ class Output():
         # Initialize the audio buffer and time offset
         self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
         self.time_offset: float = time_offset
+        # self.dac_offset: float = time.time() - self.stream.get_time()
 
         # Initialize the drift latency deque
         self.processing_latencies = collections.deque(maxlen=buffer_size)
@@ -222,7 +223,7 @@ class Output():
     @property
     def chunk_duration(self) -> float:
         """ The duration of the audio data chunk in seconds. """
-        return self.interface.chunk / self.interface.bit_rate
+        return self.interface.chunk / self.interface.rate
 
     @property
     def silent_chunk(self) -> bytes:
@@ -324,6 +325,9 @@ class Output():
                 stream_callback=self.audio_playback_callback
             )
 
+            # Reset the digital-to-analog converter (dac) time offset
+            # self.dac_offset = time.time() - self.stream.get_time()
+
             return True
         else:
             return False
@@ -349,6 +353,13 @@ class Output():
         status: `int`
             The status of the audio stream.
         """
+
+        # Calculate the digital-to-analog converter (dac) offset
+        current_time = time.time()
+        dac_offset = current_time - time_info['current_time']
+
+        # Convert the digital-to-analog converter output time to local-time
+        dac_playback_time = time_info['output_buffer_dac_time'] + dac_offset
 
         # Discard invalid packets
         while not self.buffer.empty():
@@ -379,12 +390,12 @@ class Output():
             target_playback_time = playback_time - self.time_offset
 
             # Discard late packets
-            if target_playback_time < time.time():
+            if target_playback_time < dac_playback_time:
 
                 # Logging
                 self.logger.warning(
                     'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                        target_playback_time - time.time(),
+                        target_playback_time - dac_playback_time,
                         playback_time
                     )
                 )
@@ -414,19 +425,18 @@ class Output():
             # self.sleep_until_playback_time(target_playback_time)
 
             # Calculate the drift between the target playback time and the current time
-            drift = target_playback_time - time.time()
+            # drift = dac_playback_time - current_time
 
             # Resample the audio data chunk based on latency drift to ensure multi-player
             #   synchronization is maintained adaptively over-time
 
-            if self.resample_:
-                chunk = self.resample(chunk, drift)
+            # if self.resample_:
+            #     chunk = self.resample(chunk, drift)
 
             # Record the processing latency from the latest packet in order to dynamically
             #   adjust the time to sleep until playback and the resampling factor
 
             # self.processing_latencies.append(abs(time.time() - target_playback_time))
-            print(target_playback_time - time.time())
 
         # Create a silent audio stream chunk when the buffer queue is empty
         except asyncio.QueueEmpty:
@@ -553,8 +563,6 @@ class Output():
             resampled_audio = np.clip(resampled_audio * 8388608, -8388608, 8388607).astype(np.int32)
         elif dtype_ == np.float32:  # 32-bit
             pass  # Already float32
-
-        print(speed_factor)
 
         # Convert the audio data sample back into bytes
         return resampled_audio.tobytes()
