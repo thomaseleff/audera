@@ -41,7 +41,7 @@ PACKET_TERMINATOR: bytes = b'\xFF\xFE\xFD\xFC'  # The bytes suffix that indicate
 PACKET_ESCAPE: bytes = b'\x00'  # The bytes escape character to avoid false packet terminator sequences
 
 # Audio playback configuration
-PLAYBACK_DELAY: float = 0.2  # The initial playback delay in seconds
+PLAYBACK_DELAY: float = 0.5  # The initial playback delay in seconds
 BUFFER_SIZE: int = 5  # The number of audio packets to buffer before playback
 RESAMPLE: bool = False  # `True` or `False`, whether to resample the audio stream to correct for latency
 MAX_PLAYBACK_DELAY: float = 5  # The max. playback delay in seconds for high jitter
