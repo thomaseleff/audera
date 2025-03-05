@@ -62,12 +62,13 @@ class Service():
 
         # Initialize player
 
-        # The `get-or-create` method will either get the existing player or create a new player
-        #   from an identity. This ensures that when the ip-address of a player changes, a new
-        #   player is always created.
+        # The `update` method will either get the existing player, create a new player or
+        #   update an existing player from the identity.
 
-        self.player: audera.struct.player.Player = audera.struct.player.Player.from_config(
-            audera.dal.players.get_or_create(self.identity)
+        self.player: audera.struct.player.Player = audera.dal.players.update(
+            audera.struct.player.Player.from_config(
+                audera.dal.players.get_or_create(self.identity)
+            )
         )
 
         # Initialize playback session
