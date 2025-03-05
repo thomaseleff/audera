@@ -1,5 +1,7 @@
 """ Network interfaces """
 
+from typing_extensions import Union
+import asyncio
 import socket
 import netifaces
 import uuid
@@ -21,7 +23,7 @@ def get_local_mac_address() -> str:
     return str(mac)
 
 
-def check_internet_access() -> bool:
+def connected() -> bool:
     """ Returns `True` when the network device is connected to the internet. """
     try:
 
@@ -38,12 +40,14 @@ def check_internet_access() -> bool:
             else:
                 return False
 
-        if os_name == 'Windows':
+        elif os_name == 'Windows':
             result = subprocess.run(['ping', '-n', '1', '1.1.1.1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode == 0:
                 return True
             else:
                 return False
+        else:
+            return False
 
     except socket.gaierror:
         return False
@@ -54,37 +58,18 @@ def get_local_ip_address() -> str:
     interface for the connection, and then returns the local ip-address used
     in that connection.
     """
-    if check_internet_access():
+    if connected():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(('1.1.1.1', 80))  # Cloudflare
             ip_address = s.getsockname()[0]
         return str(ip_address)
     else:
-        raise NetworkConnectionError()
+        raise NetworkConnectionError('Unable to determine the local ip-address.')
 
 
-def get_available_networks():
-    """ Retrieves the list of available wi-fi networks for a network device. """
-
-    if platform.system() == 'Linux':
-        try:
-            result = subprocess.run(
-                ['nmcli', '-t', '-f', 'SSID', 'device', 'wifi', 'list'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            networks = result.stdout.strip().split('\n')
-            return [net for net in networks if net]
-        except subprocess.CalledProcessError:
-            return []
-    else:
-        raise NetworkConnectionError()
-
-
-def connect_to_network(
+async def connect(
     ssid: str,
-    password: str
+    password: Union[str, None]
 ):
     """ Connects to a wi-fi network {ssid} with {password}.
 
@@ -95,15 +80,61 @@ def connect_to_network(
     password: `str`
         The password of the wi-fi network.
     """
-    if platform.system() == 'Linux':
-        subprocess.run(
+    if not ssid:
+        raise NetworkConnectionError('Invalid value. {ssid} cannot be empty.')
+
+    if platform.system() in ['Windows', 'Darwin']:
+        raise OSError('Invalid platform. Network setup is only available on Linux.')
+
+    if password:
+        result = subprocess.run(
             ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password],
             check=True
         )
     else:
-        raise NetworkConnectionError()
+        result = subprocess.run(
+            ['nmcli', 'device', 'wifi', 'connect', ssid],
+            check=True
+        )
+
+    if result.returncode == 0:
+
+        # Check connection
+        time_out = 0
+
+        while time_out < 10:
+            await asyncio.sleep(1)
+
+            if connected():
+                break
+
+            time_out += 1
+
+        if not connected():
+            raise InternetConnectionError('{%s} has no internet.' % ssid)
+
+    elif result.returncode == 3:
+        raise NetworkTimeoutError('Connection timed-out.')
+
+    elif result.returncode == 10:
+        raise NetworkNotFoundError('Invalid value. ssid {%s} does not exist.' % ssid)
+
+    else:
+        raise NetworkConnectionError('Unable to connect to {ssid}.')
 
 
 # Exception(s)
 class NetworkConnectionError(Exception):
+    pass
+
+
+class NetworkTimeoutError(Exception):
+    pass
+
+
+class NetworkNotFoundError(Exception):
+    pass
+
+
+class InternetConnectionError(Exception):
     pass

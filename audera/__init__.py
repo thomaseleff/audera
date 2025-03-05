@@ -1,6 +1,6 @@
 """ audera
 
-`audera` is an open-source multi-room audio streaming system written in Python
+🔮 `audera` is an open-source multi-room audio streaming system written in Python
 for DIY home audio enthusiasts.
 """
 
@@ -23,9 +23,13 @@ LOGO: List[str] = [
 ]
 NAME: str = 'audera'
 DESCRIPTION: str = ''.join([
-    '`audera` is an open-source multi-room audio streaming system written in',
+    '🔮 `audera` is an open-source multi-room audio streaming system written in',
     ' Python for DIY home audio enthusiasts.'
 ])
+
+# Websites
+HOME: str = 'https://github.com/thomaseleff/audera'
+DOCS: str = 'https://github.com/thomaseleff/audera/tree/main/docs'
 
 # Network configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."

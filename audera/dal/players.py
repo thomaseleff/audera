@@ -322,19 +322,36 @@ def disconnect(uuid: str) -> player.Player:
     return update(player_)
 
 
-def update_volume(uuid: str, volume: float) -> player.Player:
+def update_player_name(player_: player.Player, name: str) -> player.Player:
+    """ Updates the name of a player by setting `name` = {name}.
+
+    Parameters
+    ----------
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    name: `str`
+        The name of the player.
+    """
+
+    if player_.name == name:
+        return player_
+
+    player_.name = utils.as_type(name, 'str')
+
+    return update(player_)
+
+
+def update_player_volume(player_: player.Player, volume: float) -> player.Player:
     """ Updates the volume for a player by setting `volume` = {volume}.
 
     Parameters
     ----------
-    uuid: `str`
-        A unique universal identifier of an `audera.struct.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     volume: `float`
         A float value from 0 to 100 that sets the loudness of playback. A value of
             0 is muted.
     """
-
-    player_ = get_player(uuid)
 
     if player_.volume == volume:
         return player_
@@ -343,16 +360,16 @@ def update_volume(uuid: str, volume: float) -> player.Player:
     return update(player_)
 
 
-def update_channels(uuid: str, channels: int) -> player.Player:
+def update_player_channels(player_: player.Player, channels: int) -> player.Player:
     """ Updates the playback channels for a player by setting `channels` = {channels}.
 
     Parameters
     ----------
-    uuid: `str`
-        A unique universal identifier of an `audera.struct.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    channels: `int`
+        Either `1` for mono or `2` for stereo audio playback.
     """
-
-    player_ = get_player(uuid)
 
     if player_.channels == channels:
         return player_
