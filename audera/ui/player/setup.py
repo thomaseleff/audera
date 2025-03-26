@@ -88,7 +88,7 @@ class Page():
                     type='positive'
                 )
 
-            except OSError:
+            except RuntimeError:
                 ui.notify(
                     'Network setup is unavailable.',
                     position='top-right',
@@ -128,7 +128,7 @@ class Page():
 
     def load(self):
         """ Returns the page content. """
-        ui.page('/', title='%s \u2014 👋 Welcome' % audera.NAME.lower())(self.welcome)
+        ui.page('/', title='%s \u2014 Welcome' % audera.NAME.lower())(self.welcome)
         ui.page('/discover', title='%s \u2014 Discover' % audera.NAME.lower())(self.discover)
         ui.page('/setup', title='%s \u2014 Setup' % audera.NAME.lower())(self.setup)
         ui.page('/connect', title='%s \u2014 Connect' % audera.NAME.lower())(self.connect)
@@ -138,7 +138,7 @@ class Page():
         """ Returns the welcome page content. """
 
         with ui.row().classes("flex w-full"):
-            ui.label('%s \u2014 👋 Welcome' % audera.NAME.lower()).classes('self-center text-sm ml-3')
+            ui.label('%s \u2014 Welcome' % audera.NAME.lower()).classes('self-center text-sm ml-3')
             ui.icon("circle", size=".7rem", color='primary').classes("self-center ml-auto")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
@@ -147,7 +147,7 @@ class Page():
 
         # Welcome
         with ui.card().classes("mx-auto flex w-full"):
-            ui.markdown("Welcome to **audera**").classes("text-3xl")
+            ui.markdown("Welcome to **audera** 👋").classes("text-3xl")
             ui.markdown(audera.DESCRIPTION.replace('`', '**'))
             ui.markdown('Click **Continue** to connect to your player.')
 
@@ -382,8 +382,8 @@ if __name__ in ["__main__", "__mp_main__"]:
 
         try:
             ap.start()
-        except audera.ap.AccessPointError:
-            raise audera.ap.AccessPointError('Access-point setup is only available on Linux.')
+        except RuntimeError:
+            raise audera.ap.AccessPointError('Access-point setup is only available on dietpi-os.')
 
     # Initialize the ui
     page = Page(identity)

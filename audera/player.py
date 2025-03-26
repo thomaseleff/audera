@@ -3,7 +3,6 @@
 import asyncio
 import time
 import struct
-import platform
 from zeroconf import Zeroconf
 
 import audera
@@ -138,8 +137,7 @@ class Service():
         while True:
 
             # Check the operating-system
-            operating_system = platform.system()
-            if operating_system not in ['Linux', 'Darwin']:
+            if audera.platform.NAME not in ['dietpi', 'linux', 'darwin']:
 
                 # Logging
                 self.logger.warning(

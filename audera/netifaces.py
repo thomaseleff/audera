@@ -6,7 +6,8 @@ import socket
 import netifaces
 import uuid
 import subprocess
-import platform
+
+from audera import platform
 
 
 def get_gateway_ip_address():
@@ -31,16 +32,14 @@ def connected() -> bool:
         socket.gethostbyname("www.cloudflare.com")
 
         # Ping Cloudflare DNS to check for internet access
-        os_name = platform.system()
-
-        if os_name == 'Linux' or os_name == 'Darwin':  # macOS and Linux
+        if platform.NAME in ['dietpi', 'linux', 'darwin']:
             result = subprocess.run(['ping', '-c', '1', '1.1.1.1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode == 0:
                 return True
             else:
                 return False
 
-        elif os_name == 'Windows':
+        elif platform.NAME == 'windows':
             result = subprocess.run(['ping', '-n', '1', '1.1.1.1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode == 0:
                 return True
@@ -67,6 +66,7 @@ def get_local_ip_address() -> str:
         raise NetworkConnectionError('Unable to determine the local ip-address.')
 
 
+@platform.requires('dietpi')
 async def connect(
     ssid: str,
     password: Union[str, None]
@@ -82,9 +82,6 @@ async def connect(
     """
     if not ssid:
         raise NetworkConnectionError('Invalid value. {ssid} cannot be empty.')
-
-    if platform.system() in ['Windows', 'Darwin']:
-        raise OSError('Invalid platform. Network setup is only available on Linux.')
 
     if password:
         result = subprocess.run(
@@ -125,16 +122,20 @@ async def connect(
 
 # Exception(s)
 class NetworkConnectionError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class NetworkTimeoutError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class NetworkNotFoundError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class InternetConnectionError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)

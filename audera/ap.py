@@ -1,8 +1,7 @@
 """ Access point management """
 
 import subprocess
-import platform
-from audera import struct
+from audera import struct, platform
 
 
 class AccessPoint():
@@ -33,31 +32,27 @@ class AccessPoint():
                 network device.
         """
         self.hostname = '-'.join([name.strip().lower(), identity.short_uuid])
-        self.os = platform.system()
 
+    @platform.requires('dietpi')
     def start(self):
         """ Starts a wi-fi access point for credential sharing. """
 
-        if self.os == 'Linux':
-            subprocess.run(
-                ['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', self.hostname, 'ssid', self.hostname],
-                check=True
-            )
-        else:
-            raise AccessPointError()
+        subprocess.run(
+            ['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', self.hostname, 'ssid', self.hostname],
+            check=True
+        )
 
-    def stop(self) -> subprocess.CompletedProcess:
+    @platform.requires('dietpi')
+    def stop(self):
         """ Stops a wi-fi access point. """
 
-        if self.os == 'Linux':
-            subprocess.run(
-                ['nmcli', 'connection', 'delete', self.hostname],
-                check=True
-            )
-        else:
-            raise AccessPointError()
+        subprocess.run(
+            ['nmcli', 'connection', 'delete', self.hostname],
+            check=True
+        )
 
 
 # Exception(s)
 class AccessPointError(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
