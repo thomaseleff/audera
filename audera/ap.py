@@ -37,10 +37,40 @@ class AccessPoint():
     def start(self):
         """ Starts a wi-fi access point for credential sharing. """
 
-        subprocess.run(
-            ['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', self.hostname, 'ssid', self.hostname],
-            check=True
-        )
+        # Configure hostapd
+        with open("/etc/hostapd/hostapd.conf", "w") as f:
+            f.write("interface=wlan0\n")
+            f.write("driver=nl80211\n")
+            f.write(f"ssid={self.hostname}\n")
+            f.write("hw_mode=g\n")
+            f.write("channel=6\n")
+            f.write("wmm_enabled=0\n")
+            f.write("macaddr_acl=0\n")
+            f.write("auth_algs=1\n")
+            f.write("ignore_broadcast_ssid=0\n")
+            f.write("wpa=2\n")
+            f.write("rsn_pairwise=CCMP\n")
+            f.write(f"hostname={self.hostname}\n")
+
+        # Enable hostapd
+        with open("/etc/default/hostapd", "a") as f:
+            f.write("DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"\n")
+
+        # Start hostapd
+        subprocess.run(["sudo", "systemctl", "unmask", "hostapd"], check=True)
+        subprocess.run(["sudo", "systemctl", "enable", "hostapd"], check=True)
+        subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
+
+        # Configure dnsmasq
+        with open("/etc/dnsmasq.conf", "a") as f:
+            f.write("interface=wlan0\n")
+            f.write("dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h\n")
+
+        # Enable dnsmasq
+        subprocess.run(["sudo", "systemctl", "enable", "dnsmasq"], check=True)
+
+        # Start dnsmasq
+        subprocess.run(["sudo", "systemctl", "restart", "dnsmasq"], check=True)
 
     @platform.requires('dietpi')
     def stop(self):

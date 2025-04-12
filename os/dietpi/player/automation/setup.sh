@@ -51,6 +51,8 @@ apt-get install -y \
     alsa-utils \
     ffmpeg \
     shairport-sync \
+    hostapd \
+    dnsmasq \
     git \
     python3.11 \
     python3-venv \
@@ -98,7 +100,7 @@ echo
 if [ -f "$WORKSPACE/requirements.txt" ]; then
   echo ">>> Installing the Python requirements"
   python3 -m pip install --upgrade pip
-  pip3 install -e "$WORKSPACE"
+  pip3 install -e "$WORKSPACE" --no-deps
 else
   echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
   exit 1
