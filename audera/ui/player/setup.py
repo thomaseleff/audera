@@ -63,9 +63,9 @@ class Page():
         Parameters
         ----------
         ssid: `str`
-            The name of the wi-fi network.
+            The name of the Wi-Fi network.
         password: `str`
-            The password of the wi-fi network.
+            The password of the Wi-Fi network.
         """
 
         # Start
@@ -372,13 +372,15 @@ if __name__ in ["__main__", "__mp_main__"]:
         )
     )
 
-    if not audera.netifaces.connected():
+    # Create an access point based on the player identity
+    ap = audera.ap.AccessPoint(
+        name=audera.NAME,
+        url='https://player-setup.audera.local',
+        interface='wlan0',
+        identity=identity
+    )
 
-        # Create an access point based on the player identity
-        ap = audera.ap.AccessPoint(
-            name=audera.NAME,
-            identity=identity
-        )
+    if not audera.netifaces.connected():
 
         try:
             ap.start()
@@ -400,3 +402,7 @@ if __name__ in ["__main__", "__mp_main__"]:
         )
     except KeyboardInterrupt:
         app.shutdown()
+
+    # Clean up the access point if it was created
+    if ap is not None:
+        ap.stop()

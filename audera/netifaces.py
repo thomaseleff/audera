@@ -78,14 +78,14 @@ async def connect(
     ssid: str,
     password: Union[str, None]
 ):
-    """ Connects to a wi-fi network {ssid} with {password}.
+    """ Connects to a Wi-Fi network {ssid} with {password}.
 
     Parameters
     ----------
     ssid: `str`
-        The name of the wi-fi network.
+        The name of the Wi-Fi network.
     password: `str`
-        The password of the wi-fi network.
+        The password of the Wi-Fi network.
     """
     if not ssid:
         raise NetworkConnectionError('Invalid value. {ssid} cannot be empty.')
