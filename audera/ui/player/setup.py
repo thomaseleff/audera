@@ -1,13 +1,15 @@
 """ Remote audio output player setup """
 
 from typing_extensions import Union
+import os
+import time
 from nicegui import app, ui
 
 import audera
 
 
 class Page():
-    """ A `class` that represents a player setup page.
+    """ A `class` that represents a player setup app.
 
     Parameters
     ----------
@@ -16,7 +18,7 @@ class Page():
     """
 
     def __init__(self, identity: audera.struct.identity.Identity):
-        """ Initializes an instance of the `audera` player setup page.
+        """ Initializes an instance of the player setup app.
 
         Parameters
         ----------
@@ -40,6 +42,19 @@ class Page():
 
         # Initialize available networks
         self.network_refreshing: bool = False
+
+        # Initialize access-point
+        self.ap = audera.ap.AccessPoint(
+            name=audera.NAME,
+            url='https://player-setup.audera.local',
+            interface='wlan0',
+            identity=identity
+        )
+
+        try:
+            self.ap.start()
+        except RuntimeError:
+            raise audera.ap.AccessPointError('Access-point setup is only available on dietpi-os.')
 
     @property
     def name(self):
@@ -343,10 +358,20 @@ class Page():
                     'Back',
                     on_click=lambda: ui.navigate.to('/connect')
                 ).props('flat rounded').classes("normal-case")
-                ui.button("Finish", on_click=app.shutdown).props('rounded').classes("ml-auto normal-case")
+                ui.button("Finish", on_click=self.shutdown).props('rounded').classes("ml-auto normal-case")
+
+    def shutdown(self):
+        """ Closes the access-point, shutdowns the player setup, app and restarts the player. """
+        self.ap.stop()
+        app.shutdown()
+
+        # Restart
+        time.sleep(5)
+        os.system('sudo reboot')
 
 
-if __name__ in ["__main__", "__mp_main__"]:
+def run():
+    """ Runs the remote audio output player setup for player configuration and Wi-Fi sharing. """
 
     # Initialize identity
 
@@ -361,7 +386,7 @@ if __name__ in ["__main__", "__mp_main__"]:
     try:
         player_ip_address = audera.netifaces.get_local_ip_address()
     except audera.netifaces.NetworkConnectionError:
-        player_ip_address = ''
+        player_ip_address = ''  # The player may not have an ip-address yet
 
     identity: audera.struct.identity.Identity = audera.dal.identities.update(
         audera.struct.identity.Identity(
@@ -372,21 +397,6 @@ if __name__ in ["__main__", "__mp_main__"]:
         )
     )
 
-    # Create an access point based on the player identity
-    ap = audera.ap.AccessPoint(
-        name=audera.NAME,
-        url='https://player-setup.audera.local',
-        interface='wlan0',
-        identity=identity
-    )
-
-    if not audera.netifaces.connected():
-
-        try:
-            ap.start()
-        except RuntimeError:
-            raise audera.ap.AccessPointError('Access-point setup is only available on dietpi-os.')
-
     # Initialize the ui
     page = Page(identity)
 
@@ -396,6 +406,7 @@ if __name__ in ["__main__", "__mp_main__"]:
     # Run the app
     try:
         ui.run(
+            host=audera.netifaces.get_interface_ip_address('wlan0'),
             title=audera.NAME.strip().lower(),
             show=False,
             reload=False
@@ -403,6 +414,6 @@ if __name__ in ["__main__", "__mp_main__"]:
     except KeyboardInterrupt:
         app.shutdown()
 
-    # Clean up the access point if it was created
-    if ap is not None:
-        ap.stop()
+
+if __name__ in ["__main__", "__mp_main__"]:
+    run()

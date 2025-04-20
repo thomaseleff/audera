@@ -136,18 +136,20 @@ class AccessPoint():
                 )
 
     @platform.requires('dietpi')
-    def stop():
+    def stop(self):
         """ Stops a Wi-Fi access point. """
 
-        try:
-            subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        except subprocess.CalledProcessError as e:
-            raise AccessPointError("Failed to stop hostapd. %s" % e)
+        if self.hostapd_is_active():
+            try:
+                subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+            except subprocess.CalledProcessError as e:
+                raise AccessPointError("Failed to stop hostapd. %s" % e)
 
-        try:
-            subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-        except subprocess.CalledProcessError as e:
-            raise AccessPointError("Failed to stop dnsmasq. %s" % e)
+        if self.dnsmasq_is_active():
+            try:
+                subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+            except subprocess.CalledProcessError as e:
+                raise AccessPointError("Failed to stop dnsmasq. %s" % e)
 
     @platform.requires('dietpi')
     def hostapd_is_active() -> bool:
