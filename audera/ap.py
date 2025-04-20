@@ -43,7 +43,7 @@ class AccessPoint():
             The `audera.struct.identity.Identity` containing the unique identity of the
                 network device.
         """
-        self.url = url.replace('https://', '').replace('http://')
+        self.url = url.replace('https://', '').replace('http://', '')
         self.interface = interface
         self.hostname = '-'.join([name.strip().lower(), identity.short_uuid])
 
@@ -70,7 +70,10 @@ class AccessPoint():
 
         # Start hostapd
         subprocess.run(["sudo", "systemctl", "unmask", "hostapd"], check=True)
-        hostapd_result = subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
+        try:
+            hostapd_result = subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
+        except subprocess.CalledProcessError as e:
+            raise AccessPointError("Failed to start hostapd. %s" % e)
 
         # Get the default interface ip-address
         interface_address = netifaces.get_interface_ip_address(self.interface)
@@ -104,7 +107,10 @@ class AccessPoint():
 
         # Start dnsmasq
         subprocess.run(["sudo", "systemctl", "unmask", "dnsmasq"], check=True)
-        dnsmasq_result = subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
+        try:
+            dnsmasq_result = subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
+        except subprocess.CalledProcessError as e:
+            raise AccessPointError("Failed to start dnsmasq. %s" % e)
 
         # Wait for the service
         if dnsmasq_result.returncode == 0:
@@ -133,26 +139,42 @@ class AccessPoint():
     def stop():
         """ Stops a Wi-Fi access point. """
 
-        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        try:
+            subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
+        except subprocess.CalledProcessError as e:
+            raise AccessPointError("Failed to stop hostapd. %s" % e)
+
+        try:
+            subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
+        except subprocess.CalledProcessError as e:
+            raise AccessPointError("Failed to stop dnsmasq. %s" % e)
 
     @platform.requires('dietpi')
     def hostapd_is_active() -> bool:
         """ Returns the active status of the Wi-Fi access point. """
-
-        return True if subprocess.run(
-            ['sudo', 'systemctl', 'is-active', 'hostapd'],
-            check=True
-        ).stdout.decode().strip() == 'active' else False
+        try:
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'is-active', 'hostapd'],
+                check=True,
+                capture_output=True
+            )
+            return result.stdout.decode().strip() == 'active'
+        except subprocess.CalledProcessError:
+            return False
 
     @platform.requires('dietpi')
     def dnsmasq_is_active() -> bool:
         """ Returns the active status of the local DNS server service. """
 
-        return True if subprocess.run(
-            ['sudo', 'systemctl', 'is-active', 'dnsmasq'],
-            check=True
-        ).stdout.decode().strip() == 'active' else False
+        try:
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'is-active', 'dnsmasq'],
+                check=True,
+                capture_output=True
+            )
+            return result.stdout.decode().strip() == 'active'
+        except subprocess.CalledProcessError:
+            return False
 
 
 # Exception(s)
