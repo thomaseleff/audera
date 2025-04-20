@@ -1,6 +1,6 @@
 """ Network interfaces """
 
-from typing_extensions import Union
+from typing_extensions import Union, Literal
 import asyncio
 import socket
 import netifaces
@@ -10,11 +10,18 @@ import subprocess
 from audera import platform
 
 
-def get_gateway_ip_address():
+def get_gateway_ip_address() -> str:
     """ Returns the local gateway ip-address. """
     gateways = netifaces.gateways()
     gateway_address = gateways['default'][netifaces.AF_INET][0]
     return str(gateway_address)
+
+
+def get_interface_ip_address(interface: Literal['wlan0'] = 'wlan0') -> str:
+    """ Returns the interface ip-address. """
+    address = netifaces.ifaddresses(interface)
+    interface_address = address[netifaces.AF_INET][0]['addr']
+    return str(interface_address)
 
 
 def get_local_mac_address() -> str:
