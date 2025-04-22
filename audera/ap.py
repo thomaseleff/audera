@@ -148,7 +148,7 @@ class AccessPoint():
                 raise AccessPointError("Failed to stop dnsmasq. %s" % e)
 
     @platform.requires('dietpi')
-    def hostapd_is_active() -> bool:
+    def hostapd_is_active(self) -> bool:
         """ Returns the active status of the Wi-Fi access point. """
         try:
             result = subprocess.run(
@@ -161,7 +161,7 @@ class AccessPoint():
             return False
 
     @platform.requires('dietpi')
-    def dnsmasq_is_active() -> bool:
+    def dnsmasq_is_active(self) -> bool:
         """ Returns the active status of the local DNS server service. """
 
         try:
