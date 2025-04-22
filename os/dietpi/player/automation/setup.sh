@@ -12,6 +12,13 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
+# Parse arguments
+if [ -n "$1" ]; then
+    GIT_BRANCH="$1"
+else
+    GIT_BRANCH="main"
+fi
+
 # Variables
 GIT_REPO_URL="https://github.com/thomaseleff/audera.git"
 WORKSPACE="/home/dietpi/audera"
@@ -74,10 +81,10 @@ echo -e "[  ${GREEN}OK${RESET}  ] Services disabled successfully"
 echo
 if [ ! -d "$WORKSPACE" ]; then
   echo ">>> Cloning the Git repository"
-  git clone -b main "$GIT_REPO_URL" "$WORKSPACE"
+  git clone -b "$GIT_BRANCH" "$GIT_REPO_URL" "$WORKSPACE"
 else
   echo ">>> Pulling the Git repository"
-  cd "$WORKSPACE" && git pull origin main
+  cd "$WORKSPACE" && git pull origin "$GIT_BRANCH"
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Git repository created successfully"
 
