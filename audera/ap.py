@@ -62,7 +62,6 @@ class AccessPoint():
             f.write("macaddr_acl=0\n")
             f.write("auth_algs=1\n")
             f.write("ignore_broadcast_ssid=0\n")
-            f.write(f"hostname={self.hostname}\n")
 
         # Update the hostapd service
         with open("/etc/default/hostapd", "w") as f:
