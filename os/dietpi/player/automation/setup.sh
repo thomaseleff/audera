@@ -48,7 +48,7 @@ fi
 echo ">>> Installing build packages"
 apt-get update && \
 apt-get install -y \
-    nmcli \
+    network-manager \
     alsa-utils \
     ffmpeg \
     shairport-sync \
