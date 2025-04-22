@@ -99,6 +99,7 @@ class AccessPoint():
         # Configure dnsmasq
         with open("/etc/dnsmasq.conf", "w") as f:
             f.write(f"interface={self.interface}\n")
+            f.write("dhcp-range=192.168.1.100,192.168.1.150,12h\n")
             f.write(f"address=/{self.url}/127.0.0.1")
 
         # Start dnsmasq
