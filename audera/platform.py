@@ -9,11 +9,11 @@ import platform
 dotenv.load_dotenv('/boot/dietpi/.version')
 
 NAME = 'dietpi' if os.getenv('G_DIETPI_VERSION_CORE') else platform.system().strip().lower()
-VERSION = '.'.join(
+VERSION = '.'.join([
     os.getenv('G_DIETPI_VERSION_CORE', '0'),
     os.getenv('G_DIETPI_VERSION_SUB', '0'),
     os.getenv('G_DIETPI_VERSION_RC', '0')
-) if os.getenv('G_DIETPI_VERSION_CORE') else platform.version().strip().lower()
+]) if os.getenv('G_DIETPI_VERSION_CORE') else platform.version().strip().lower()
 
 
 # Decorator function(s)
