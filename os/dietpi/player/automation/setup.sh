@@ -65,6 +65,11 @@ apt-get install -y \
     cmake
 echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
+# Disabling services
+echo ">>> Disabling Wi-Fi access-point services"
+sudo systemctl disable hostapd dnsmasq
+echo -e "[  ${GREEN}OK${RESET}  ] Services disabled successfully"
+
 # Clone the git repository
 echo
 if [ ! -d "$WORKSPACE" ]; then
