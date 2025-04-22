@@ -406,7 +406,7 @@ def run():
     # Run the app
     try:
         ui.run(
-            host=audera.netifaces.get_interface_ip_address('wlan0'),
+            host='127.0.0.1',
             title=audera.NAME.strip().lower(),
             show=False,
             reload=False

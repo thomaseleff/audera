@@ -3,7 +3,7 @@
 from typing_extensions import Literal
 import subprocess
 import time
-from audera import struct, platform, netifaces
+from audera import struct, platform
 
 
 class AccessPoint():
@@ -74,9 +74,6 @@ class AccessPoint():
         except subprocess.CalledProcessError as e:
             raise AccessPointError("Failed to start hostapd. %s" % e)
 
-        # Get the default interface ip-address
-        interface_address = netifaces.get_interface_ip_address(self.interface)
-
         # Wait for the service
         if hostapd_result.returncode == 0:
 
@@ -102,7 +99,7 @@ class AccessPoint():
         # Configure dnsmasq
         with open("/etc/dnsmasq.conf", "w") as f:
             f.write(f"interface={self.interface}\n")
-            f.write(f"address=/{self.url}/{interface_address}")
+            f.write(f"address=/{self.url}/127.0.0.1")
 
         # Start dnsmasq
         subprocess.run(["sudo", "systemctl", "unmask", "dnsmasq"], check=True)
@@ -127,9 +124,8 @@ class AccessPoint():
 
             if not self.dnsmasq_is_active():
                 raise AccessPointError(
-                    'Unable to start the DNS server to route traffic from {%s} to {%s} on interface {%s}.' % (
+                    'Unable to start the DNS server to route traffic from {%s} to {127.0.0.1} on interface {%s}.' % (
                         'https://%s' % self.url,
-                        interface_address,
                         self.interface
                     )
                 )
