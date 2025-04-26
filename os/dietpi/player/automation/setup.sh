@@ -87,8 +87,8 @@ echo -e "[  ${GREEN}OK${RESET}  ] ifupdown purged successfully"
 
 # Setup network-manager
 
-# Network-manager should manage all devices, even those
-#   configured within `/etc/network/interfaces`.
+# Network-manager should manage all network devices,
+#   even those configured within `/etc/network/interfaces`.
 
 echo
 echo ">>> Setting up network-manager"
