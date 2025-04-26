@@ -57,11 +57,11 @@ fi
 echo ">>> Installing build packages"
 apt-get update && \
 apt-get install -y \
+    network-manager \
+    dnsmasq \
     alsa-utils \
     ffmpeg \
     shairport-sync \
-    network-manager \
-    dnsmasq \
     git \
     python3.11 \
     python3-venv \
@@ -81,8 +81,12 @@ echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
 echo
 echo ">>> Purging ifupdown"
-sudo systemctl stop ifupdown
-sudo systemctl disable ifupdown
+
+if sudo systemctl is-active --quiet ifupdown; then
+    sudo systemctl stop ifupdown
+    sudo systemctl disable ifupdown
+fi
+
 sudo apt-get purge -y ifupdown
 sudo sed -i '/^[[:space:]]*[^#[:space:]]/s/^/# /' /etc/network/interfaces
 echo -e "[  ${GREEN}OK${RESET}  ] ifupdown purged successfully"
