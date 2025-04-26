@@ -55,11 +55,10 @@ fi
 echo ">>> Installing build packages"
 apt-get update && \
 apt-get install -y \
-    network-manager \
     alsa-utils \
     ffmpeg \
     shairport-sync \
-    hostapd \
+    network-manager \
     dnsmasq \
     git \
     python3.11 \
@@ -72,10 +71,37 @@ apt-get install -y \
     cmake
 echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
-# Disabling services
-echo ">>> Disabling Wi-Fi access-point services"
-sudo systemctl disable hostapd dnsmasq
-echo -e "[  ${GREEN}OK${RESET}  ] Services disabled successfully"
+# Purge ifupdown
+
+# ifupdown will conflict with Network-Manager if
+#   both are installed. Comment out all configuration
+#   from `/etc/network/interfaces`.
+
+echo
+echo ">>> Purging ifupdown"
+sudo systemctl stop ifupdown
+sudo systemctl disable ifupdown
+sudo apt-get purge -y ifupdown
+sudo sed -i '/^[[:space:]]*[^#[:space:]]/s/^/# /' /etc/network/interfaces
+echo -e "[  ${GREEN}OK${RESET}  ] ifupdown purged successfully"
+
+# Setup network-manager
+
+# Network-manager should manage all devices, even those
+#   configured within `/etc/network/interfaces`.
+
+echo
+echo ">>> Setting up network-manager"
+sudo sed -i '/^\[ifupdown\]/,/^\[/s/managed=false/managed=true/' /etc/NetworkManager/NetworkManager.conf
+sudo systemctl enable NetworkManager
+sudo systemctl restart NetworkManager
+echo -e "[  ${GREEN}OK${RESET}  ] Network-manager setup successfully"
+
+# Setup dnsmasq
+echo
+echo ">>> Setting up dnsmasq"
+sudo systemctl disable dnsmasq
+echo -e "[  ${GREEN}OK${RESET}  ] dnsmasq setup successfully"
 
 # Clone the git repository
 echo
