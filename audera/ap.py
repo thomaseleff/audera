@@ -12,11 +12,11 @@ class AccessPoint():
     Parameters
     ----------
     name: `str`
-        The name of the access-point.
+        The name of the access point.
     url: `str`
-        The url web-address for accessing the access-point.
+        The url web-address for accessing the access point.
     interface: `str`
-        The network interface for the access-point.
+        The network interface for the access point.
     identity: `audera.struct.identity.Identity`
         The `audera.struct.identity.Identity` containing the unique identity of the
             network device.
@@ -34,11 +34,11 @@ class AccessPoint():
         Parameters
         ----------
         name: `str`
-            The name of the access-point.
+            The name of the access point.
         url: `str`
-            The url web-address for accessing the access-point.
+            The url web-address for accessing the access point.
         interface: `str`
-            The network interface for the access-point.
+            The network interface for the access point.
         identity: `audera.struct.identity.Identity`
             The `audera.struct.identity.Identity` containing the unique identity of the
                 network device.
@@ -51,126 +51,103 @@ class AccessPoint():
     def start(self):
         """ Starts a Wi-Fi access point for credential sharing. """
 
-        # Configure hostapd
-        with open("/etc/hostapd/hostapd.conf", "w") as f:
+        # Configure dnsmasq
+
+        # Re-configure dnsmasq each time the access-point is started because the
+        #   player identity may change overtime.
+
+        with open("/etc/NetworkManager/dnsmasq.conf", "w") as f:
             f.write(f"interface={self.interface}\n")
-            f.write("driver=nl80211\n")
-            f.write(f"ssid={self.hostname}\n")
-            f.write("hw_mode=g\n")
-            f.write("channel=6\n")
-            f.write("wmm_enabled=0\n")
-            f.write("macaddr_acl=0\n")
-            f.write("auth_algs=1\n")
-            f.write("ignore_broadcast_ssid=0\n")
+            f.write("dhcp-range=10.42.0.10,10.42.0.100,12h\n")
+            f.write("dhcp-option=3,10.42.0.1\n")
+            f.write("dhcp-option=6,10.42.0.1\n")
+            f.write(f"address=/{self.url}/127.0.0.1")  # The default nicegui ip-address
 
-        # Update the hostapd service
-        with open("/etc/default/hostapd", "w") as f:
-            f.write("DAEMON_CONF=\"/etc/hostapd/hostapd.conf\"\n")
+        # Add the access point connection
+        if not self.connection_exists():
+            add_connection_result = subprocess.run(
+                [
+                    "nmcli", "connection", "add",
+                    "type", "wifi",
+                    "ifname", "wlan0",
+                    "con-name", f"{self.hostname}",
+                    "autoconnect", "no",
+                    "ssid", f"{self.hostname}",
+                    "802-11-wireless.mode", "ap",
+                    "802-11-wireless.band", "bg",
+                    "802-11-wireless.channel", "6",
+                    "ipv4.method", "shared",
+                    "ipv4.addresses", "10.42.0.1/24",
+                    "ipv4.gateway", "10.42.0.1",
+                    "ipv6.method", "ignore"
+                ],
+                check=True
+            )
 
-        # Start hostapd
-        subprocess.run(["sudo", "systemctl", "unmask", "hostapd"], check=True)
+            # Wait for the service
+            if add_connection_result.returncode == 0:
+
+                # Check the service, time-out if the service fails to start after 10 seconds
+                time_out = 0
+
+                while time_out < 10:
+                    time.sleep(1)
+
+                    if self.connection_exists():
+                        break
+
+                    time_out += 1
+
+                if not self.connection_exists():
+                    raise AccessPointError(
+                        'Unable to add the Wi-Fi access point connection {%s} on interface {%s}.' % (
+                            self.hostname,
+                            self.interface
+                        )
+                    )
+
+        # Start the access point
         try:
-            hostapd_result = subprocess.run(["sudo", "systemctl", "start", "hostapd"], check=True)
-        except subprocess.CalledProcessError as e:
-            raise AccessPointError("Failed to start hostapd. %s" % e)
+            subprocess.run(
+                ["nmcli", "connection", "up", self.hostname],
+                check=True
+            )
+        except subprocess.CalledProcessError:
+            raise AccessPointError(
+                'Unable to start the Wi-Fi access point {%s} on interface {%s}.' % (
+                    self.hostname,
+                    self.interface
+                )
+            )
 
-        # Wait for the service
-        if hostapd_result.returncode == 0:
-
-            # Check the service, time-out if the service fails to start after 10 seconds
-            time_out = 0
-
-            while time_out < 10:
-                time.sleep(1)
-
-                if self.hostapd_is_active():
-                    break
-
-                time_out += 1
-
-            if not self.hostapd_is_active():
+    @platform.requires('dietpi')
+    def stop(self):
+        """ Stops a Wi-Fi access point. """
+        if self.connection_exists():
+            try:
+                subprocess.run(
+                    ["nmcli", "connection", "down", self.hostname],
+                    check=True
+                )
+            except subprocess.CalledProcessError:
                 raise AccessPointError(
-                    'Unable to start the Wi-Fi access-point {%s} on interface {%s}.' % (
+                    'Unable to stop the Wi-Fi access point {%s} on interface {%s}.' % (
                         self.hostname,
                         self.interface
                     )
                 )
 
-        # Configure dnsmasq
-        with open("/etc/dnsmasq.conf", "w") as f:
-            f.write(f"interface={self.interface}\n")
-            f.write("dhcp-range=192.168.1.100,192.168.1.150,12h\n")
-            f.write(f"address=/{self.url}/127.0.0.1")
-
-        # Start dnsmasq
-        subprocess.run(["sudo", "systemctl", "unmask", "dnsmasq"], check=True)
-        try:
-            dnsmasq_result = subprocess.run(["sudo", "systemctl", "start", "dnsmasq"], check=True)
-        except subprocess.CalledProcessError as e:
-            raise AccessPointError("Failed to start dnsmasq. %s" % e)
-
-        # Wait for the service
-        if dnsmasq_result.returncode == 0:
-
-            # Check the service, time-out if the service fails to start after 10 seconds
-            time_out = 0
-
-            while time_out < 10:
-                time.sleep(1)
-
-                if self.dnsmasq_is_active():
-                    break
-
-                time_out += 1
-
-            if not self.dnsmasq_is_active():
-                raise AccessPointError(
-                    'Unable to start the DNS server to route traffic from {%s} to {127.0.0.1} on interface {%s}.' % (
-                        'https://%s' % self.url,
-                        self.interface
-                    )
-                )
-
     @platform.requires('dietpi')
-    def stop(self):
-        """ Stops a Wi-Fi access point. """
-
-        if self.hostapd_is_active():
-            try:
-                subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=True)
-            except subprocess.CalledProcessError as e:
-                raise AccessPointError("Failed to stop hostapd. %s" % e)
-
-        if self.dnsmasq_is_active():
-            try:
-                subprocess.run(['sudo', 'systemctl', 'stop', 'dnsmasq'], check=True)
-            except subprocess.CalledProcessError as e:
-                raise AccessPointError("Failed to stop dnsmasq. %s" % e)
-
-    @platform.requires('dietpi')
-    def hostapd_is_active(self) -> bool:
-        """ Returns the active status of the Wi-Fi access point. """
+    def connection_exists(self) -> bool:
+        """ Returns whether the network-manager connection exists. """
         try:
-            result = subprocess.run(
-                ['sudo', 'systemctl', 'is-active', 'hostapd'],
+            subprocess.run(
+                ["nmcli", "connection", "show", self.hostname],
                 check=True,
-                capture_output=True
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
-            return result.stdout.decode().strip() == 'active'
-        except subprocess.CalledProcessError:
-            return False
-
-    @platform.requires('dietpi')
-    def dnsmasq_is_active(self) -> bool:
-        """ Returns the active status of the local DNS server service. """
-
-        try:
-            result = subprocess.run(
-                ['sudo', 'systemctl', 'is-active', 'dnsmasq'],
-                check=True,
-                capture_output=True
-            )
-            return result.stdout.decode().strip() == 'active'
+            return True
         except subprocess.CalledProcessError:
             return False
 
