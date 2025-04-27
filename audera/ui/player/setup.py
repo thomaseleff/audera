@@ -406,7 +406,8 @@ def run():
     # Run the app
     try:
         ui.run(
-            host='127.0.0.1',
+            host='0.0.0.0',  # Any interface
+            port=80,
             title=audera.NAME.strip().lower(),
             show=False,
             reload=False

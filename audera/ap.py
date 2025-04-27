@@ -61,7 +61,7 @@ class AccessPoint():
             f.write("dhcp-range=10.42.0.10,10.42.0.100,12h\n")
             f.write("dhcp-option=3,10.42.0.1\n")
             f.write("dhcp-option=6,10.42.0.1\n")
-            f.write(f"address=/{self.url}/127.0.0.1")  # The default nicegui ip-address
+            f.write(f"address=/{self.url}/10.42.0.1")
 
         # Add the access point connection
         if not self.connection_exists():
