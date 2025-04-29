@@ -51,6 +51,25 @@ class AccessPoint():
     def start(self):
         """ Starts a Wi-Fi access point for credential sharing. """
 
+        # Stop network-manager
+        try:
+            subprocess.run(
+                ["systemctl", "stop", "NetworkManager"],
+                check=True
+            )
+        except subprocess.CalledProcessError:
+            pass  # Network-manager is not running
+
+        # Configure the access point interface
+        subprocess.run(
+            ["iw", "dev", self.interface, "interface", "add", "ap0", "type", "__ap"],
+            check=True
+        )
+        subprocess.run(
+            ["ip", "link", "set", "ap0", "up"],
+            check=True
+        )
+
         # Configure dnsmasq
 
         # Re-configure dnsmasq each time the access-point is started because the
@@ -63,13 +82,21 @@ class AccessPoint():
             f.write("dhcp-option=6,10.42.0.1\n")
             f.write(f"address=/{self.url}/10.42.0.1")
 
+        # Restart network-manager
+        subprocess.run(
+            ["systemctl", "restart", "NetworkManager"],
+            check=True
+        )
+
         # Add the access point connection
         if not self.connection_exists():
+
+            # Create the access point
             add_connection_result = subprocess.run(
                 [
                     "nmcli", "connection", "add",
                     "type", "wifi",
-                    "ifname", "wlan0",
+                    "ifname", "ap0",
                     "con-name", f"{self.hostname}",
                     "autoconnect", "no",
                     "ssid", f"{self.hostname}",

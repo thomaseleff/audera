@@ -46,7 +46,7 @@ class Page():
         # Initialize access-point
         self.ap = audera.ap.AccessPoint(
             name=audera.NAME,
-            url='https://player-setup.audera.local',
+            url='http://player-setup.audera.com',
             interface='wlan0',
             identity=identity
         )

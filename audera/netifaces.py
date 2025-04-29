@@ -18,7 +18,13 @@ def get_gateway_ip_address() -> str:
 
 
 def get_interface_ip_address(interface: Literal['wlan0'] = 'wlan0') -> str:
-    """ Returns the interface ip-address. """
+    """ Returns the interface ip-address.
+
+    Parameters
+    ----------
+    interface: `str`
+        The network interface for the access point.
+    """
     address = netifaces.ifaddresses(interface)
     interface_address = address[netifaces.AF_INET][0]['addr']
     return str(interface_address)
@@ -31,8 +37,14 @@ def get_local_mac_address() -> str:
     return str(mac)
 
 
-def connected() -> bool:
-    """ Returns `True` when the network device is connected to the internet. """
+def connected(interface: Literal['wlan0']) -> bool:
+    """ Returns `True` when the network device is connected to the internet.
+
+    Parameters
+    ----------
+    interface: `str`
+        The network interface for the access point.
+    """
     try:
 
         # Try to resolve Cloudflare's public DNS to check if DNS resolution works
@@ -40,14 +52,22 @@ def connected() -> bool:
 
         # Ping Cloudflare DNS to check for internet access
         if platform.NAME in ['dietpi', 'linux', 'darwin']:
-            result = subprocess.run(['ping', '-c', '1', '1.1.1.1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result = subprocess.run(
+                ['ping', '-c', '1', '-I', interface, '1.1.1.1'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
             if result.returncode == 0:
                 return True
             else:
                 return False
 
         elif platform.NAME == 'windows':
-            result = subprocess.run(['ping', '-n', '1', '1.1.1.1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result = subprocess.run(
+                ['ping', '-n', '1', '1.1.1.1'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
             if result.returncode == 0:
                 return True
             else:

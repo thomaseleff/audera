@@ -49,8 +49,8 @@ echo "    Script source {https://raw.githubusercontent.com/thomaseleff/audera/re
 # Ensure the script is running as root
 echo
 if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}*** CRITICAL: The setup-script must be run as {sudo}.${RESET}" 
-   exit 1
+    echo -e "${RED}*** CRITICAL: The setup-script must be run as {sudo}.${RESET}" 
+    exit 1
 fi
 
 # Install build packages
@@ -73,50 +73,14 @@ apt-get install -y \
     cmake
 echo -e "[  ${GREEN}OK${RESET}  ] Packages installed successfully"
 
-# Purge ifupdown
-
-# ifupdown will conflict with Network-Manager if
-#   both are installed. Comment out all configuration
-#   from `/etc/network/interfaces`.
-
-echo
-echo ">>> Purging ifupdown"
-
-if sudo systemctl is-active --quiet ifupdown; then
-    sudo systemctl stop ifupdown
-    sudo systemctl disable ifupdown
-fi
-
-sudo apt-get purge -y ifupdown
-sudo sed -i '/^[[:space:]]*[^#[:space:]]/s/^/# /' /etc/network/interfaces
-echo -e "[  ${GREEN}OK${RESET}  ] ifupdown purged successfully"
-
-# Setup network-manager
-
-# Network-manager should manage all network devices,
-#   even those configured within `/etc/network/interfaces`.
-
-echo
-echo ">>> Setting up network-manager"
-sudo sed -i '/^\[ifupdown\]/,/^\[/s/managed=false/managed=true/' /etc/NetworkManager/NetworkManager.conf
-sudo systemctl enable NetworkManager
-sudo systemctl restart NetworkManager
-echo -e "[  ${GREEN}OK${RESET}  ] Network-manager setup successfully"
-
-# Setup dnsmasq
-echo
-echo ">>> Setting up dnsmasq"
-sudo systemctl disable dnsmasq
-echo -e "[  ${GREEN}OK${RESET}  ] dnsmasq setup successfully"
-
 # Clone the git repository
 echo
 if [ ! -d "$WORKSPACE" ]; then
-  echo ">>> Cloning the Git repository"
-  git clone -b "$GIT_BRANCH" "$GIT_REPO_URL" "$WORKSPACE"
+    echo ">>> Cloning the Git repository"
+    git clone -b "$GIT_BRANCH" "$GIT_REPO_URL" "$WORKSPACE"
 else
-  echo ">>> Pulling the Git repository"
-  cd "$WORKSPACE" && git pull origin "$GIT_BRANCH"
+    echo ">>> Pulling the Git repository"
+    cd "$WORKSPACE" && git pull origin "$GIT_BRANCH"
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Git repository created successfully"
 
@@ -130,25 +94,25 @@ echo -e "[  ${GREEN}OK${RESET}  ] shairport-sync configured successfully"
 # Create the Python virtual environment
 echo
 if [ ! -d "$WORKSPACE/.venv" ]; then
-  echo ">>> Creating the Python virtual env {$WORKSPACE/.venv}"
-  python3 -m venv "$WORKSPACE/.venv"
-  echo ">>> Activating the Python virtual env"
-  source "$WORKSPACE/.venv/bin/activate"
+    echo ">>> Creating the Python virtual env {$WORKSPACE/.venv}"
+    python3 -m venv "$WORKSPACE/.venv"
+    echo ">>> Activating the Python virtual env"
+    source "$WORKSPACE/.venv/bin/activate"
 else
-  echo ">>> Activating the Python virtual env"
-  source "$WORKSPACE/.venv/bin/activate"
+    echo ">>> Activating the Python virtual env"
+    source "$WORKSPACE/.venv/bin/activate"
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Python virtual env created successfully"
 
 # Install Python requirements
 echo
 if [ -f "$WORKSPACE/requirements.txt" ]; then
-  echo ">>> Installing the Python requirements"
-  python3 -m pip install --upgrade pip
-  pip3 install -e "$WORKSPACE" --no-deps
+    echo ">>> Installing the Python requirements"
+    python3 -m pip install --upgrade pip
+    pip3 install -e "$WORKSPACE" --no-deps
 else
-  echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
-  exit 1
+    echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
+    exit 1
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Python requirements installed successfully"
 
@@ -159,6 +123,43 @@ echo ">>> Ensuring wifi availability without hdmi-output"
 G_CONFIG_INJECT 'hdmi_force_hotplug=' 'hdmi_force_hotplug=1' /boot/config.txt
 G_CONFIG_INJECT 'hdmi_drive=' 'hdmi_drive=2' /boot/config.txt
 echo -e "[  ${GREEN}OK${RESET}  ] os configured successfully"
+
+# Purge ifupdown
+
+# ifupdown will conflict with Network-Manager if
+#   both are installed. Comment out all configuration
+#   from `/etc/network/interfaces`.
+
+echo
+echo ">>> Purging ifupdown"
+
+if systemctl is-active --quiet ifupdown; then
+    systemctl stop ifupdown
+    systemctl disable ifupdown
+fi
+
+apt-get purge -y ifupdown
+sed -i '/^[[:space:]]*[^#[:space:]]/s/^/# /' /etc/network/interfaces
+echo -e "[  ${GREEN}OK${RESET}  ] ifupdown purged successfully"
+
+# Setup network-manager
+
+# Network-manager should manage all network devices,
+#   even those configured within `/etc/network/interfaces`.
+
+echo
+echo ">>> Setting up network-manager"
+sed -i '/^\[ifupdown\]/,/^\[/s/managed=false/managed=true/' /etc/NetworkManager/NetworkManager.conf
+systemctl enable NetworkManager
+systemctl restart NetworkManager
+nmcli networking on
+echo -e "[  ${GREEN}OK${RESET}  ] Network-manager setup successfully"
+
+# Setup dnsmasq
+echo
+echo ">>> Setting up dnsmasq"
+systemctl disable dnsmasq
+echo -e "[  ${GREEN}OK${RESET}  ] dnsmasq setup successfully"
 
 # Configure alsa
 echo
@@ -171,13 +172,13 @@ echo -e "[  ${GREEN}OK${RESET}  ] alsa configured successfully"
 # Set up the autostart script
 echo
 if [ ! -d "$AUTOSTART_DIRECTORY" ]; then
-  echo ">>> Creating the custom autostart directory"
-  mkdir "$AUTOSTART_DIRECTORY"
-  echo ">>> Creating the custom autostart script"
-  cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
-  chmod +x "$AUTOSTART_SCRIPT"
+    echo ">>> Creating the custom autostart directory"
+    mkdir "$AUTOSTART_DIRECTORY"
+    echo ">>> Creating the custom autostart script"
+    cp "$REPO_AUTOSTART_SCRIPT" "$AUTOSTART_SCRIPT"
+    chmod +x "$AUTOSTART_SCRIPT"
 else
-  echo -e "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
+    echo -e "${YELLOW}  * WARNING: Autostart script already exists.${RESET}"
 fi
 echo -e "[  ${GREEN}OK${RESET}  ] Custom autostart script created successfully"
 
