@@ -109,7 +109,7 @@ echo
 if [ -f "$WORKSPACE/requirements.txt" ]; then
     echo ">>> Installing the Python requirements"
     python3 -m pip install --upgrade pip
-    pip3 install -e "$WORKSPACE" --no-deps
+    pip3 install -e "$WORKSPACE"
 else
     echo -e "${RED} ** ERROR: Failed to build & install audera.${RESET}"
     exit 1
