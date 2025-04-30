@@ -23,7 +23,7 @@ def get_interface_ip_address(interface: Literal['wlan0'] = 'wlan0') -> str:
     Parameters
     ----------
     interface: `str`
-        The network interface for the access point.
+        The network interface for the Wi-Fi connection.
     """
     address = netifaces.ifaddresses(interface)
     interface_address = address[netifaces.AF_INET][0]['addr']
@@ -43,7 +43,7 @@ def connected(interface: Literal['wlan0'] = 'wlan0') -> bool:
     Parameters
     ----------
     interface: `str`
-        The network interface for the access point.
+        The network interface for the Wi-Fi connection.
     """
     try:
 
@@ -96,7 +96,8 @@ def get_local_ip_address() -> str:
 @platform.requires('dietpi')
 async def connect(
     ssid: str,
-    password: Union[str, None]
+    password: Union[str, None],
+    interface: Literal['wlan0'] = 'wlan0'
 ):
     """ Connects to a Wi-Fi network {ssid} with {password}.
 
@@ -106,18 +107,20 @@ async def connect(
         The name of the Wi-Fi network.
     password: `str`
         The password of the Wi-Fi network.
+    interface: `str`
+        The network interface for Wi-Fi connections.
     """
     if not ssid:
         raise NetworkConnectionError('Invalid value. {ssid} cannot be empty.')
 
     if password:
         result = subprocess.run(
-            ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password],
+            ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password, 'ifname', interface],
             check=True
         )
     else:
         result = subprocess.run(
-            ['nmcli', 'device', 'wifi', 'connect', ssid],
+            ['nmcli', 'device', 'wifi', 'connect', ssid, 'ifname', interface],
             check=True
         )
 
