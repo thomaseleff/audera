@@ -37,7 +37,7 @@ def get_local_mac_address() -> str:
     return str(mac)
 
 
-def connected(interface: Literal['wlan0']) -> bool:
+def connected(interface: Literal['wlan0'] = 'wlan0') -> bool:
     """ Returns `True` when the network device is connected to the internet.
 
     Parameters
