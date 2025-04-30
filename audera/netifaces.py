@@ -132,12 +132,12 @@ async def connect(
         while time_out < 10:
             await asyncio.sleep(1)
 
-            if connected():
+            if connected(interface):
                 break
 
             time_out += 1
 
-        if not connected():
+        if not connected(interface):
             raise InternetConnectionError('{%s} has no internet.' % ssid)
 
     elif result.returncode == 3:
