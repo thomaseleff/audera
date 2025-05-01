@@ -15,19 +15,22 @@ class AccessPoint():
         The name of the access point.
     url: `str`
         The url web-address for accessing the access point.
-    interface: `str`
-        The network interface for the access point.
     identity: `audera.struct.identity.Identity`
         The `audera.struct.identity.Identity` containing the unique identity of the
             network device.
+    interface: `str`
+        The wireless network interface.
+    ap_interface: `str`
+        The network interface for the access point.
     """
 
     def __init__(
         self,
         name: str,
         url: str,
+        identity: struct.identity.Identity,
         interface: Literal['wlan0'],
-        identity: struct.identity.Identity
+        ap_interface: Literal['ap0'] = 'ap0'
     ):
         """ Creates an instance of a Wi-Fi access point.
 
@@ -37,14 +40,17 @@ class AccessPoint():
             The name of the access point.
         url: `str`
             The url web-address for accessing the access point.
-        interface: `str`
-            The network interface for the access point.
         identity: `audera.struct.identity.Identity`
             The `audera.struct.identity.Identity` containing the unique identity of the
                 network device.
+        interface: `Literal['wlan0']`
+            The wireless network interface.
+        ap_interface: `Literal['ap0']`
+            The network interface for the access point.
         """
         self.url = url.replace('https://', '').replace('http://', '')
         self.interface = interface
+        self.ap_interface = ap_interface
         self.hostname = '-'.join([name.strip().lower(), identity.short_uuid])
 
     @platform.requires('dietpi')
@@ -62,11 +68,11 @@ class AccessPoint():
 
         # Configure the access point interface
         subprocess.run(
-            ["iw", "dev", self.interface, "interface", "add", "ap0", "type", "__ap"],
+            ["iw", "dev", self.interface, "interface", "add", self.ap_interface, "type", "__ap"],
             check=True
         )
         subprocess.run(
-            ["ip", "link", "set", "ap0", "up"],
+            ["ip", "link", "set", self.ap_interface, "up"],
             check=True
         )
 
@@ -76,7 +82,7 @@ class AccessPoint():
         #   player identity may change overtime.
 
         with open("/etc/NetworkManager/dnsmasq.conf", "w") as f:
-            f.write(f"interface={self.interface}\n")
+            f.write(f"interface={self.ap_interface}\n")
             f.write("dhcp-range=10.42.0.10,10.42.0.100,12h\n")
             f.write("dhcp-option=3,10.42.0.1\n")
             f.write("dhcp-option=6,10.42.0.1\n")
@@ -96,7 +102,7 @@ class AccessPoint():
                 [
                     "nmcli", "connection", "add",
                     "type", "wifi",
-                    "ifname", "ap0",
+                    "ifname", self.ap_interface,
                     "con-name", f"{self.hostname}",
                     "autoconnect", "no",
                     "ssid", f"{self.hostname}",
@@ -129,11 +135,21 @@ class AccessPoint():
                     raise AccessPointError(
                         'Unable to add the Wi-Fi access point connection {%s} on interface {%s}.' % (
                             self.hostname,
-                            self.interface
+                            self.ap_interface
                         )
                     )
 
         # Start the access point
+        self.up()
+
+    @platform.requires('dietpi')
+    def stop(self):
+        """ Stops a Wi-Fi access point. """
+        self.down()
+
+    @platform.requires('dietpi')
+    def up(self):
+        """ Resumes the Wi-Fi access point. """
         try:
             subprocess.run(
                 ["nmcli", "connection", "up", self.hostname],
@@ -143,13 +159,13 @@ class AccessPoint():
             raise AccessPointError(
                 'Unable to start the Wi-Fi access point {%s} on interface {%s}.' % (
                     self.hostname,
-                    self.interface
+                    self.ap_interface
                 )
             )
 
     @platform.requires('dietpi')
-    def stop(self):
-        """ Stops a Wi-Fi access point. """
+    def down(self):
+        """ Pauses the Wi-Fi access point. """
         if self.connection_exists():
             try:
                 subprocess.run(
@@ -160,7 +176,7 @@ class AccessPoint():
                 raise AccessPointError(
                     'Unable to stop the Wi-Fi access point {%s} on interface {%s}.' % (
                         self.hostname,
-                        self.interface
+                        self.ap_interface
                     )
                 )
 

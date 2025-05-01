@@ -3,6 +3,7 @@
 from typing_extensions import Union
 import os
 import time
+import asyncio
 from nicegui import app, ui
 
 import audera
@@ -94,9 +95,17 @@ class Page():
             )
 
         else:
+
+            # Temporarily bring down the access point
+            self.ap.down()
+            await asyncio.sleep(3)
+
             try:
+
+                # Connect
                 await audera.netifaces.connect(ssid, password)
                 self.connected_profile = ssid
+
                 ui.notify(
                     'Network `%s` connected successfully.' % ssid,
                     position='top-right',
@@ -137,6 +146,9 @@ class Page():
                     position='top-right',
                     type='negative'
                 )
+
+            # Bring back up the access point
+            self.ap.up()
 
         # Stop
         self.network_refreshing = False

@@ -53,7 +53,7 @@ def connected(interface: Literal['wlan0'] = 'wlan0') -> bool:
         # Ping Cloudflare DNS to check for internet access
         if platform.NAME in ['dietpi', 'linux', 'darwin']:
             result = subprocess.run(
-                ['ping', '-c', '1', '-I', interface, '1.1.1.1'],
+                ['ping', '-c', '3', '-I', interface, '1.1.1.1'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -64,7 +64,7 @@ def connected(interface: Literal['wlan0'] = 'wlan0') -> bool:
 
         elif platform.NAME == 'windows':
             result = subprocess.run(
-                ['ping', '-n', '1', '1.1.1.1'],
+                ['ping', '-n', '3', '1.1.1.1'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -105,9 +105,9 @@ async def connect(
     ----------
     ssid: `str`
         The name of the Wi-Fi network.
-    password: `str`
+    password: `Union[str, None]`
         The password of the Wi-Fi network.
-    interface: `str`
+    interface: `Literal['wlan0']`
         The network interface for Wi-Fi connections.
     """
     if not ssid:
@@ -115,12 +115,23 @@ async def connect(
 
     if password:
         result = subprocess.run(
-            ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password, 'ifname', interface],
+            [
+                'nmcli', 'device', 'wifi',
+                'connect', ssid,
+                'password', password,
+                'ifname', interface,
+                "autoconnect", "yes"
+            ],
             check=True
         )
     else:
         result = subprocess.run(
-            ['nmcli', 'device', 'wifi', 'connect', ssid, 'ifname', interface],
+            [
+                'nmcli', 'device', 'wifi',
+                'connect', ssid,
+                'ifname', interface,
+                "autoconnect", "yes"
+            ],
             check=True
         )
 
