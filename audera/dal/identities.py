@@ -133,7 +133,7 @@ def update(new: identity.Identity) -> identity.Identity:
             {
                 'identity': {
                     'name': identity_.name,  # Retain the existing name, name is immutable
-                    'uuid': new.uuid,
+                    'uuid': identity_.uuid,  # Retain the existing uuid, uuid is immutable
                     'mac_address': new.mac_address,
                     'address': new.address
                 }
