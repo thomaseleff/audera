@@ -129,7 +129,7 @@ class Identity():
         """
         if isinstance(compare, Identity):
             return (
-                self.uuid == compare.uuid
+                self.address == compare.address
                 and self.mac_address == compare.mac_address
             )
 
