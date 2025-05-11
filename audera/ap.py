@@ -3,7 +3,7 @@
 from typing_extensions import Literal
 import subprocess
 import time
-from audera import struct, platform
+from audera import struct, platform, netifaces
 
 
 class AccessPoint():
@@ -68,11 +68,11 @@ class AccessPoint():
 
         # Configure the access point interface
         subprocess.run(
-            ["iw", "dev", self.interface, "interface", "add", self.ap_interface, "type", "__ap"],
+            ["iw", "dev", f"{self.interface}", "interface", "add", f"{self.ap_interface}", "type", "__ap"],
             check=True
         )
         subprocess.run(
-            ["ip", "link", "set", self.ap_interface, "up"],
+            ["ip", "link", "set", f"{self.ap_interface}", "up"],
             check=True
         )
 
@@ -102,7 +102,7 @@ class AccessPoint():
                 [
                     "nmcli", "connection", "add",
                     "type", "wifi",
-                    "ifname", self.ap_interface,
+                    "ifname", f"{self.ap_interface}",
                     "con-name", f"{self.hostname}",
                     "autoconnect", "no",
                     "ssid", f"{self.hostname}",
@@ -152,7 +152,7 @@ class AccessPoint():
         """ Resumes the Wi-Fi access point. """
         try:
             subprocess.run(
-                ["nmcli", "connection", "up", self.hostname],
+                ["nmcli", "connection", "up", f"{self.hostname}"],
                 check=True
             )
         except subprocess.CalledProcessError:
@@ -169,7 +169,7 @@ class AccessPoint():
         if self.connection_exists():
             try:
                 subprocess.run(
-                    ["nmcli", "connection", "down", self.hostname],
+                    ["nmcli", "connection", "down", f"{self.hostname}"],
                     check=True
                 )
             except subprocess.CalledProcessError:
@@ -183,16 +183,7 @@ class AccessPoint():
     @platform.requires('dietpi')
     def connection_exists(self) -> bool:
         """ Returns whether the network-manager connection exists. """
-        try:
-            subprocess.run(
-                ["nmcli", "connection", "show", self.hostname],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        return netifaces.connection_exists(con_name=self.hostname)
 
 
 # Exception(s)

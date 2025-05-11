@@ -1,9 +1,8 @@
 """ Remote audio output player setup """
 
-from typing_extensions import Union
+from typing_extensions import Union, Dict, List
 import os
 import time
-import asyncio
 from nicegui import app, ui
 
 import audera
@@ -43,6 +42,7 @@ class Page():
 
         # Initialize available networks
         self.network_refreshing: bool = False
+        self.wifi_networks: Dict[str, List[str]] = {}
 
         # Initialize access-point
         self.ap = audera.ap.AccessPoint(
@@ -61,6 +61,10 @@ class Page():
     def name(self):
         return str(self.player.name)
 
+    @property
+    def available_networks(self):
+        return [f"{key} 🔒" if value else key for key, value in self.wifi_networks.items()]
+
     def update_player_name_callback(self, name: Union[str, None]):
         """ Updates the name of the remote audio output player.
 
@@ -72,6 +76,18 @@ class Page():
         if name and name != self.player.name:
             self.player = audera.dal.players.update_player_name(self.player, str(name))
             ui.notify('Player name updated.', position='top-right', type='positive')
+
+    async def refresh_callback(self):
+        """ Refreshes the list of available Wi-Fi networks."""
+
+        # Start
+        self.network_refreshing = True
+
+        # Get available networks
+        self.wifi_networks = await audera.netifaces.get_wifi_networks(interface='wlan0')
+
+        # Stop
+        self.network_refreshing = False
 
     async def connect_callback(self, ssid: str, password: str):
         """ Connects to an available Wi-Fi network and checks for a valid internet connection.
@@ -87,23 +103,33 @@ class Page():
         # Start
         self.network_refreshing = True
 
+        if not self.wifi_networks:
+            self.wifi_networks = await audera.netifaces.get_wifi_networks(interface='wlan0')
+
         if not ssid:
             ui.notify(
-                'Enter a network.',
+                'Select a network.',
+                position='top-right',
+                type='negative'
+            )
+
+        elif ssid not in self.wifi_networks:
+            ui.notify(
+                'Network `%s` is no longer available.' % ssid,
                 position='top-right',
                 type='negative'
             )
 
         else:
-
-            # Temporarily bring down the access point
-            self.ap.down()
-            await asyncio.sleep(3)
-
             try:
 
                 # Connect
-                await audera.netifaces.connect(ssid, password)
+                await audera.netifaces.connect(
+                    ssid=ssid,
+                    supported_security_types=self.wifi_networks[ssid],
+                    password=password,
+                    interface='wlan0'
+                )
                 self.connected_profile = ssid
 
                 ui.notify(
@@ -119,9 +145,9 @@ class Page():
                     type='negative'
                 )
 
-            except audera.netifaces.NetworkConnectionError:
+            except audera.netifaces.NetworkConnectionError as e:
                 ui.notify(
-                    'Unable to connect to `%s`.' % ssid,
+                    'Unable to connect to `%s`. %s' % (ssid, str(e)),
                     position='top-right',
                     type='negative'
                 )
@@ -146,9 +172,6 @@ class Page():
                     position='top-right',
                     type='negative'
                 )
-
-            # Bring back up the access point
-            self.ap.up()
 
         # Stop
         self.network_refreshing = False
@@ -184,7 +207,7 @@ class Page():
                     on_click=lambda: ui.navigate.to('/discover')
                 ).props('rounded').classes("ml-auto normal-case")
 
-    def discover(self):
+    async def discover(self):
         """ Returns the discover page content. """
 
         with ui.row().classes("flex w-full"):
@@ -194,6 +217,9 @@ class Page():
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center mr-3")
+
+        # Pre-load the list of available Wi-Fi networks
+        self.wifi_networks = await audera.netifaces.get_wifi_networks(interface='wlan0')
 
         # Discover
         with ui.card().classes("flex mx-auto w-full"):
@@ -286,37 +312,39 @@ class Page():
                 "Connect to Wi-Fi"
             ).classes("text-3xl")
             ui.markdown(
-                "Input the credentials for the Wi-Fi network you would like to use with your **audera** player."
+                "Select the Wi-Fi network you would like to use with your **audera** player."
             )
-
-            self.password_selector = ui.switch(
-                '🔒',
-                value=True
+            ui.button(
+                "Refresh",
+                on_click=self.refresh_callback
             ).classes("ml-auto")
 
             with ui.card().classes("mx-auto flex w-full"):
-
-                self.network_input = ui.input(
-                    placeholder="Network",
+                self.network_selector = ui.select(
+                    options=self.available_networks,
+                    label="Network",
                 ).props('clearable rounded-md outlined dense').classes("w-full")
-
                 self.password_input = ui.input(
                     placeholder="Password",
                     password=True,
                     password_toggle_button=True
                 ).bind_visibility_from(
                     self,
-                    'password_selector',
-                    backward=lambda password_selector: password_selector.value
+                    'network_selector',
+                    backward=lambda network_selector: network_selector.value and '🔒' in network_selector.value
                 ).props('clearable rounded-md outlined dense').classes("w-full")
 
                 with ui.row().classes("flex w-full"):
                     ui.button(
                         "Connect",
                         on_click=lambda: self.connect_callback(
-                            self.network_input.value,
-                            self.password_input.value
+                            str(self.network_selector.value).replace('🔒', '').strip(),
+                            str(self.password_input.value).strip() if self.password_input.value else None
                         )
+                    ).bind_enabled_from(
+                        self,
+                        'network_selector',
+                        backward=lambda network_selector: network_selector.value
                     ).props('rounded').classes("normal-case")
                     ui.spinner(size='md').bind_visibility_from(
                         self,
