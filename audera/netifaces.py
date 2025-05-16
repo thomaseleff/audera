@@ -53,7 +53,7 @@ def connected(interface: Literal['wlan0'] = 'wlan0') -> bool:
         # Ping Cloudflare DNS to check for internet access
         if platform.NAME in ['dietpi', 'linux', 'darwin']:
             result = subprocess.run(
-                ['ping', '-c', '3', '-I', interface, '1.1.1.1'],
+                ['ping', '-c', '3', '-I', f"{interface}", '1.1.1.1'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -153,8 +153,8 @@ async def get_wifi_networks(interface: Literal['wlan0'] = 'wlan0') -> Dict[str, 
             "nmcli", "--terse",
             "--fields", "SSID,SECURITY",
             "device", "wifi", "list",
-            "ifname", interface,
-            "rescan", "yes",
+            "ifname", f"{interface}",
+            "--rescan", "yes",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
@@ -316,20 +316,7 @@ async def connect(
     )
 
     if result.returncode == 0:
-
-        # Check connection
-        time_out = 0
-
-        while time_out < 10:
-            await asyncio.sleep(1)
-
-            if connected(interface):
-                break
-
-            time_out += 1
-
-        if not connected(interface):
-            raise InternetConnectionError('Network `%s` has no internet.' % ssid)
+        pass
 
     elif result.returncode == 3:
         raise NetworkTimeoutError('Connection timed-out.')

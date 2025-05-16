@@ -317,7 +317,7 @@ class Page():
             ui.button(
                 "Refresh",
                 on_click=self.refresh_callback
-            ).classes("ml-auto")
+            ).props('rounded').classes("ml-auto normal-case")
 
             with ui.card().classes("mx-auto flex w-full"):
                 self.network_selector = ui.select(
@@ -345,7 +345,7 @@ class Page():
                         self,
                         'network_selector',
                         backward=lambda network_selector: network_selector.value
-                    ).props('rounded').classes("normal-case")
+                    ).props('rounded').classes("ml-auto normal-case")
                     ui.spinner(size='md').bind_visibility_from(
                         self,
                         'network_refreshing'

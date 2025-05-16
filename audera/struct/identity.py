@@ -128,9 +128,6 @@ class Identity():
             An instance of an `audera.struct.player.Identity` object.
         """
         if isinstance(compare, Identity):
-            return (
-                self.address == compare.address
-                and self.mac_address == compare.mac_address
-            )
+            return (self.mac_address == compare.mac_address)
 
         return False
