@@ -233,10 +233,7 @@ async def connect(
 
     # Delete the connection if it already exists
     if connection_exists(con_name=ssid):
-        delete_connection_result = subprocess.run(
-            ["nmcli", "connection", "delete", f"{ssid}"],
-            check=True
-        )
+        delete_connection_result = subprocess.run(["nmcli", "connection", "delete", f"{ssid}"])
 
         # Wait for the service
         if delete_connection_result.returncode == 0:
@@ -272,8 +269,7 @@ async def connect(
                 "wifi-sec.key-mgmt", f"{get_preferred_security_type(supported_security_types)}",
                 "wifi-sec.psk", f"{password}",
                 "connection.autoconnect", "yes"
-            ],
-            check=True
+            ]
         )
     else:
         add_connection_result = subprocess.run(
@@ -284,8 +280,7 @@ async def connect(
                 "con-name", f"{ssid}",
                 "ssid", f"{ssid}",
                 "connection.autoconnect", "yes"
-            ],
-            check=True
+            ]
         )
 
     # Wait for the service
@@ -310,10 +305,7 @@ async def connect(
                 )
             )
 
-    result = subprocess.run(
-        ["nmcli", "connection", "up", f"{ssid}"],
-        check=True
-    )
+    result = subprocess.run(["nmcli", "connection", "up", f"{ssid}"])
 
     if result.returncode == 0:
         pass

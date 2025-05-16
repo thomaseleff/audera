@@ -113,8 +113,7 @@ class AccessPoint():
                     "ipv4.addresses", "10.42.0.1/24",
                     "ipv4.gateway", "10.42.0.1",
                     "ipv6.method", "ignore"
-                ],
-                check=True
+                ]
             )
 
             # Wait for the service
