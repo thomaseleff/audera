@@ -345,7 +345,7 @@ class Page():
                         self,
                         'network_selector',
                         backward=lambda network_selector: network_selector.value
-                    ).props('rounded').classes("ml-auto normal-case")
+                    ).props('rounded').classes("normal-case")
                     ui.spinner(size='md').bind_visibility_from(
                         self,
                         'network_refreshing'
