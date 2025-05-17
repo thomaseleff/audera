@@ -143,7 +143,7 @@ class Page():
 
             except audera.netifaces.NetworkConnectionError as e:
                 ui.notify(
-                    'Unable to connect to `%s`. %s' % (ssid, str(e)),
+                    str(e),
                     position='top-right',
                     type='negative'
                 )
@@ -446,7 +446,8 @@ def run():
             port=80,
             title=audera.NAME.strip().lower(),
             show=False,
-            reload=False
+            reload=False,
+            reconnect_timeout=60
         )
     except KeyboardInterrupt:
         app.shutdown()

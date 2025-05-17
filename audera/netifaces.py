@@ -223,13 +223,13 @@ async def connect(
         The network interface for Wi-Fi connections.
     """
     if not ssid:
-        raise NetworkConnectionError('Invalid value. {ssid} cannot be empty.')
+        raise NetworkConnectionError('Invalid value. `Network` cannot be empty.')
 
     if supported_security_types and not password:
-        raise NetworkConnectionError('Invalid value. {password} cannot be empty for a secure network.')
+        raise NetworkConnectionError('Invalid value. `Password` cannot be empty for a secure network.')
 
     if password and not supported_security_types:
-        raise NetworkConnectionError('Invalid value. {supported_security_types} cannot be empty for a secure network.')
+        raise NetworkConnectionError(f'Invalid value. No available security protocols available for `{ssid}`.')
 
     # Delete the connection if it already exists
     if connection_exists(con_name=ssid):
@@ -251,7 +251,7 @@ async def connect(
 
             if connection_exists(con_name=ssid):
                 raise NetworkConnectionError(
-                    'Unable to delete Wi-Fi connection {%s} on interface {%s}.' % (
+                    'Unable to delete Wi-Fi connection `%s` on interface `%s`.' % (
                         ssid,
                         interface
                     )
@@ -299,7 +299,7 @@ async def connect(
 
         if not connection_exists(con_name=ssid):
             raise NetworkConnectionError(
-                'Unable to add Wi-Fi connection {%s} on interface {%s}.' % (
+                'Unable to add Wi-Fi connection `%s` on interface `%s`.' % (
                     ssid,
                     interface
                 )
