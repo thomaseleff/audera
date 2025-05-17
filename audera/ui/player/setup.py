@@ -195,11 +195,11 @@ class Page():
         with ui.card().classes("mx-auto flex w-full"):
             ui.markdown("Welcome to **audera** 👋").classes("text-3xl")
             ui.markdown(audera.DESCRIPTION.replace('`', '**'))
-            ui.markdown('Click **Continue** to connect to your player.')
+            ui.markdown('Click **Start** to connect to your player.')
 
             with ui.row().classes("flex w-full"):
                 ui.button(
-                    'Continue',
+                    'Start',
                     on_click=lambda: ui.navigate.to('/discover')
                 ).props('rounded').classes("ml-auto normal-case")
 
@@ -213,9 +213,6 @@ class Page():
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center")
             ui.icon("circle", size=".7rem", color='gray-100').classes("self-center mr-3")
-
-        # Pre-load the list of available Wi-Fi networks
-        self.wifi_networks = await audera.netifaces.get_wifi_networks(interface='wlan0')
 
         # Discover
         with ui.card().classes("flex mx-auto w-full"):
@@ -234,6 +231,9 @@ class Page():
             with ui.row().classes("flex w-full"):
                 ui.button('Back', on_click=lambda: ui.navigate.to('/')).props('flat rounded').classes("normal-case")
                 ui.button('Setup', on_click=lambda: ui.navigate.to('/setup')).props('rounded').classes("ml-auto normal-case")
+
+        # Pre-load the list of available Wi-Fi networks
+        self.wifi_networks = await audera.netifaces.get_wifi_networks(interface='wlan0')
 
     def setup(self):
         """ Returns the setup page content. """
