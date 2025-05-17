@@ -76,7 +76,6 @@ class Service():
         self.stream_session: audera.sessions.Stream = audera.sessions.Stream(
             session=audera.dal.sessions.update(
                 audera.struct.session.Session(
-                    name=self.identity.name,
                     uuid=self.identity.uuid,
                     mac_address=self.identity.mac_address,
                     address=self.identity.address,

@@ -168,11 +168,42 @@ def update(new: player.Player) -> player.Player:
 
         # Update the player configuration object and write to the configuration file
         config_ = config_.from_dict({'player': new.to_dict()})
-
         return new
 
     else:
         return player_
+
+
+def update_identity(identity_: identity.Identity) -> player.Player:
+    """ Updates the player configuration file `~/.audera/players/{player.uuid}.json`.
+
+    Parameters
+    ----------
+    identity_: `audera.struct.identity.Identity`
+        An instance of an `audera.struct.identity.Identity` object.
+    """
+
+    # Read the configuration file
+    config_ = get_or_create(identity_)
+
+    # Convert the config to an audio player object
+    player_: player.Player = player.Player.from_config(config=config_)
+
+    # Compare and update
+    if not identity.Identity(
+        name=player_.name,
+        uuid=player_.uuid,
+        mac_address=player_.uuid,
+        address=player_.address
+     ) == identity_:
+
+        # Update the player configuration object and write to the configuration file
+        player_.mac_address = identity_.mac_address
+        player_.address = identity_.address
+
+        config_ = config_.from_dict({'player': player_.to_dict()})
+
+    return player_
 
 
 def delete(uuid: str):

@@ -140,7 +140,7 @@ def update(new: identity.Identity) -> identity.Identity:
             }
         )
 
-        return new
+        return identity.Identity.from_config(config=config_)
 
     else:
         return identity_
@@ -171,7 +171,7 @@ def get_identity_mac_address() -> str:
     return identity_.mac_address
 
 
-def get_identity_ip_address(uuid: str) -> str:
+def get_identity_ip_address() -> str:
     """ Returns the ip-address of the remote audio device as an `str`. """
 
     # Read the configuration file

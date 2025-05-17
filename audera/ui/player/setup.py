@@ -31,11 +31,7 @@ class Page():
         # The `update` method will either get the existing player, create a new player or
         #   update an existing player from the identity.
 
-        self.player: audera.struct.player.Player = audera.dal.players.update(
-            audera.struct.player.Player.from_config(
-                audera.dal.players.get_or_create(identity)
-            )
-        )
+        self.player: audera.struct.player.Player = audera.dal.players.update_identity(identity)
 
         # Initialize connected network ssid
         self.connected_profile: Union[str, None] = None
@@ -418,9 +414,9 @@ def run():
     # The `update` method will either get the existing identity, create a new identity or
     #   update the existing identity with new network interface settings. Unlike other
     #   `audera` structure objects, where equality is based on every object attribute,
-    #   identities are only considered to be the same if they share the same uuid and
-    #   mac address. Finally, the name of an identity is immutable, when an identity is updated
-    #   the same name is always retained.
+    #   identities are only considered to be the same if they share the same mac address and
+    #   ip-address. Finally, the name and uuid of an identity are immutable, when an identity is updated
+    #   the same name and uuid are always retained.
 
     mac_address = audera.netifaces.get_local_mac_address()
     try:
