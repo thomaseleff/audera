@@ -17,6 +17,7 @@ class Page():
         An instance of an `audera.struct.identity.Identity` object.
     """
 
+    @audera.platform.requires('dietpi')
     def __init__(self, identity: audera.struct.identity.Identity):
         """ Initializes an instance of the player setup app.
 
@@ -265,7 +266,8 @@ class Page():
                     "Garage",
                     "Guest Room",
                     "Basement",
-                    "Utility Room"
+                    "Utility Room",
+                    "She shed"
                 ],
                 validation={
                     "The player name cannot be empty.": lambda value: value is not None

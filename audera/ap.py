@@ -24,6 +24,7 @@ class AccessPoint():
         The network interface for the access point.
     """
 
+    @platform.requires('dietpi')
     def __init__(
         self,
         name: str,
@@ -56,6 +57,18 @@ class AccessPoint():
     @platform.requires('dietpi')
     def start(self):
         """ Starts a Wi-Fi access point for credential sharing. """
+        self.create()
+        self.up()
+
+    @platform.requires('dietpi')
+    def stop(self):
+        """ Stops a Wi-Fi access point. """
+        self.down()
+        self.delete()
+
+    @platform.requires('dietpi')
+    def create(self):
+        """ Creates the Wi-Fi access point connection. """
 
         # Stop network-manager
         try:
@@ -138,13 +151,22 @@ class AccessPoint():
                         )
                     )
 
-        # Start the access point
-        self.up()
-
     @platform.requires('dietpi')
-    def stop(self):
-        """ Stops a Wi-Fi access point. """
-        self.down()
+    def delete(self):
+        """ Delets the Wi-Fi access point connection. """
+        if self.connection_exists():
+            try:
+                subprocess.run(
+                    ["nmcli", "connection", "delete", f"{self.hostname}"],
+                    check=True
+                )
+            except subprocess.CalledProcessError:
+                raise AccessPointError(
+                    'Unable to delete the Wi-Fi access point {%s} on interface {%s}.' % (
+                        self.hostname,
+                        self.ap_interface
+                    )
+                )
 
     @platform.requires('dietpi')
     def up(self):
