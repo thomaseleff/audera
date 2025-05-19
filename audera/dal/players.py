@@ -168,11 +168,42 @@ def update(new: player.Player) -> player.Player:
 
         # Update the player configuration object and write to the configuration file
         config_ = config_.from_dict({'player': new.to_dict()})
-
         return new
 
     else:
         return player_
+
+
+def update_identity(identity_: identity.Identity) -> player.Player:
+    """ Updates the player configuration file `~/.audera/players/{player.uuid}.json`.
+
+    Parameters
+    ----------
+    identity_: `audera.struct.identity.Identity`
+        An instance of an `audera.struct.identity.Identity` object.
+    """
+
+    # Read the configuration file
+    config_ = get_or_create(identity_)
+
+    # Convert the config to an audio player object
+    player_: player.Player = player.Player.from_config(config=config_)
+
+    # Compare and update
+    if not identity.Identity(
+        name=player_.name,
+        uuid=player_.uuid,
+        mac_address=player_.uuid,
+        address=player_.address
+     ) == identity_:
+
+        # Update the player configuration object and write to the configuration file
+        player_.mac_address = identity_.mac_address
+        player_.address = identity_.address
+
+        config_ = config_.from_dict({'player': player_.to_dict()})
+
+    return player_
 
 
 def delete(uuid: str):
@@ -322,19 +353,36 @@ def disconnect(uuid: str) -> player.Player:
     return update(player_)
 
 
-def update_volume(uuid: str, volume: float) -> player.Player:
+def update_player_name(player_: player.Player, name: str) -> player.Player:
+    """ Updates the name of a player by setting `name` = {name}.
+
+    Parameters
+    ----------
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    name: `str`
+        The name of the player.
+    """
+
+    if player_.name == name:
+        return player_
+
+    player_.name = utils.as_type(name, 'str')
+
+    return update(player_)
+
+
+def update_player_volume(player_: player.Player, volume: float) -> player.Player:
     """ Updates the volume for a player by setting `volume` = {volume}.
 
     Parameters
     ----------
-    uuid: `str`
-        A unique universal identifier of an `audera.struct.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
     volume: `float`
         A float value from 0 to 100 that sets the loudness of playback. A value of
             0 is muted.
     """
-
-    player_ = get_player(uuid)
 
     if player_.volume == volume:
         return player_
@@ -343,16 +391,16 @@ def update_volume(uuid: str, volume: float) -> player.Player:
     return update(player_)
 
 
-def update_channels(uuid: str, channels: int) -> player.Player:
+def update_player_channels(player_: player.Player, channels: int) -> player.Player:
     """ Updates the playback channels for a player by setting `channels` = {channels}.
 
     Parameters
     ----------
-    uuid: `str`
-        A unique universal identifier of an `audera.struct.player.Player` object.
+    player_: `audera.struct.player.Player`
+        An instance of an `audera.struct.player.Player` object.
+    channels: `int`
+        Either `1` for mono or `2` for stereo audio playback.
     """
-
-    player_ = get_player(uuid)
 
     if player_.channels == channels:
         return player_

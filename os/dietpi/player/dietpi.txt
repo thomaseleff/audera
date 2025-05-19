@@ -221,7 +221,7 @@ CONFIG_NTP_MODE=3
 CONFIG_SERIAL_CONSOLE_ENABLE=0
 
 # Sound card
-CONFIG_SOUNDCARD=rpi-bcm2835-auto
+CONFIG_SOUNDCARD=rpi-digiampplus
 
 # LCD Panel addon
 # - Do not modify, you must use dietpi-config to configure/set options

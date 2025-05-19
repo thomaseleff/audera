@@ -31,10 +31,10 @@ class Session():
         A float value from 0 to 100 that sets the loudness of playback. A value of
             0 is muted.
     """
-    name: str
     uuid: str
     mac_address: str
     address: str
+    name: str = field(default='')
     group: str = field(default='')
     players: List[str] = field(default_factory=list)
     provider: Literal['audera'] = field(default='audera')

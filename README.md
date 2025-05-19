@@ -34,3 +34,20 @@ The source code is available on [GitHub](https://github.com/thomaseleff/audera).
    ```
    pip install .
    ```
+
+## Roadmap
+Upcoming enhancements / fixes in priority order. Open an [issue](https://github.com/thomaseleff/audera/issues/new) to request a feature or fix.
+
+- [x] Access point Wi-Fi sharing
+- [ ] Digital sound processing (DSP)
+- [ ] Audera streamer (Bluetooth input-only)
+- [ ] Audera streamer Wi-Fi sharing setup
+- [ ] Audera streamer web-interface
+  - [ ] Managing players / player groups and playback sessions
+  - [ ] Streamer settings
+  - [ ] Danger zone OTT updates
+
+#### Misc. improvements
+- [ ] FLAC encoding / decoding with ffmpeg
+- [ ] Multi-player sync optimization
+- [ ] Event tracking (logins / sessions / errors, etc..)

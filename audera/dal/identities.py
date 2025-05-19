@@ -133,14 +133,14 @@ def update(new: identity.Identity) -> identity.Identity:
             {
                 'identity': {
                     'name': identity_.name,  # Retain the existing name, name is immutable
-                    'uuid': new.uuid,
+                    'uuid': identity_.uuid,  # Retain the existing uuid, uuid is immutable
                     'mac_address': new.mac_address,
                     'address': new.address
                 }
             }
         )
 
-        return new
+        return identity.Identity.from_config(config=config_)
 
     else:
         return identity_
@@ -171,7 +171,7 @@ def get_identity_mac_address() -> str:
     return identity_.mac_address
 
 
-def get_identity_ip_address(uuid: str) -> str:
+def get_identity_ip_address() -> str:
     """ Returns the ip-address of the remote audio device as an `str`. """
 
     # Read the configuration file

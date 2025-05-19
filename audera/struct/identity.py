@@ -55,6 +55,13 @@ class Identity():
     mac_address: str
     address: str
 
+    @property
+    def short_uuid(self) -> str:
+        """ Returns the short unique universal identifier of the `audera.struct.identity.Identity`
+        object.
+        """
+        return self.uuid.split('-')[0]
+
     def from_dict(dict_object: dict) -> Identity:
         """ Returns an `audera.struct.player.Identity` object from a `dict`.
 
@@ -122,8 +129,8 @@ class Identity():
         """
         if isinstance(compare, Identity):
             return (
-                self.uuid == compare.uuid
-                and self.mac_address == compare.mac_address
+                self.mac_address == compare.mac_address
+                and self.address == compare.address
             )
 
         return False

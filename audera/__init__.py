@@ -1,15 +1,15 @@
 """ audera
 
-`audera` is an open-source multi-room audio streaming system written in Python
+🔮 `audera` is an open-source multi-room audio streaming system written in Python
 for DIY home audio enthusiasts.
 """
 
 from typing import List
 import errno
 
-from audera import netifaces, ntp, mdns, struct, dal, devices, sessions, logging
+from audera import platform, ap, netifaces, ntp, mdns, struct, dal, devices, sessions, logging
 
-__all__ = ['netifaces', 'ntp', 'mdns', 'struct', 'dal', 'devices', 'sessions', 'logging']
+__all__ = ['platform', 'ap', 'netifaces', 'ntp', 'mdns', 'struct', 'dal', 'devices', 'sessions', 'logging']
 
 # Logo
 LOGO: List[str] = [
@@ -23,9 +23,13 @@ LOGO: List[str] = [
 ]
 NAME: str = 'audera'
 DESCRIPTION: str = ''.join([
-    '`audera` is an open-source multi-room audio streaming system written in',
+    '🔮 `audera` is an open-source multi-room audio streaming system written in',
     ' Python for DIY home audio enthusiasts.'
 ])
+
+# Websites
+HOME: str = 'https://github.com/thomaseleff/audera'
+DOCS: str = 'https://github.com/thomaseleff/audera/tree/main/docs'
 
 # Network configuration
 MDNS_TYPE = f"_{NAME.lower()}._tcp.local."
