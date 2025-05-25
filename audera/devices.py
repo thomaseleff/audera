@@ -492,9 +492,10 @@ class Output():
 
                 # Logging
                 self.logger.warning(
-                    'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
+                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and DAC latency %.7f.' % (
                         self.current_target_playback_time - dac_playback_time,
-                        self.current_playback_time
+                        self.current_playback_time,
+                        self.stream.get_output_latency()
                     )
                 )
 
