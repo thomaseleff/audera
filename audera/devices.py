@@ -488,7 +488,7 @@ class Output():
                 # Logging
                 self.logger.warning(
                     'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                        target_playback_time - dac_playback_time,
+                        self.current_target_playback_time - dac_playback_time,
                         playback_time
                     )
                 )
