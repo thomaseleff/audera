@@ -203,10 +203,11 @@ class Output():
 
         # Initialize the audio stream chunk
         self.current_chunk: Union[bytes, None] = None
-        self.playback_time: Union[float, None] = None
+        self.current_playback_time: Union[float, None] = None
         self.current_target_playback_time: Union[float, None] = None
         self.current_position: int = 0
-        self.silent_sample = self.silent_chunk(length=1)
+        self.current_silent_bytes: Union[int, None] = None
+        self.silent_sample: int = self.silent_chunk(length=1)
 
     @property
     def chunk_length(self) -> int:
@@ -435,11 +436,8 @@ class Output():
             The status of the audio stream.
         """
 
-        # Calculate the digital-to-analog converter (dac) offset
-        dac_offset = time.time() - time_info['current_time']
-
         # Convert the digital-to-analog converter output time to local-time
-        dac_playback_time = time_info['output_buffer_dac_time'] + dac_offset
+        dac_playback_time = time_info['output_buffer_dac_time'] + (time.time() - time_info['current_time'])
 
         # Construct the audio stream chunk
         out_data = b''
@@ -447,7 +445,7 @@ class Output():
         while len(out_data) < self.chunk_length:
 
             # Track the remaining space in the audio stream chunk
-            remaining_space = self.chunk_length - len(out_data)
+            remaining_bytes = self.chunk_length - len(out_data)
 
             # Get the next audio stream packet from the buffer queue
             if self.current_chunk is None:
@@ -476,49 +474,50 @@ class Output():
 
                     # Retain the audio data packet
                     self.current_chunk = chunk
-                    self.playback_time = playback_time
+                    self.current_playback_time = playback_time
                     self.current_target_playback_time = target_playback_time
                     self.current_position = 0
+                    self.current_silent_bytes = None
 
                 # Create a silent audio stream chunk when the buffer queue is empty
                 except asyncio.QueueEmpty:
-                    out_data += self.silent_chunk(length=remaining_space)
+                    out_data += self.silent_chunk(length=remaining_bytes)
                     break
 
             # Determine how much time has elapsed since the target playback time
             time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
             # Pad the return audio stream chunk with silence when the chunk arrives early
-            if time_until_target_playback_time < -self.playback_timing_tolerance:
+            if time_until_target_playback_time < -self.playback_timing_tolerance and not self.current_silent_bytes:
 
                 # Logging
                 self.logger.warning(
                     'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
                         self.current_target_playback_time - dac_playback_time,
-                        self.playback_time
+                        self.current_playback_time
                     )
                 )
 
                 # Calculate the number of bytes to pad with silence
-                silent_bytes = max(
+                self.current_silent_bytes = max(
                     min(
-                        int((self.current_target_playback_time - time.time()) * self.bytes_per_second),
-                        remaining_space
+                        int(time_until_target_playback_time * self.bytes_per_second),
+                        remaining_bytes
                     ),
                     0
                 )
 
                 # Pad the remaining bytes of the return audio stream chunk with silence
-                if silent_bytes >= remaining_space:
-                    out_data += self.silent_chunk(length=remaining_space)
+                if self.current_silent_bytes >= remaining_bytes:
+                    out_data += self.silent_chunk(length=remaining_bytes)
                     break
 
                 # Pad only up to the target playback time with silence
-                out_data += self.silent_chunk(length=silent_bytes)
+                out_data += self.silent_chunk(length=self.current_silent_bytes)
 
             # Propagate data into the return audio stream chunk
             start_byte = self.current_position
-            end_byte = min(start_byte + remaining_space, len(self.current_chunk))
+            end_byte = min(start_byte + remaining_bytes, len(self.current_chunk))
             out_data += self.current_chunk[start_byte:end_byte]
             self.current_position = end_byte
 
@@ -535,7 +534,7 @@ class Output():
             # Logging
             self.logger.warning(
                 'Audio stream chunk with playback time %.7f [sec.] contains silent bytes adjusting for playback timing.' % (
-                    self.playback_time
+                    self.current_playback_time
                 )
             )
 
@@ -544,8 +543,10 @@ class Output():
 
             # Logging
             self.logger.error(
-                'Audio stream chunk with playback time %.7f [sec.] is the wrong size.' % (
-                    self.playback_time
+                'Audio stream chunk with playback time %.7f [sec.] is the wrong size %f, expected %f.' % (
+                    self.current_playback_time,
+                    len(out_data),
+                    self.chunk_length
                 )
             )
 
