@@ -203,6 +203,7 @@ class Output():
 
         # Initialize the audio stream chunk
         self.current_chunk: Union[bytes, None] = None
+        self.playback_time: Union[float, None] = None
         self.current_target_playback_time: Union[float, None] = None
         self.current_position: int = 0
 
@@ -471,6 +472,7 @@ class Output():
 
                     # Retain the audio data packet
                     self.current_chunk = chunk
+                    self.playback_time = playback_time
                     self.current_target_playback_time = target_playback_time
                     self.current_position = 0
 
@@ -489,7 +491,7 @@ class Output():
                 self.logger.warning(
                     'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
                         self.current_target_playback_time - dac_playback_time,
-                        playback_time
+                        self.playback_time
                     )
                 )
 
@@ -528,7 +530,7 @@ class Output():
             # Logging
             self.logger.warning(
                 'Audio stream chunk with playback time %.7f [sec.] contains silent bytes adjusting for playback timing.' % (
-                    playback_time
+                    self.playback_time
                 )
             )
 
@@ -538,7 +540,7 @@ class Output():
             # Logging
             self.logger.error(
                 'Audio stream chunk with playback time %.7f [sec.] is the wrong size.' % (
-                    playback_time
+                    self.playback_time
                 )
             )
 
