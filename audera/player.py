@@ -101,7 +101,8 @@ class Service():
             logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
             device=audera.dal.devices.get_device('output'),
-            buffer_size=audera.BUFFER_SIZE
+            buffer_size=audera.BUFFER_SIZE,
+            playback_timing_tolerance=audera.PLAYBACK_TIMING_TOLERANCE
         )
 
         # Initialize time synchronization
