@@ -206,6 +206,7 @@ class Output():
         self.playback_time: Union[float, None] = None
         self.current_target_playback_time: Union[float, None] = None
         self.current_position: int = 0
+        self.silent_sample = self.silent_chunk(length=1)
 
     @property
     def chunk_length(self) -> int:
@@ -445,6 +446,9 @@ class Output():
 
         while len(out_data) < self.chunk_length:
 
+            # Track the remaining space in the audio stream chunk
+            remaining_space = self.chunk_length - len(out_data)
+
             # Get the next audio stream packet from the buffer queue
             if self.current_chunk is None:
                 try:
@@ -478,14 +482,14 @@ class Output():
 
                 # Create a silent audio stream chunk when the buffer queue is empty
                 except asyncio.QueueEmpty:
-                    out_data += self.silent_chunk(length=(self.chunk_length - len(out_data)))
+                    out_data += self.silent_chunk(length=remaining_space)
                     break
 
             # Determine how much time has elapsed since the target playback time
-            elapsed = dac_playback_time - self.current_target_playback_time
+            time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
             # Pad the return audio stream chunk with silence when the chunk arrives early
-            if elapsed < -self.playback_timing_tolerance:
+            if time_until_target_playback_time < -self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
@@ -496,11 +500,13 @@ class Output():
                 )
 
                 # Calculate the number of bytes to pad with silence
-                silent_bytes = min(
-                    int(abs(elapsed) * self.bytes_per_second),
-                    self.chunk_length - len(out_data)
+                silent_bytes = max(
+                    min(
+                        int((self.current_target_playback_time - time.time()) * self.bytes_per_second),
+                        remaining_space
+                    ),
+                    0
                 )
-                remaining_space = self.chunk_length - len(out_data)
 
                 # Pad the remaining bytes of the return audio stream chunk with silence
                 if silent_bytes >= remaining_space:
@@ -512,7 +518,7 @@ class Output():
 
             # Propagate data into the return audio stream chunk
             start_byte = self.current_position
-            end_byte = min(start_byte + (self.chunk_length - len(out_data)), len(self.current_chunk))
+            end_byte = min(start_byte + remaining_space, len(self.current_chunk))
             out_data += self.current_chunk[start_byte:end_byte]
             self.current_position = end_byte
 
@@ -521,8 +527,7 @@ class Output():
                 self.current_chunk = None
 
         # Check if the return audio stream chunk contains silent bytes
-        silent_sample = self.silent_chunk(length=1)
-        has_silence = silent_sample in out_data
+        has_silence = self.silent_sample in out_data
         all_silence = out_data == self.silent_chunk(length=self.chunk_length)
 
         if has_silence and not all_silence:
