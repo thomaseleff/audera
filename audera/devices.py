@@ -437,7 +437,11 @@ class Output():
         """
 
         # Convert the digital-to-analog converter output time to local-time
-        dac_playback_time = time_info['output_buffer_dac_time'] + (time.time() - time_info['current_time'])
+        dac_playback_time = (
+            time_info['output_buffer_dac_time']
+            + self.stream.get_output_latency()
+            + (time.time() - time_info['current_time'])
+        )
 
         # Construct the audio stream chunk
         out_data = b''
@@ -492,7 +496,7 @@ class Output():
 
                 # Logging
                 self.logger.warning(
-                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and DAC latency %.7f.' % (
+                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and DAC latency %.7f [sec.].' % (
                         self.current_target_playback_time - dac_playback_time,
                         self.current_playback_time,
                         self.stream.get_output_latency()
