@@ -448,9 +448,6 @@ class Output():
 
         while len(out_data) < self.chunk_length:
 
-            # Track the remaining space in the audio stream chunk
-            remaining_bytes = self.chunk_length - len(out_data)
-
             # Get the next audio stream packet from the buffer queue
             if self.current_chunk is None:
                 try:
@@ -485,7 +482,7 @@ class Output():
 
                 # Create a silent audio stream chunk when the buffer queue is empty
                 except asyncio.QueueEmpty:
-                    out_data += self.silent_chunk(length=remaining_bytes)
+                    out_data += self.silent_chunk(length=(self.chunk_length - len(out_data)))
                     break
 
             # Determine how much time has elapsed since the target playback time
@@ -507,14 +504,14 @@ class Output():
                 self.current_silent_bytes = max(
                     min(
                         int(time_until_target_playback_time * self.bytes_per_second),
-                        remaining_bytes
+                        (self.chunk_length - len(out_data))
                     ),
                     0
                 )
 
                 # Pad the remaining bytes of the return audio stream chunk with silence
-                if self.current_silent_bytes >= remaining_bytes:
-                    out_data += self.silent_chunk(length=remaining_bytes)
+                if self.current_silent_bytes >= (self.chunk_length - len(out_data)):
+                    out_data += self.silent_chunk(length=(self.chunk_length - len(out_data)))
                     break
 
                 # Pad only up to the target playback time with silence
@@ -522,7 +519,7 @@ class Output():
 
             # Propagate data into the return audio stream chunk
             start_byte = self.current_position
-            end_byte = min(start_byte + remaining_bytes, len(self.current_chunk))
+            end_byte = min(start_byte + (self.chunk_length - len(out_data)), len(self.current_chunk))
             out_data += self.current_chunk[start_byte:end_byte]
             self.current_position = end_byte
 
