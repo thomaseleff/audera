@@ -1,6 +1,7 @@
 """ Audio I / O device manager """
 
 from __future__ import annotations
+from typing import Union
 import logging
 import asyncio
 import time
@@ -199,6 +200,11 @@ class Output():
         self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
         self.time_offset: float = time_offset
         self.playback_timing_tolerance: float = playback_timing_tolerance
+
+        # Initialize the audio stream chunk
+        self.current_chunk: Union[bytes, None] = None
+        self.current_target_playback_time: Union[float, None] = None
+        self.current_position: int = 0
 
     @property
     def chunk_length(self) -> int:
