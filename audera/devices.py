@@ -481,7 +481,7 @@ class Output():
 
                 # Create a silent audio stream chunk when the buffer queue is empty
                 except asyncio.QueueEmpty:
-                    out_data += self.silent_chunk(length=(self.chunk_length - len(out_data)))
+                    out_data += self.silent_chunk(length=int(self.chunk_length - len(out_data)))
                     break
 
             # Determine how much time has elapsed since the target playback time
@@ -490,7 +490,7 @@ class Output():
             # Pad the return audio stream chunk with silence when the chunk arrives early,
             #   accounting for any audio data already propagated into the chunk
 
-            if time_until_target_playback_time + (out_data / self.bytes_per_second) < -self.playback_timing_tolerance:
+            if time_until_target_playback_time + int(len(out_data) / self.bytes_per_second) < -self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
@@ -505,14 +505,14 @@ class Output():
                 self.current_silent_bytes = max(
                     min(
                         int(time_until_target_playback_time * self.bytes_per_second),
-                        (self.chunk_length - len(out_data))
+                        int(self.chunk_length - len(out_data))
                     ),
                     0
                 )
 
                 # Pad the remaining bytes of the return audio stream chunk with silence
-                if self.current_silent_bytes >= (self.chunk_length - len(out_data)):
-                    out_data += self.silent_chunk(length=(self.chunk_length - len(out_data)))
+                if self.current_silent_bytes >= int(self.chunk_length - len(out_data)):
+                    out_data += self.silent_chunk(length=int(self.chunk_length - len(out_data)))
                     break
 
                 # Pad only up to the target playback time with silence
@@ -520,19 +520,16 @@ class Output():
 
             # Propagate data into the return audio stream chunk
             start_byte = self.current_position
-            end_byte = min(start_byte + (self.chunk_length - len(out_data)), len(self.current_chunk))
+            end_byte = min(int(start_byte + self.chunk_length - len(out_data)), self.chunk_length)
             out_data += self.current_chunk[start_byte:end_byte]
             self.current_position = end_byte
 
             # Get the next audio stream packet from the buffer queue
-            if self.current_position >= len(self.current_chunk):
+            if self.current_position >= self.chunk_length:
                 self.current_chunk = None
 
         # Check if the return audio stream chunk contains silent bytes
-        has_silence = self.silent_sample in out_data
-        all_silence = out_data == self.silent_chunk(length=self.chunk_length)
-
-        if has_silence and not all_silence:
+        if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
 
             # Logging
             self.logger.warning(
