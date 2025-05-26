@@ -202,12 +202,12 @@ class Input():
         )
 
         # Logging
-        # self.logger.info(
-        #     'Capturing audio stream packet with est. capture time %.7f [sec.] and playback time %.7f [sec.].' % (
-        #         time.time() + self.time_offset - self.stream.get_input_latency(),
-        #         playback_time
-        #     )
-        # )
+        self.logger.info(
+            'Capturing audio stream packet with est. capture time %.7f [sec.] and playback time %.7f [sec.].' % (
+                time.time() + self.time_offset - self.stream.get_input_latency(),
+                playback_time
+            )
+        )
 
         # Convert the audio data chunk to a timestamped packet, including the length of
         #   the packet as well as the packet terminator. Assign the timestamp as the target
@@ -317,7 +317,8 @@ class Output():
         self.current_playback_time: Union[float, None] = None
         self.current_target_playback_time: Union[float, None] = None
         self.current_position: int = 0
-        self.current_silent_bytes: Union[int, None] = None
+        self.current_num_silent_bytes: Union[int, None] = None
+        self.time_until_target_playback_time: Union[float, None] = None
         self.silent_sample: int = self.silent_chunk(length=1)
 
     @property
@@ -588,7 +589,7 @@ class Output():
                     self.current_playback_time = playback_time
                     self.current_target_playback_time = target_playback_time
                     self.current_position = 0
-                    self.current_silent_bytes = None
+                    self.current_num_silent_bytes = None
                     self.time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
                 # Create a silent audio stream chunk when the buffer queue is empty
@@ -616,7 +617,7 @@ class Output():
                 )
 
                 # Calculate the number of bytes to pad with silence
-                self.current_silent_bytes = max(
+                self.current_num_silent_bytes = max(
                     min(
                         int(self.time_until_target_playback_time * self.bytes_per_second),
                         int(self.chunk_length - len(out_data))
@@ -625,7 +626,7 @@ class Output():
                 )
 
                 # Pad the audio stream chunk with silence
-                out_data += self.silent_chunk(length=self.current_silent_bytes)
+                out_data += self.silent_chunk(length=self.current_num_silent_bytes)
 
             # Propagate data into the return audio stream chunk
             start_byte = self.current_position
@@ -643,7 +644,7 @@ class Output():
                     dac_playback_time,
                     self.current_target_playback_time,
                     self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
-                    len(self.current_silent_bytes),
+                    self.current_num_silent_bytes,
                     self.current_position,
                     self.chunk_length
                 )
