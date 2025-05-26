@@ -439,7 +439,6 @@ class Output():
         # Convert the digital-to-analog converter output time to local-time
         dac_playback_time = (
             time_info['output_buffer_dac_time']
-            + self.stream.get_output_latency()
             + (time.time() - time_info['current_time'])
         )
 
@@ -488,12 +487,14 @@ class Output():
             # Determine how much time has elapsed since the target playback time
             time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
-            # Pad the return audio stream chunk with silence when the chunk arrives early
-            if time_until_target_playback_time < -self.playback_timing_tolerance and not self.current_silent_bytes:
+            # Pad the return audio stream chunk with silence when the chunk arrives early,
+            #   accounting for any audio data already propagated into the chunk
+
+            if time_until_target_playback_time + (out_data / self.bytes_per_second) < -self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
-                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and DAC latency %.7f [sec.].' % (
+                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and dac latency %.7f [sec.].' % (
                         self.current_target_playback_time - dac_playback_time,
                         self.current_playback_time,
                         self.stream.get_output_latency()
