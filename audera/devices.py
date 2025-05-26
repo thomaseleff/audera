@@ -589,6 +589,7 @@ class Output():
                     self.current_target_playback_time = target_playback_time
                     self.current_position = 0
                     self.current_silent_bytes = None
+                    self.time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
                 # Create a silent audio stream chunk when the buffer queue is empty
                 except asyncio.QueueEmpty:
@@ -596,12 +597,15 @@ class Output():
                     break
 
             # Determine how much time has elapsed since the target playback time
-            time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
+            # time_until_target_playback_time
 
             # Pad the return audio stream chunk with silence when the chunk arrives early,
             #   accounting for any audio data already propagated into the chunk
 
-            if time_until_target_playback_time + int(len(out_data) / self.bytes_per_second) < -self.playback_timing_tolerance:
+            if (
+                self.time_until_target_playback_time
+                + int(len(out_data) / self.bytes_per_second)
+             ) < -self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
@@ -614,7 +618,7 @@ class Output():
                 # Calculate the number of bytes to pad with silence
                 self.current_silent_bytes = max(
                     min(
-                        int(time_until_target_playback_time * self.bytes_per_second),
+                        int(self.time_until_target_playback_time * self.bytes_per_second),
                         int(self.chunk_length - len(out_data))
                     ),
                     0
@@ -633,17 +637,17 @@ class Output():
             if self.current_position >= self.chunk_length:
                 self.current_chunk = None
 
-        # Logging
-        self.logger.info(
-            'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
-                dac_playback_time,
-                self.current_target_playback_time,
-                time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
-                len(self.current_silent_bytes),
-                self.current_position,
-                self.chunk_length
+            # Logging
+            self.logger.info(
+                'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
+                    dac_playback_time,
+                    self.current_target_playback_time,
+                    self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
+                    len(self.current_silent_bytes),
+                    self.current_position,
+                    self.chunk_length
+                )
             )
-        )
 
         # Check if the return audio stream chunk contains silent bytes
         if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
