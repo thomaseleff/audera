@@ -110,16 +110,24 @@ class Service():
         #   stream. The system default audio input device is automatically selected.
 
         self.audio_input = audera.devices.Input(
+            logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
-            device=audera.dal.devices.get_device('input')
+            device=audera.dal.devices.get_device('input'),
+            buffer_size=audera.BUFFER_SIZE,
+            playback_delay=audera.PLAYBACK_DELAY,
+            terminator=(
+                audera.PACKET_TERMINATOR  # 4 bytes
+                + audera.NAME.encode()  # 6 bytes
+                + audera.PACKET_ESCAPE  # 1 byte
+                + audera.PACKET_ESCAPE  # 1 byte
+            )
         )
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.ntp_offset: float = 0.0
 
         # Initialize playback delay and rtt-history
-        self.playback_delay: float = audera.PLAYBACK_DELAY
+        # self.playback_delay: float = audera.PLAYBACK_DELAY
         self.rtt_history: list[float] = []
 
         # Initialize process control parameters
@@ -127,13 +135,13 @@ class Service():
 
     def get_streamer_time(self) -> float:
         """ Returns the network time protocol (ntp) synchronized time on the streamer. """
-        return time.time() + self.ntp_offset
+        return time.time() + self.audio_input.time_offset
 
-    def get_playback_time(self) -> float:
-        """ Returns the playback time based on the current time, playback delay and
-        network time protocol (ntp) server offset.
-        """
-        return self.get_streamer_time() + self.playback_delay
+    # def get_playback_time(self) -> float:
+    #     """ Returns the playback time based on the current time, playback delay and
+    #     network time protocol (ntp) server offset.
+    #     """
+    #     return self.get_streamer_time() + self.playback_delay
 
     async def ntp_synchronizer(self):
         """ The async `micro-service` for network time protocol (ntp) synchronization.
@@ -152,12 +160,12 @@ class Service():
                 try:
 
                     # Update the local machine time offset from the network time protocol (ntp) server
-                    self.ntp_offset = self.ntp.offset()
+                    self.audio_input.time_offset = self.ntp.offset()
 
                     # Logging
                     self.logger.info(
                         'The ntp server time offset is %.7f [sec.].' % (
-                            self.ntp_offset
+                            self.audio_input.time_offset
                         )
                     )
 
@@ -665,30 +673,34 @@ class Service():
                 previous_num_players = self.stream_session.num_players
 
                 # Read the next audio data chunk from the audio stream
-                chunk = self.audio_input.stream.read(
-                    self.audio_input.interface.chunk,
-                    exception_on_overflow=False
-                )
+                # chunk = self.audio_input.stream.read(
+                #     self.audio_input.interface.chunk,
+                #     exception_on_overflow=False
+                # )
+                packet = await self.audio_input.buffer.get()
+
+                # Get playback time
+                # recorded_time = self.get_playback_time()
 
                 # Convert the audio data chunk to a timestamped packet, including the length of
                 #   the packet as well as the packet terminator. Assign the timestamp as the target
                 #   playback time accounting for a fixed playback delay from the current time on
                 #   the streamer.
 
-                length = struct.pack(">I", len(chunk))
-                playback_time = struct.pack(
-                    "d",
-                    self.get_playback_time()
-                )
-                packet = (
-                    length  # 4 bytes
-                    + playback_time  # 8 bytes
-                    + chunk
-                    + audera.PACKET_TERMINATOR  # 4 bytes
-                    + audera.NAME.encode()  # 6 bytes
-                    + audera.PACKET_ESCAPE  # 1 byte
-                    + audera.PACKET_ESCAPE  # 1 byte
-                )
+                # length = struct.pack(">I", len(chunk))
+                # playback_time = struct.pack(
+                #     "d",
+                #     recorded_time
+                # )
+                # packet = (
+                #     length  # 4 bytes
+                #     + playback_time  # 8 bytes
+                #     + chunk
+                #     + audera.PACKET_TERMINATOR  # 4 bytes
+                #     + audera.NAME.encode()  # 6 bytes
+                #     + audera.PACKET_ESCAPE  # 1 byte
+                #     + audera.PACKET_ESCAPE  # 1 byte
+                # )
 
                 # Broadcast the packet to the players concurrently and drain the writer with timeout
                 #   for flow control, detaching any / all players that are too slow

@@ -18,26 +18,54 @@ class Input():
 
     Parameters
     ----------
+    logger: `audera.logging.Logger`
+        An instance of `audera.logging.Logger`.
     interface: `audera.struct.audio.Interface`
         An `audera.struct.audio.Interface` object.
     device: `audera.struct.audio.Device`
         An `audera.struct.audio.Device` object that represents an audio input.
+    buffer_size: `int`
+        The number of audio packets to buffer before streaming.
+    playback_delay: `float`
+        The time in seconds to apply to the playback time of each audio packet.
+    terminator: `bytes`
+        The bytes suffix that indicates the end of a packet.
+    time_offset: `float`
+        The time offset in seconds between the local time on the streamer and network time.
     """
 
     def __init__(
         self,
+        logger: logging.Logger,
         interface: struct_.audio.Interface,
-        device: struct_.audio.Device
+        device: struct_.audio.Device,
+        buffer_size: int,
+        playback_delay: float,
+        terminator: bytes,
+        time_offset: float = 0.0
     ):
         """ Initializes an instance of an audio device input.
 
         Parameters
         ----------
+        logger: `audera.logging.Logger`
+            An instance of `audera.logging.Logger`.
         interface: `audera.struct.audio.Interface`
             An `audera.struct.audio.Interface` object.
         device: `audera.struct.audio.Device`
             An `audera.struct.audio.Device` object that represents an audio input.
+        buffer_size: `int`
+            The number of audio packets to buffer before streaming.
+        playback_delay: `float`
+            The time in seconds to apply to the playback time of each audio packet.
+        terminator: `bytes`
+            The bytes suffix that indicates the end of a packet.
+        time_offset: `float`
+            The time offset in seconds between the local time on the streamer and network time.
         """
+
+        # Logging
+        self.logger = logger
 
         # Initialize the audio stream
         self.interface: struct_.audio.Interface = interface
@@ -49,8 +77,16 @@ class Input():
             channels=interface.channels,
             frames_per_buffer=interface.chunk,
             input=True,
-            input_device_index=device.index
+            output=True,  # Forces time-info in the callback
+            input_device_index=device.index,
+            stream_callback=self.audio_capture_callback
         )
+
+        # Initialize the audio buffer and time offset
+        self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
+        self.playback_delay: float = playback_delay
+        self.terminator: bytes = terminator
+        self.time_offset: float = time_offset
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -125,12 +161,85 @@ class Input():
                 channels=self.interface.channels,
                 frames_per_buffer=self.interface.chunk,
                 input=True,
-                input_device_index=self.device.index
+                output=True,  # Forces time-info in the callback
+                input_device_index=self.device.index,
+                stream_callback=self.audio_capture_callback
             )
 
             return True
         else:
             return False
+
+    def audio_capture_callback(
+        self,
+        in_data: bytes,
+        frame_count: int,
+        time_info: dict,
+        status: int
+    ) -> tuple[bytes, int]:
+        """ Adds the next audio stream packet to the playback buffer, discarding old / stale
+        audio packets.
+
+        Parameters
+        ----------
+        in_data: `bytes`
+            The audio data chunk as bytes.
+        frame_count: `int`
+            The number of frames in the audio data chunk.
+        time_info: `dict`
+            A dictionary containing the current time and the input buffer time.
+        status: `int`
+            The status of the audio stream.
+        """
+
+        # Get playback time
+        playback_time = (
+            time.time()
+            - self.stream.get_input_latency()
+            + time_info["output_buffer_dac_time"] - time_info["current_time"]
+            + self.time_offset
+            + self.playback_delay
+        )
+
+        # Logging
+        # self.logger.info(
+        #     'Capturing audio stream packet with est. capture time %.7f [sec.] and playback time %.7f [sec.].' % (
+        #         time.time() + self.time_offset - self.stream.get_input_latency(),
+        #         playback_time
+        #     )
+        # )
+
+        # Convert the audio data chunk to a timestamped packet, including the length of
+        #   the packet as well as the packet terminator. Assign the timestamp as the target
+        #   playback time accounting for a fixed playback delay from the current time on
+        #   the streamer.
+
+        length = struct.pack(">I", len(in_data))
+        playback_time = struct.pack(
+            "d",
+            playback_time
+        )
+        packet = (
+            length  # 4 bytes
+            + playback_time  # 8 bytes
+            + in_data
+            + self.terminator
+        )
+
+        # Put the next audio stream packet into the buffer queue
+        try:
+            self.buffer.put_nowait(packet)
+
+        # When the buffer queue is full, remove the oldest / stale packet and add the next audio stream packet
+        except asyncio.QueueFull:
+            try:
+                _ = self.buffer.get_nowait()
+                self.buffer.put_nowait(packet)
+
+            except asyncio.QueueEmpty:  # Rare condition
+                self.buffer.put_nowait(packet)
+
+        return (in_data, pyaudio.paContinue)
 
 
 class Output():
@@ -149,6 +258,8 @@ class Output():
     time_offset: `float`
         The time offset in seconds between the local time on the remote audio
         output player and the audio streamer for synchronizing the audio playback stream.
+    playback_timing_tolerance: `float`
+        The tolerance in seconds for determining on-time packets.
     """
 
     def __init__(
@@ -176,7 +287,7 @@ class Output():
             The time offset in seconds between the local time on the remote audio
                 output player and the audio streamer for synchronizing the audio playback stream.
         playback_timing_tolerance: `float`
-            The tolerance in seconds for determining playback timing.
+            The tolerance in seconds for determining on-time packets.
         """
 
         # Logging
@@ -344,11 +455,11 @@ class Output():
             The status of the audio stream.
         """
 
-        # Calculate the digital-to-analog converter (dac) offset
-        dac_offset = time.time() - time_info['current_time']
-
         # Convert the digital-to-analog converter output time to local-time
-        dac_playback_time = time_info['output_buffer_dac_time'] + dac_offset
+        dac_playback_time = (
+            time_info['output_buffer_dac_time']
+            + (time.time() - time_info['current_time'])
+        )
 
         # Discard invalid packets
         while not self.buffer.empty():
@@ -379,7 +490,7 @@ class Output():
             target_playback_time = playback_time - self.time_offset
 
             # Discard late packets
-            if target_playback_time < dac_playback_time:
+            if dac_playback_time - target_playback_time > self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
@@ -494,10 +605,9 @@ class Output():
 
                 # Logging
                 self.logger.warning(
-                    'Early packet %.7f [sec.] with playback time %.7f [sec.] and dac latency %.7f [sec.].' % (
+                    'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
                         self.current_target_playback_time - dac_playback_time,
-                        self.current_playback_time,
-                        self.stream.get_output_latency()
+                        self.current_playback_time
                     )
                 )
 
@@ -510,12 +620,7 @@ class Output():
                     0
                 )
 
-                # Pad the remaining bytes of the return audio stream chunk with silence
-                if self.current_silent_bytes >= int(self.chunk_length - len(out_data)):
-                    out_data += self.silent_chunk(length=int(self.chunk_length - len(out_data)))
-                    break
-
-                # Pad only up to the target playback time with silence
+                # Pad the audio stream chunk with silence
                 out_data += self.silent_chunk(length=self.current_silent_bytes)
 
             # Propagate data into the return audio stream chunk
@@ -527,6 +632,18 @@ class Output():
             # Get the next audio stream packet from the buffer queue
             if self.current_position >= self.chunk_length:
                 self.current_chunk = None
+
+        # Logging
+        self.logger.info(
+            'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
+                dac_playback_time,
+                self.current_target_playback_time,
+                time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
+                len(self.current_silent_bytes),
+                self.current_position,
+                self.chunk_length
+            )
+        )
 
         # Check if the return audio stream chunk contains silent bytes
         if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
