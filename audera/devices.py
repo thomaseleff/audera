@@ -317,8 +317,8 @@ class Output():
         self.current_playback_time: Union[float, None] = None
         self.current_target_playback_time: Union[float, None] = None
         self.current_position: int = 0
-        self.current_num_silent_bytes: Union[int, None] = None
-        self.time_until_target_playback_time: Union[float, None] = None
+        self.current_num_silent_bytes: int = 0
+        self.time_until_target_playback_time: float = 0.0
         self.silent_sample: int = self.silent_chunk(length=1)
 
     @property
@@ -571,6 +571,14 @@ class Output():
                     # Calculate the target playback time in the player local time
                     target_playback_time = playback_time - self.time_offset
 
+                    # Logging
+                    self.logger.info(
+                        'Parsing audio stream packet for chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.].' % (
+                            dac_playback_time,
+                            target_playback_time
+                        )
+                    )
+
                     # Discard late packets
                     if dac_playback_time - target_playback_time > self.playback_timing_tolerance:
 
@@ -589,7 +597,7 @@ class Output():
                     self.current_playback_time = playback_time
                     self.current_target_playback_time = target_playback_time
                     self.current_position = 0
-                    self.current_num_silent_bytes = None
+                    self.current_num_silent_bytes = 0
                     self.time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
                 # Create a silent audio stream chunk when the buffer queue is empty
@@ -638,15 +646,22 @@ class Output():
             if self.current_position >= self.chunk_length:
                 self.current_chunk = None
 
+            # Logging
+            self.logger.info(
+                'Constructing audio stream chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
+                    dac_playback_time,
+                    self.current_target_playback_time,
+                    self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
+                    self.current_num_silent_bytes,
+                    self.current_position,
+                    self.chunk_length
+                )
+            )
+
         # Logging
         self.logger.info(
-            'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
-                dac_playback_time,
-                self.current_target_playback_time,
-                self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
-                self.current_num_silent_bytes,
-                self.current_position,
-                self.chunk_length
+            'Played constructed audio stream chunk with dac playback time %.7f [sec.].' % (
+                dac_playback_time
             )
         )
 
