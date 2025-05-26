@@ -638,17 +638,17 @@ class Output():
             if self.current_position >= self.chunk_length:
                 self.current_chunk = None
 
-            # Logging
-            self.logger.info(
-                'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
-                    dac_playback_time,
-                    self.current_target_playback_time,
-                    self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
-                    self.current_num_silent_bytes,
-                    self.current_position,
-                    self.chunk_length
-                )
+        # Logging
+        self.logger.info(
+            'Played packet with dac playback time %.7f [sec.], playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
+                dac_playback_time,
+                self.current_target_playback_time,
+                self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
+                self.current_num_silent_bytes,
+                self.current_position,
+                self.chunk_length
             )
+        )
 
         # Check if the return audio stream chunk contains silent bytes
         if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
