@@ -304,7 +304,7 @@ class Output():
             frames_per_buffer=interface.chunk,
             output=True,
             output_device_index=device.index,
-            stream_callback=self.audio_playback_callback_v2
+            stream_callback=self.audio_playback_callback
         )
 
         # Initialize the audio buffer and time offset
@@ -427,7 +427,7 @@ class Output():
                 frames_per_buffer=self.interface.chunk,
                 output=True,
                 output_device_index=self.device.index,
-                stream_callback=self.audio_playback_callback_v2
+                stream_callback=self.audio_playback_callback
             )
 
             return True
