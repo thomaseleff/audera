@@ -1,5 +1,6 @@
 """ Streamer service """
 
+from typing import Union
 import ntplib
 import asyncio
 import socket
@@ -122,6 +123,7 @@ class Service():
                 + audera.PACKET_ESCAPE  # 1 byte
             )
         )
+        self.last_audio_capture_time: Union[float, None] = None
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
@@ -137,11 +139,22 @@ class Service():
         """ Returns the network time protocol (ntp) synchronized time on the streamer. """
         return time.time() + self.audio_input.time_offset
 
-    # def get_playback_time(self) -> float:
-    #     """ Returns the playback time based on the current time, playback delay and
-    #     network time protocol (ntp) server offset.
-    #     """
-    #     return self.get_streamer_time() + self.playback_delay
+    def get_playback_time(self) -> float:
+        """ Returns the playback time based on the current time, playback delay, the
+        network time protocol (ntp) server offset and the last audio capture time.
+        """
+        playback_time = self.get_streamer_time() + self.audio_input.playback_delay
+
+        # Set the last audio capture time to the current playback time for the first chunk in
+        #   the audio capture stream. Otherwise, extend the last audio capture time by the chunk
+        #   duration for all following chunks in the audio capture stream.
+
+        if not self.last_audio_capture_time:
+            self.last_audio_capture_time = playback_time
+        else:
+            self.last_audio_capture_time += self.audio_input.chunk_duration
+
+        return self.last_audio_capture_time
 
     async def ntp_synchronizer(self):
         """ The async `micro-service` for network time protocol (ntp) synchronization.
@@ -673,34 +686,41 @@ class Service():
                 previous_num_players = self.stream_session.num_players
 
                 # Read the next audio data chunk from the audio stream
-                # chunk = self.audio_input.stream.read(
-                #     self.audio_input.interface.chunk,
-                #     exception_on_overflow=False
-                # )
-                packet = await self.audio_input.buffer.get()
+                chunk = self.audio_input.stream.read(
+                    self.audio_input.interface.chunk,
+                    exception_on_overflow=False
+                )
+                # packet = await self.audio_input.buffer.get()  # For callback method
 
                 # Get playback time
-                # recorded_time = self.get_playback_time()
+                playback_time = self.get_playback_time()
+
+                # Logging
+                self.logger.info(
+                    'Capturing audio stream packet with playback time %.7f [sec.].' % (
+                        playback_time
+                    )
+                )
 
                 # Convert the audio data chunk to a timestamped packet, including the length of
                 #   the packet as well as the packet terminator. Assign the timestamp as the target
                 #   playback time accounting for a fixed playback delay from the current time on
                 #   the streamer.
 
-                # length = struct.pack(">I", len(chunk))
-                # playback_time = struct.pack(
-                #     "d",
-                #     recorded_time
-                # )
-                # packet = (
-                #     length  # 4 bytes
-                #     + playback_time  # 8 bytes
-                #     + chunk
-                #     + audera.PACKET_TERMINATOR  # 4 bytes
-                #     + audera.NAME.encode()  # 6 bytes
-                #     + audera.PACKET_ESCAPE  # 1 byte
-                #     + audera.PACKET_ESCAPE  # 1 byte
-                # )
+                length = struct.pack(">I", len(chunk))
+                playback_time = struct.pack(
+                    "d",
+                    playback_time
+                )
+                packet = (
+                    length  # 4 bytes
+                    + playback_time  # 8 bytes
+                    + chunk
+                    + audera.PACKET_TERMINATOR  # 4 bytes
+                    + audera.NAME.encode()  # 6 bytes
+                    + audera.PACKET_ESCAPE  # 1 byte
+                    + audera.PACKET_ESCAPE  # 1 byte
+                )
 
                 # Broadcast the packet to the players concurrently and drain the writer with timeout
                 #   for flow control, detaching any / all players that are too slow

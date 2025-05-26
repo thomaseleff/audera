@@ -77,9 +77,9 @@ class Input():
             channels=interface.channels,
             frames_per_buffer=interface.chunk,
             input=True,
-            output=True,  # Forces time-info in the callback
+            # output=True,  # Forces time-info in the callback
             input_device_index=device.index,
-            stream_callback=self.audio_capture_callback
+            # stream_callback=self.audio_capture_callback
         )
 
         # Initialize the audio buffer and time offset
@@ -87,6 +87,30 @@ class Input():
         self.playback_delay: float = playback_delay
         self.terminator: bytes = terminator
         self.time_offset: float = time_offset
+
+    @property
+    def chunk_length(self) -> int:
+        """ The number of bytes in the audio data chunk. """
+        return (
+            self.interface.chunk
+            * self.interface.channels
+            * self.interface.bit_rate // 8
+        )
+
+    @property
+    def frame_size(self) -> int:
+        """ The number of bytes in a single frame of audio data. """
+        return self.interface.channels * self.interface.bit_rate // 8
+
+    @property
+    def bytes_per_second(self) -> int:
+        """ The number of bytes in a second of audio data. """
+        return self.interface.rate * self.frame_size
+
+    @property
+    def chunk_duration(self) -> float:
+        """ The duration of the audio data chunk in seconds. """
+        return self.interface.chunk / self.interface.rate
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -161,85 +185,85 @@ class Input():
                 channels=self.interface.channels,
                 frames_per_buffer=self.interface.chunk,
                 input=True,
-                output=True,  # Forces time-info in the callback
+                # output=True,  # Forces time-info in the callback
                 input_device_index=self.device.index,
-                stream_callback=self.audio_capture_callback
+                # stream_callback=self.audio_capture_callback
             )
 
             return True
         else:
             return False
 
-    def audio_capture_callback(
-        self,
-        in_data: bytes,
-        frame_count: int,
-        time_info: dict,
-        status: int
-    ) -> tuple[bytes, int]:
-        """ Adds the next audio stream packet to the playback buffer, discarding old / stale
-        audio packets.
+    # def audio_capture_callback(
+    #     self,
+    #     in_data: bytes,
+    #     frame_count: int,
+    #     time_info: dict,
+    #     status: int
+    # ) -> tuple[bytes, int]:
+    #     """ Adds the next audio stream packet to the playback buffer, discarding old / stale
+    #     audio packets.
 
-        Parameters
-        ----------
-        in_data: `bytes`
-            The audio data chunk as bytes.
-        frame_count: `int`
-            The number of frames in the audio data chunk.
-        time_info: `dict`
-            A dictionary containing the current time and the input buffer time.
-        status: `int`
-            The status of the audio stream.
-        """
+    #     Parameters
+    #     ----------
+    #     in_data: `bytes`
+    #         The audio data chunk as bytes.
+    #     frame_count: `int`
+    #         The number of frames in the audio data chunk.
+    #     time_info: `dict`
+    #         A dictionary containing the current time and the input buffer time.
+    #     status: `int`
+    #         The status of the audio stream.
+    #     """
 
-        # Get playback time
-        playback_time = (
-            time.time()
-            - self.stream.get_input_latency()
-            + time_info["output_buffer_dac_time"] - time_info["current_time"]
-            + self.time_offset
-            + self.playback_delay
-        )
+    #     # Get playback time
+    #     playback_time = (
+    #         time.time()
+    #         - self.stream.get_input_latency()
+    #         + time_info["output_buffer_dac_time"] - time_info["current_time"]
+    #         + self.time_offset
+    #         + self.playback_delay
+    #     )
 
-        # Logging
-        self.logger.info(
-            'Capturing audio stream packet with est. capture time %.7f [sec.] and playback time %.7f [sec.].' % (
-                time.time() + self.time_offset - self.stream.get_input_latency(),
-                playback_time
-            )
-        )
+    #     # Logging
+    #     self.logger.info(
+    #         'Capturing audio stream packet with est. capture time %.7f [sec.] and playback time %.7f [sec.].' % (
+    #             time.time() + self.time_offset - self.stream.get_input_latency(),
+    #             playback_time
+    #         )
+    #     )
 
-        # Convert the audio data chunk to a timestamped packet, including the length of
-        #   the packet as well as the packet terminator. Assign the timestamp as the target
-        #   playback time accounting for a fixed playback delay from the current time on
-        #   the streamer.
+    #     # Convert the audio data chunk to a timestamped packet, including the length of
+    #     #   the packet as well as the packet terminator. Assign the timestamp as the target
+    #     #   playback time accounting for a fixed playback delay from the current time on
+    #     #   the streamer.
 
-        length = struct.pack(">I", len(in_data))
-        playback_time = struct.pack(
-            "d",
-            playback_time
-        )
-        packet = (
-            length  # 4 bytes
-            + playback_time  # 8 bytes
-            + in_data
-            + self.terminator
-        )
+    #     length = struct.pack(">I", len(in_data))
+    #     playback_time = struct.pack(
+    #         "d",
+    #         playback_time
+    #     )
+    #     packet = (
+    #         length  # 4 bytes
+    #         + playback_time  # 8 bytes
+    #         + in_data
+    #         + self.terminator
+    #     )
 
-        # Put the next audio stream packet into the buffer queue
-        try:
-            self.buffer.put_nowait(packet)
+    #     # Put the next audio stream packet into the buffer queue
+    #     try:
+    #         self.buffer.put_nowait(packet)
 
-        # When the buffer queue is full, remove the oldest / stale packet and add the next audio stream packet
-        except asyncio.QueueFull:
-            try:
-                _ = self.buffer.get_nowait()
-                self.buffer.put_nowait(packet)
+    #     # When the buffer queue is full, remove the oldest / stale packet and add the next audio stream packet
+    #     except asyncio.QueueFull:
+    #         try:
+    #             _ = self.buffer.get_nowait()
+    #             self.buffer.put_nowait(packet)
 
-            except asyncio.QueueEmpty:  # Rare condition
-                self.buffer.put_nowait(packet)
+    #         except asyncio.QueueEmpty:  # Rare condition
+    #             self.buffer.put_nowait(packet)
 
-        return (in_data, pyaudio.paContinue)
+    #     return (in_data, pyaudio.paContinue)
 
 
 class Output():
