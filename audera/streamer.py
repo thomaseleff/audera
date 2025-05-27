@@ -682,6 +682,9 @@ class Service():
 
                     await asyncio.sleep(audera.TIME_OUT)
 
+                    # Reset the last audio capture time
+                    self.last_audio_capture_time = None
+
                 # Update the number of remote audio output players
                 previous_num_players = self.stream_session.num_players
 
