@@ -513,14 +513,31 @@ class Output():
 
             # Calculate the target playback time in the player local time
             target_playback_time = playback_time - self.time_offset
+            time_difference = dac_playback_time - target_playback_time
 
             # Discard late packets
-            if dac_playback_time - target_playback_time > self.playback_timing_tolerance:
+            if time_difference > self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
                     'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                        target_playback_time - dac_playback_time,
+                        time_difference,
+                        playback_time
+                    )
+                )
+
+                # Remove the late packet from the buffer queue
+                _ = self.buffer.get_nowait()
+
+                continue
+
+            # Discard early packets
+            if time_difference < self.playback_timing_tolerance:
+
+                # Logging
+                self.logger.warning(
+                    'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
+                        time_difference,
                         playback_time
                     )
                 )
@@ -548,170 +565,170 @@ class Output():
         # Return the audio stream chunk
         return (chunk, pyaudio.paContinue)
 
-    def audio_playback_callback_v2(
-        self,
-        in_data: bytes,
-        frame_count: int,
-        time_info: dict,
-        status: int
-    ) -> tuple[bytes, int]:
-        """ Returns the next audio stream packet from the playback buffer, discarding incomplete
-        or late packets and propagating the audio data into the return audio stream chunk.
-        This is a more advanced version of the audio playback callback function that manages early
-        packets.
+    # def audio_playback_callback_v2(
+    #     self,
+    #     in_data: bytes,
+    #     frame_count: int,
+    #     time_info: dict,
+    #     status: int
+    # ) -> tuple[bytes, int]:
+    #     """ Returns the next audio stream packet from the playback buffer, discarding incomplete
+    #     or late packets and propagating the audio data into the return audio stream chunk.
+    #     This is a more advanced version of the audio playback callback function that manages early
+    #     packets.
 
-        Parameters
-        ----------
-        in_data: `bytes`
-            The audio data chunk as bytes.
-        frame_count: `int`
-            The number of frames in the audio data chunk.
-        time_info: `dict`
-            A dictionary containing the current time and the input buffer time.
-        status: `int`
-            The status of the audio stream.
-        """
+    #     Parameters
+    #     ----------
+    #     in_data: `bytes`
+    #         The audio data chunk as bytes.
+    #     frame_count: `int`
+    #         The number of frames in the audio data chunk.
+    #     time_info: `dict`
+    #         A dictionary containing the current time and the input buffer time.
+    #     status: `int`
+    #         The status of the audio stream.
+    #     """
 
-        # Convert the digital-to-analog converter output time to local-time
-        dac_playback_time = (
-            time_info['output_buffer_dac_time']
-            + (time.time() - time_info['current_time'])
-        )
+    #     # Convert the digital-to-analog converter output time to local-time
+    #     dac_playback_time = (
+    #         time_info['output_buffer_dac_time']
+    #         + (time.time() - time_info['current_time'])
+    #     )
 
-        # Construct the audio stream chunk
-        out_data = b''
+    #     # Construct the audio stream chunk
+    #     out_data = b''
 
-        while len(out_data) < self.chunk_length:
+    #     while len(out_data) < self.chunk_length:
 
-            # Get the next audio stream packet from the buffer queue
-            if self.current_chunk is None:
-                try:
-                    packet = self.buffer.get_nowait()
+    #         # Get the next audio stream packet from the buffer queue
+    #         if self.current_chunk is None:
+    #             try:
+    #                 packet = self.buffer.get_nowait()
 
-                    # Parse the playback time and audio data from the packet
-                    playback_time = struct.unpack("d", packet[4:12])[0]
-                    chunk = packet[12:-12]
+    #                 # Parse the playback time and audio data from the packet
+    #                 playback_time = struct.unpack("d", packet[4:12])[0]
+    #                 chunk = packet[12:-12]
 
-                    # Calculate the target playback time in the player local time
-                    target_playback_time = playback_time - self.time_offset
+    #                 # Calculate the target playback time in the player local time
+    #                 target_playback_time = playback_time - self.time_offset
 
-                    # Logging
-                    self.logger.info(
-                        'Parsing audio stream packet for chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.].' % (
-                            dac_playback_time,
-                            target_playback_time
-                        )
-                    )
+    #                 # Logging
+    #                 self.logger.info(
+    #                     'Parsing audio stream packet for chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.].' % (
+    #                         dac_playback_time,
+    #                         target_playback_time
+    #                     )
+    #                 )
 
-                    # Discard late packets
-                    if dac_playback_time - target_playback_time > self.playback_timing_tolerance:
+    #                 # Discard late packets
+    #                 if dac_playback_time - target_playback_time > self.playback_timing_tolerance:
 
-                        # Logging
-                        self.logger.warning(
-                            'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                                target_playback_time - dac_playback_time,
-                                playback_time
-                            )
-                        )
+    #                     # Logging
+    #                     self.logger.warning(
+    #                         'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
+    #                             target_playback_time - dac_playback_time,
+    #                             playback_time
+    #                         )
+    #                     )
 
-                        continue
+    #                     continue
 
-                    # Retain the audio data packet
-                    self.current_chunk = chunk
-                    self.current_playback_time = playback_time
-                    self.current_target_playback_time = target_playback_time
-                    self.current_position = 0
-                    self.current_num_silent_bytes = 0
-                    self.time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
+    #                 # Retain the audio data packet
+    #                 self.current_chunk = chunk
+    #                 self.current_playback_time = playback_time
+    #                 self.current_target_playback_time = target_playback_time
+    #                 self.current_position = 0
+    #                 self.current_num_silent_bytes = 0
+    #                 self.time_until_target_playback_time = dac_playback_time - self.current_target_playback_time
 
-                # Create a silent audio stream chunk when the buffer queue is empty
-                except asyncio.QueueEmpty:
-                    out_data += self.silent_chunk(length=int(self.chunk_length - len(out_data)))
-                    break
+    #             # Create a silent audio stream chunk when the buffer queue is empty
+    #             except asyncio.QueueEmpty:
+    #                 out_data += self.silent_chunk(length=int(self.chunk_length - len(out_data)))
+    #                 break
 
-            # Determine how much time has elapsed since the target playback time
-            # time_until_target_playback_time
+    #         # Determine how much time has elapsed since the target playback time
+    #         # time_until_target_playback_time
 
-            # Pad the return audio stream chunk with silence when the chunk arrives early,
-            #   accounting for any audio data already propagated into the chunk
+    #         # Pad the return audio stream chunk with silence when the chunk arrives early,
+    #         #   accounting for any audio data already propagated into the chunk
 
-            if (
-                self.time_until_target_playback_time
-                + int(len(out_data) / self.bytes_per_second)
-             ) < -self.playback_timing_tolerance:
+    #         if (
+    #             self.time_until_target_playback_time
+    #             + int(len(out_data) / self.bytes_per_second)
+    #          ) < -self.playback_timing_tolerance:
 
-                # Logging
-                self.logger.warning(
-                    'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                        self.current_target_playback_time - dac_playback_time,
-                        self.current_playback_time
-                    )
-                )
+    #             # Logging
+    #             self.logger.warning(
+    #                 'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
+    #                     self.current_target_playback_time - dac_playback_time,
+    #                     self.current_playback_time
+    #                 )
+    #             )
 
-                # Calculate the number of bytes to pad with silence
-                self.current_num_silent_bytes = max(
-                    min(
-                        int(self.time_until_target_playback_time * self.bytes_per_second),
-                        int(self.chunk_length - len(out_data))
-                    ),
-                    0
-                )
+    #             # Calculate the number of bytes to pad with silence
+    #             self.current_num_silent_bytes = max(
+    #                 min(
+    #                     int(self.time_until_target_playback_time * self.bytes_per_second),
+    #                     int(self.chunk_length - len(out_data))
+    #                 ),
+    #                 0
+    #             )
 
-                # Pad the audio stream chunk with silence
-                out_data += self.silent_chunk(length=self.current_num_silent_bytes)
+    #             # Pad the audio stream chunk with silence
+    #             out_data += self.silent_chunk(length=self.current_num_silent_bytes)
 
-            # Propagate data into the return audio stream chunk
-            start_byte = self.current_position
-            end_byte = min(int(start_byte + self.chunk_length - len(out_data)), self.chunk_length)
-            out_data += self.current_chunk[start_byte:end_byte]
-            self.current_position = end_byte
+    #         # Propagate data into the return audio stream chunk
+    #         start_byte = self.current_position
+    #         end_byte = min(int(start_byte + self.chunk_length - len(out_data)), self.chunk_length)
+    #         out_data += self.current_chunk[start_byte:end_byte]
+    #         self.current_position = end_byte
 
-            # Get the next audio stream packet from the buffer queue
-            if self.current_position >= self.chunk_length:
-                self.current_chunk = None
+    #         # Get the next audio stream packet from the buffer queue
+    #         if self.current_position >= self.chunk_length:
+    #             self.current_chunk = None
 
-            # Logging
-            self.logger.info(
-                'Constructing audio stream chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
-                    dac_playback_time,
-                    self.current_target_playback_time,
-                    self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
-                    self.current_num_silent_bytes,
-                    self.current_position,
-                    self.chunk_length
-                )
-            )
+    #         # Logging
+    #         self.logger.info(
+    #             'Constructing audio stream chunk with dac playback time %.7f [sec.] from packet with playback time %.7f [sec.], adjusted time until playback time %.7f [sec.], num. silent bytes {%d} and current position {%d} / {%d}.' % (
+    #                 dac_playback_time,
+    #                 self.current_target_playback_time,
+    #                 self.time_until_target_playback_time + int(len(out_data) / self.bytes_per_second),
+    #                 self.current_num_silent_bytes,
+    #                 self.current_position,
+    #                 self.chunk_length
+    #             )
+    #         )
 
-        # Logging
-        self.logger.info(
-            'Played constructed audio stream chunk with dac playback time %.7f [sec.].' % (
-                dac_playback_time
-            )
-        )
+    #     # Logging
+    #     self.logger.info(
+    #         'Played constructed audio stream chunk with dac playback time %.7f [sec.].' % (
+    #             dac_playback_time
+    #         )
+    #     )
 
-        # Check if the return audio stream chunk contains silent bytes
-        if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
+    #     # Check if the return audio stream chunk contains silent bytes
+    #     if self.silent_sample in out_data and not out_data == self.silent_chunk(length=self.chunk_length):
 
-            # Logging
-            self.logger.warning(
-                'Audio stream chunk with playback time %.7f [sec.] contains silent bytes adjusting for playback timing.' % (
-                    self.current_playback_time
-                )
-            )
+    #         # Logging
+    #         self.logger.warning(
+    #             'Audio stream chunk with playback time %.7f [sec.] contains silent bytes adjusting for playback timing.' % (
+    #                 self.current_playback_time
+    #             )
+    #         )
 
-        # Check if the return audio stream chunk is the wrong size
-        if len(out_data) != self.chunk_length:
+    #     # Check if the return audio stream chunk is the wrong size
+    #     if len(out_data) != self.chunk_length:
 
-            # Logging
-            self.logger.error(
-                'Audio stream chunk with playback time %.7f [sec.] is the wrong size %f, expected %f.' % (
-                    self.current_playback_time,
-                    len(out_data),
-                    self.chunk_length
-                )
-            )
+    #         # Logging
+    #         self.logger.error(
+    #             'Audio stream chunk with playback time %.7f [sec.] is the wrong size %f, expected %f.' % (
+    #                 self.current_playback_time,
+    #                 len(out_data),
+    #                 self.chunk_length
+    #             )
+    #         )
 
-        return (out_data, pyaudio.paContinue)
+    #     return (out_data, pyaudio.paContinue)
 
     def play(self):
         """ Starts the audio playback stream. """
