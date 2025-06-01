@@ -649,7 +649,7 @@ class Service():
         # Play the audio stream from the playback buffer until audio playback is cancelled
         #   by the event loop or cancelled manually through `KeyboardInterrupt`
 
-        self.audio_output.play()
+        # self.audio_output.play()
 
         # Manage / update the parameters of the digital audio stream
         try:
@@ -678,6 +678,78 @@ class Service():
                                 self.audio_output.device.index
                             )
                         ])
+                    )
+
+                    # Clear the buffer
+                    self.audio_output.clear_buffer()
+
+                # Play the audio stream from the playback buffer until audio playback is cancelled
+                #   by the event loop or cancelled manually through `KeyboardInterrupt`
+
+                if not self.audio_output.buffer.empty():
+
+                    # Parse the audio stream packet from the buffer queue
+                    packet = self.audio_output.buffer.get_nowait()
+
+                    # Parse the length of the next packet, the playback time,
+                    #   and audio data from the packet
+
+                    length = struct.unpack(">I", packet[:4])[0]
+                    playback_time = struct.unpack("d", packet[4:12])[0]
+                    chunk = packet[12:-12]
+
+                    # Discard incomplete packets
+                    if length != self.audio_output.chunk_length:
+
+                        # Logging
+                        self.logger.warning(
+                            'Incomplete packet with playback time %.7f [sec.].' % (
+                                playback_time
+                            )
+                        )
+
+                        continue
+
+                    # Calculate the target playback time in the player local time
+                    target_playback_time = playback_time - self.audio_output.time_offset
+                    time_difference = target_playback_time - time.time()
+
+                    # Discard late packets
+                    if time_difference < -self.audio_output.playback_timing_tolerance:
+
+                        # Logging
+                        self.logger.warning(
+                            'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
+                                time_difference,
+                                playback_time
+                            )
+                        )
+
+                        continue
+
+                    # Sleep until the target playback time
+                    target_playback_clock_time = time.monotonic() + time_difference
+                    while True:
+                        remaining = target_playback_clock_time - time.monotonic()
+                        if remaining < self.audio_output.playback_timing_tolerance:
+                            break
+
+                        await asyncio.sleep(
+                            min(
+                                target_playback_clock_time - time.monotonic(),
+                                0.001
+                            )
+                        )
+
+                    print(self.audio_output.stream.get_write_available())
+
+                    # Play the audio stream data
+                    self.audio_output.stream.write(chunk)
+
+                # Play silence when the buffer is empty
+                else:
+                    self.audio_output.stream.write(
+                        self.audio_output.silent_chunk(length=self.audio_output.chunk_length)
                     )
 
                 # Yield to other tasks in the event loop

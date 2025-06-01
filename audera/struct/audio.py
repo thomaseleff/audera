@@ -58,7 +58,7 @@ class Interface():
     ----------
     format : `int`
         The format of the audio stream.
-    rate : `Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000]`
+    rate : `Literal[44100, 48000, 96000, 192000]`
         The sampling frequency of the audio stream.
     channels : `Literal[1, 2]`
         The number of audio channels of the audio stream.
@@ -66,7 +66,7 @@ class Interface():
         The number of frames per audio chunk.
     """
     format: int = field(default=FORMAT)
-    rate: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = field(default=RATE)
+    rate: Literal[44100, 48000, 96000, 192000] = field(default=RATE)
     channels: Literal[1, 2] = field(default=CHANNELS)
     chunk: int = field(default=CHUNK)
 
