@@ -699,11 +699,11 @@ class Service():
                 playback_time = self.get_playback_time()
 
                 # Logging
-                self.logger.info(
-                    'Capturing audio stream packet with playback time %.7f [sec.].' % (
-                        playback_time
-                    )
-                )
+                # self.logger.info(
+                #     'Capturing audio stream packet with playback time %.7f [sec.].' % (
+                #         playback_time
+                #     )
+                # )
 
                 # Convert the audio data chunk to a timestamped packet, including the length of
                 #   the packet as well as the packet terminator. Assign the timestamp as the target
