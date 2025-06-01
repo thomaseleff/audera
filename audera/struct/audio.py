@@ -10,10 +10,10 @@ from pytensils import config
 
 
 # Interface configuration
-CHUNK: int = 1024
+CHUNK: int = 480
 FORMAT: int = pyaudio.paInt16
-CHANNELS: Literal[1, 2] = 1
-RATE: Literal[5000, 8000, 11025, 22050, 44100, 48000, 92000] = 44100
+CHANNELS: Literal[1, 2] = 2
+RATE: Literal[44100, 48000, 96000, 192000] = 96000
 DEVICE_INDEX: int = 0
 _BITRATES = {
     pyaudio.paInt8: 8,
