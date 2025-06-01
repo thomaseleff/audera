@@ -719,13 +719,6 @@ class Output():
         next early or on-time packet from the buffer.
         """
 
-        # Wait for the buffer
-        while True:
-            if self.buffer.empty():
-                time.sleep(self.playback_timing_tolerance)
-            else:
-                break
-
         # Discard invalid packets
         while not self.buffer.empty():
 
@@ -791,9 +784,12 @@ class Output():
                 )
             else:
                 time.sleep(
-                    min(
-                        target_playback_clock_time - time.monotonic(),
-                        0.001
+                    max(
+                        min(
+                            target_playback_clock_time - time.monotonic(),
+                            0.001
+                        ),
+                        0
                     )
                 )
 

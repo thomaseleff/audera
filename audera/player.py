@@ -665,6 +665,9 @@ class Service():
                     device=audera.dal.devices.get_device('output')
                 ):
 
+                    # Clear the buffer
+                    self.audio_output.clear_buffer()
+
                     # Logging
                     self.logger.info(
                         ' '.join([
@@ -753,7 +756,7 @@ class Service():
                 #     )
 
                 # Yield to other tasks in the event loop
-                await asyncio.sleep(audera.TIME_OUT)
+                await asyncio.sleep(0)
 
         except OSError as e:  # All other streamer communication I / O errors
 
