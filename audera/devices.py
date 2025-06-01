@@ -328,7 +328,7 @@ class Output():
             frames_per_buffer=interface.chunk,
             output=True,
             output_device_index=device.index,
-            # stream_callback=self.audio_playback_callback
+            stream_callback=self.audio_playback_callback
         )
 
         # Initialize the audio buffer and time offset
@@ -337,13 +337,13 @@ class Output():
         self.playback_timing_tolerance: float = playback_timing_tolerance
 
         # Initialize the audio stream chunk
-        self.current_chunk: Union[bytes, None] = None
-        self.current_playback_time: Union[float, None] = None
-        self.current_target_playback_time: Union[float, None] = None
-        self.current_position: int = 0
-        self.current_num_silent_bytes: int = 0
-        self.time_until_target_playback_time: float = 0.0
-        self.silent_sample: int = self.silent_chunk(length=1)
+        # self.current_chunk: Union[bytes, None] = None
+        # self.current_playback_time: Union[float, None] = None
+        # self.current_target_playback_time: Union[float, None] = None
+        # self.current_position: int = 0
+        # self.current_num_silent_bytes: int = 0
+        # self.time_until_target_playback_time: float = 0.0
+        # self.silent_sample: int = self.silent_chunk(length=1)
 
     @property
     def chunk_length(self) -> int:
@@ -451,119 +451,103 @@ class Output():
                 frames_per_buffer=self.interface.chunk,
                 output=True,
                 output_device_index=self.device.index,
-                # stream_callback=self.audio_playback_callback
+                stream_callback=self.audio_playback_callback
             )
 
             return True
         else:
             return False
 
-    # def audio_playback_callback(
-    #     self,
-    #     in_data: bytes,
-    #     frame_count: int,
-    #     time_info: dict,
-    #     status: int
-    # ) -> tuple[bytes, int]:
-    #     """ Returns the next audio stream packet from the playback buffer, discarding incomplete
-    #     or late packets.
+    def audio_playback_callback(
+        self,
+        in_data: bytes,
+        frame_count: int,
+        time_info: dict,
+        status: int
+    ) -> tuple[bytes, int]:
+        """ Returns the next audio stream packet from the playback buffer, discarding incomplete
+        or late packets.
 
-    #     Parameters
-    #     ----------
-    #     in_data: `bytes`
-    #         The audio data chunk as bytes.
-    #     frame_count: `int`
-    #         The number of frames in the audio data chunk.
-    #     time_info: `dict`
-    #         A dictionary containing the current time and the input buffer time.
-    #     status: `int`
-    #         The status of the audio stream.
-    #     """
+        Parameters
+        ----------
+        in_data: `bytes`
+            The audio data chunk as bytes.
+        frame_count: `int`
+            The number of frames in the audio data chunk.
+        time_info: `dict`
+            A dictionary containing the current time and the input buffer time.
+        status: `int`
+            The status of the audio stream.
+        """
 
-    #     # Convert the digital-to-analog converter output time to local-time
-    #     dac_playback_time = (
-    #         time_info['output_buffer_dac_time']
-    #         + (time.time() - time_info['current_time'])
-    #     )
+        # # Convert the digital-to-analog converter output time to local-time
+        # dac_playback_time = (
+        #     time_info['output_buffer_dac_time']
+        #     + (time.time() - time_info['current_time'])
+        # )
 
-    #     # Discard invalid packets
-    #     while not self.buffer.empty():
+        # # Discard invalid packets
+        # while not self.buffer.empty():
 
-    #         # Peak at the next audio stream packet from the buffer queue
-    #         next_packet = self.buffer._queue[0]
+        #     # Peak at the next audio stream packet from the buffer queue
+        #     next_packet = self.buffer._queue[0]
 
-    #         # Peak at the playback time and length of the next packet
-    #         playback_time = struct.unpack("d", next_packet[4:12])[0]
-    #         length = struct.unpack(">I", next_packet[:4])[0]
+        #     # Peak at the playback time and length of the next packet
+        #     playback_time = struct.unpack("d", next_packet[4:12])[0]
+        #     length = struct.unpack(">I", next_packet[:4])[0]
 
-    #         # Discard incomplete packets
-    #         if length != self.chunk_length:
+        #     # Discard incomplete packets
+        #     if length != self.chunk_length:
 
-    #             # Logging
-    #             self.logger.warning(
-    #                 'Incomplete packet with playback time %.7f [sec.].' % (
-    #                     playback_time
-    #                 )
-    #             )
+        #         # Logging
+        #         self.logger.warning(
+        #             'Incomplete packet with playback time %.7f [sec.].' % (
+        #                 playback_time
+        #             )
+        #         )
 
-    #             # Remove the incomplete packet from the buffer queue
-    #             _ = self.buffer.get_nowait()
+        #         # Remove the incomplete packet from the buffer queue
+        #         _ = self.buffer.get_nowait()
 
-    #             continue
+        #         continue
 
-    #         # Calculate the target playback time in the player local time
-    #         target_playback_time = playback_time - self.time_offset
-    #         time_difference = dac_playback_time - target_playback_time
+        #     # Calculate the target playback time in the player local time
+        #     target_playback_time = playback_time - self.time_offset
+        #     time_difference = dac_playback_time - target_playback_time
 
-    #         # Discard late packets
-    #         if time_difference > self.playback_timing_tolerance:
+        #     # Discard late packets
+        #     if time_difference > self.playback_timing_tolerance:
 
-    #             # Logging
-    #             self.logger.warning(
-    #                 'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-    #                     time_difference,
-    #                     playback_time
-    #                 )
-    #             )
+        #         # Logging
+        #         self.logger.warning(
+        #             'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
+        #                 time_difference,
+        #                 playback_time
+        #             )
+        #         )
 
-    #             # Remove the late packet from the buffer queue
-    #             _ = self.buffer.get_nowait()
+        #         # Remove the late packet from the buffer queue
+        #         _ = self.buffer.get_nowait()
 
-    #             continue
+        #         continue
 
-    #         # Discard early packets
-    #         if time_difference < self.playback_timing_tolerance:
+        #     # Exit the loop only when a valid packet is available
+        #     break
 
-    #             # Logging
-    #             self.logger.warning(
-    #                 'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
-    #                     time_difference,
-    #                     playback_time
-    #                 )
-    #             )
+        # Get the next audio stream packet from the buffer queue
+        try:
+            packet = self.buffer.get_nowait()
 
-    #             # Remove the late packet from the buffer queue
-    #             _ = self.buffer.get_nowait()
+            # Parse the playback time and audio data from the packet
+            # playback_time = struct.unpack("d", packet[4:12])[0]
+            chunk = packet[12:-12]
 
-    #             continue
+        # Create a silent audio stream chunk when the buffer queue is empty
+        except asyncio.QueueEmpty:
+            chunk = self.silent_chunk(length=self.chunk_length)
 
-    #         # Exit the loop only when a valid packet is available
-    #         break
-
-    #     # Get the next audio stream packet from the buffer queue
-    #     try:
-    #         packet = self.buffer.get_nowait()
-
-    #         # Parse the playback time and audio data from the packet
-    #         playback_time = struct.unpack("d", packet[4:12])[0]
-    #         chunk = packet[12:-12]
-
-    #     # Create a silent audio stream chunk when the buffer queue is empty
-    #     except asyncio.QueueEmpty:
-    #         chunk = self.silent_chunk(length=self.chunk_length)
-
-    #     # Return the audio stream chunk
-    #     return (chunk, pyaudio.paContinue)
+        # Return the audio stream chunk
+        return (chunk, pyaudio.paContinue)
 
     # def audio_playback_callback_v2(
     #     self,
@@ -730,10 +714,117 @@ class Output():
 
     #     return (out_data, pyaudio.paContinue)
 
-    def play(self):
+    def synchronize(self):
+        """ Synchronizes the startup of the playback stream with the playback time of the
+        next early or on-time packet from the buffer.
+        """
+
+        # Wait for the buffer
+        while True:
+            if self.buffer.empty():
+                time.sleep(self.playback_timing_tolerance)
+            else:
+                break
+
+        # Discard invalid packets
+        while not self.buffer.empty():
+
+            # Peak at the next audio stream packet from the buffer queue
+            next_packet = self.buffer._queue[0]
+
+            # Peak at the length of the next packet and the playback time
+            length = struct.unpack(">I", next_packet[:4])[0]
+            playback_time = struct.unpack("d", next_packet[4:12])[0]
+
+            # Discard incomplete packets
+            if length != self.chunk_length:
+
+                # Logging
+                self.logger.warning(
+                    'Incomplete packet with playback time %.7f [sec.].' % (
+                        playback_time
+                    )
+                )
+
+                # Remove the incomplete packet from the buffer queue
+                _ = self.buffer.get_nowait()
+
+                continue
+
+            # Calculate the target playback time in the player local time
+            target_playback_time = playback_time - self.time_offset
+            time_difference = target_playback_time - time.time()
+
+            # Discard late packets
+            if time_difference < -self.playback_timing_tolerance:
+
+                # Logging
+                self.logger.warning(
+                    'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
+                        time_difference,
+                        playback_time
+                    )
+                )
+
+                # Remove the late packet from the buffer queue
+                _ = self.buffer.get_nowait()
+
+                continue
+
+            # Exit the loop only when a valid packet is available
+            break
+
+        # Sleep until the target playback time
+        target_playback_clock_time = time.monotonic() + time_difference
+        while True:
+            remaining = target_playback_clock_time - time.monotonic()
+
+            if (
+                remaining < self.playback_timing_tolerance
+                and remaining > -self.playback_timing_tolerance
+            ):
+                break
+
+            if remaining > 0.1:
+                time.sleep(
+                    target_playback_clock_time - time.monotonic() - (2 * self.playback_timing_tolerance)
+                )
+            else:
+                time.sleep(
+                    min(
+                        target_playback_clock_time - time.monotonic(),
+                        0.001
+                    )
+                )
+
+        # Logging
+        self.logger.info(
+            "".join([
+                "The synchronized audio playback stream was opened at %.7f [sec.]" % (
+                    playback_time
+                ),
+                " within %.7f [sec.] of the target playback time." % (
+                    target_playback_clock_time - time.monotonic()
+                )
+            ])
+        )
+
+    def start(self):
         """ Starts the audio playback stream. """
+        self.synchronize()
+
         if not self.stream.is_active():
             self.stream.start_stream()
+
+    def stop(self):
+        """ Stops the audio playback stream. """
+        if self.stream.is_active():
+            self.stream.stop_stream()
+
+    def restart(self):
+        """ Restarts the audio playback stream. """
+        self.stop()
+        self.start()
 
     def clear_buffer(self):
         """ Clears any / all unplayed audio stream packets from the buffer. """
@@ -743,13 +834,8 @@ class Output():
             except asyncio.QueueEmpty:
                 break
 
-    def stop(self):
-        """ Stops the audio playback stream. """
-
-        # Stop the audio stream
-        if self.stream.is_active():
-            self.stream.stop_stream()
-
-        # Close the audio services
+    def close(self):
+        """ Closes the audio playback stream. """
+        self.stop()
         self.stream.close()
         self.port.terminate()
