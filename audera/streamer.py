@@ -114,14 +114,7 @@ class Service():
             logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
             device=audera.dal.devices.get_device('input'),
-            buffer_size=audera.BUFFER_SIZE,
-            playback_delay=audera.PLAYBACK_DELAY,
-            terminator=(
-                audera.PACKET_TERMINATOR  # 4 bytes
-                + audera.NAME.encode()  # 6 bytes
-                + audera.PACKET_ESCAPE  # 1 byte
-                + audera.PACKET_ESCAPE  # 1 byte
-            )
+            playback_delay=audera.PLAYBACK_DELAY
         )
         self.last_audio_capture_time: Union[float, None] = None
 
@@ -129,7 +122,6 @@ class Service():
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
 
         # Initialize playback delay and rtt-history
-        # self.playback_delay: float = audera.PLAYBACK_DELAY
         self.rtt_history: list[float] = []
 
         # Initialize process control parameters
@@ -696,12 +688,11 @@ class Service():
                     self.audio_input.interface.chunk,
                     exception_on_overflow=False
                 )
-                # packet = await self.audio_input.buffer.get()  # For callback method
 
                 # Get playback time
                 playback_time = self.get_playback_time()
 
-                # Logging
+                # Debug
                 # self.logger.info(
                 #     'Capturing audio stream packet with playback time %.7f [sec.].' % (
                 #         playback_time
