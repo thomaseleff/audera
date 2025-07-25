@@ -1,5 +1,6 @@
 """ Streamer service """
 
+from typing import Union
 import ntplib
 import asyncio
 import socket
@@ -110,16 +111,17 @@ class Service():
         #   stream. The system default audio input device is automatically selected.
 
         self.audio_input = audera.devices.Input(
+            logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
-            device=audera.dal.devices.get_device('input')
+            device=audera.dal.devices.get_device('input'),
+            playback_delay=audera.PLAYBACK_DELAY
         )
+        self.last_audio_capture_time: Union[float, None] = None
 
         # Initialize time synchronization
         self.ntp: audera.ntp.Synchronizer = audera.ntp.Synchronizer()
-        self.ntp_offset: float = 0.0
 
         # Initialize playback delay and rtt-history
-        self.playback_delay: float = audera.PLAYBACK_DELAY
         self.rtt_history: list[float] = []
 
         # Initialize process control parameters
@@ -127,13 +129,24 @@ class Service():
 
     def get_streamer_time(self) -> float:
         """ Returns the network time protocol (ntp) synchronized time on the streamer. """
-        return time.time() + self.ntp_offset
+        return time.time() + self.audio_input.time_offset
 
     def get_playback_time(self) -> float:
-        """ Returns the playback time based on the current time, playback delay and
-        network time protocol (ntp) server offset.
+        """ Returns the playback time based on the current time, playback delay, the
+        network time protocol (ntp) server offset and the last audio capture time.
         """
-        return self.get_streamer_time() + self.playback_delay
+        playback_time = self.get_streamer_time() + self.audio_input.playback_delay
+
+        # Set the last audio capture time to the current playback time for the first chunk in
+        #   the audio capture stream. Otherwise, extend the last audio capture time by the chunk
+        #   duration for all following chunks in the audio capture stream.
+
+        if not self.last_audio_capture_time:
+            self.last_audio_capture_time = playback_time
+        else:
+            self.last_audio_capture_time += self.audio_input.chunk_duration
+
+        return self.last_audio_capture_time
 
     async def ntp_synchronizer(self):
         """ The async `micro-service` for network time protocol (ntp) synchronization.
@@ -152,12 +165,12 @@ class Service():
                 try:
 
                     # Update the local machine time offset from the network time protocol (ntp) server
-                    self.ntp_offset = self.ntp.offset()
+                    self.audio_input.time_offset = self.ntp.offset()
 
                     # Logging
                     self.logger.info(
                         'The ntp server time offset is %.7f [sec.].' % (
-                            self.ntp_offset
+                            self.audio_input.time_offset
                         )
                     )
 
@@ -639,6 +652,9 @@ class Service():
 
                     await asyncio.sleep(audera.TIME_OUT)
 
+                    # Reset the last audio capture time
+                    self.last_audio_capture_time = None
+
                 # Retain the current connected remote audio output players for broadcasting
                 player_connections = copy.copy(self.stream_session.player_connections)
 
@@ -661,6 +677,9 @@ class Service():
 
                     await asyncio.sleep(audera.TIME_OUT)
 
+                    # Reset the last audio capture time
+                    self.last_audio_capture_time = None
+
                 # Update the number of remote audio output players
                 previous_num_players = self.stream_session.num_players
 
@@ -670,6 +689,16 @@ class Service():
                     exception_on_overflow=False
                 )
 
+                # Get playback time
+                playback_time = self.get_playback_time()
+
+                # Debug
+                # self.logger.info(
+                #     'Capturing audio stream packet with playback time %.7f [sec.].' % (
+                #         playback_time
+                #     )
+                # )
+
                 # Convert the audio data chunk to a timestamped packet, including the length of
                 #   the packet as well as the packet terminator. Assign the timestamp as the target
                 #   playback time accounting for a fixed playback delay from the current time on
@@ -678,7 +707,7 @@ class Service():
                 length = struct.pack(">I", len(chunk))
                 playback_time = struct.pack(
                     "d",
-                    self.get_playback_time()
+                    playback_time
                 )
                 packet = (
                     length  # 4 bytes

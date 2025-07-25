@@ -101,7 +101,8 @@ class Service():
             logger=self.logger,
             interface=audera.dal.interfaces.get_interface(),
             device=audera.dal.devices.get_device('output'),
-            buffer_size=audera.BUFFER_SIZE
+            buffer_size=audera.BUFFER_SIZE,
+            playback_timing_tolerance=audera.PLAYBACK_TIMING_TOLERANCE
         )
 
         # Initialize time synchronization
@@ -574,7 +575,8 @@ class Service():
                 await self.audio_output.buffer.put(packet)
 
                 # Trigger audio stream playback
-                self.buffer_event.set()
+                if self.audio_output.buffer.qsize() == audera.BUFFER_SIZE:
+                    self.buffer_event.set()
 
         except (
             asyncio.TimeoutError,  # Streamer communication timed-out
@@ -648,7 +650,7 @@ class Service():
         # Play the audio stream from the playback buffer until audio playback is cancelled
         #   by the event loop or cancelled manually through `KeyboardInterrupt`
 
-        self.audio_output.play()
+        self.audio_output.start()
 
         # Manage / update the parameters of the digital audio stream
         try:
@@ -664,6 +666,9 @@ class Service():
                     device=audera.dal.devices.get_device('output')
                 ):
 
+                    # Clear the buffer
+                    self.audio_output.clear_buffer()
+
                     # Logging
                     self.logger.info(
                         ' '.join([
@@ -678,6 +683,9 @@ class Service():
                             )
                         ])
                     )
+
+                    # Restart the audio stream
+                    self.audio_output.start()
 
                 # Yield to other tasks in the event loop
                 await asyncio.sleep(0)
@@ -713,8 +721,8 @@ class Service():
             self.audio_output.clear_buffer()
             self.buffer_event.clear()
 
-            # Stop the audio services
-            self.audio_output.stop()
+            # Close the audio services
+            self.audio_output.close()
 
     async def stop_services(self):
         """ Stops the async tasks. """

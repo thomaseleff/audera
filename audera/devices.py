@@ -1,6 +1,7 @@
 """ Audio I / O device manager """
 
 from __future__ import annotations
+from typing import Union
 import logging
 import asyncio
 import time
@@ -17,26 +18,44 @@ class Input():
 
     Parameters
     ----------
+    logger: `audera.logging.Logger`
+        An instance of `audera.logging.Logger`.
     interface: `audera.struct.audio.Interface`
         An `audera.struct.audio.Interface` object.
     device: `audera.struct.audio.Device`
         An `audera.struct.audio.Device` object that represents an audio input.
+    playback_delay: `float`
+        The time in seconds to apply to the playback time of each audio packet.
+    time_offset: `float`
+        The time offset in seconds between the local time on the streamer and network time.
     """
 
     def __init__(
         self,
+        logger: logging.Logger,
         interface: struct_.audio.Interface,
-        device: struct_.audio.Device
+        device: struct_.audio.Device,
+        playback_delay: float,
+        time_offset: float = 0.0
     ):
         """ Initializes an instance of an audio device input.
 
         Parameters
         ----------
+        logger: `audera.logging.Logger`
+            An instance of `audera.logging.Logger`.
         interface: `audera.struct.audio.Interface`
             An `audera.struct.audio.Interface` object.
         device: `audera.struct.audio.Device`
             An `audera.struct.audio.Device` object that represents an audio input.
+        playback_delay: `float`
+            The time in seconds to apply to the playback time of each audio packet.
+        time_offset: `float`
+            The time offset in seconds between the local time on the streamer and network time.
         """
+
+        # Logging
+        self.logger = logger
 
         # Initialize the audio stream
         self.interface: struct_.audio.Interface = interface
@@ -50,6 +69,34 @@ class Input():
             input=True,
             input_device_index=device.index
         )
+
+        # Initialize the audio buffer and time offset
+        self.playback_delay: float = playback_delay
+        self.time_offset: float = time_offset
+
+    @property
+    def chunk_length(self) -> int:
+        """ The number of bytes in the audio data chunk. """
+        return (
+            self.interface.chunk
+            * self.interface.channels
+            * self.interface.bit_rate // 8
+        )
+
+    @property
+    def frame_size(self) -> int:
+        """ The number of bytes in a single frame of audio data. """
+        return self.interface.channels * self.interface.bit_rate // 8
+
+    @property
+    def bytes_per_second(self) -> int:
+        """ The number of bytes in a second of audio data. """
+        return self.interface.rate * self.frame_size
+
+    @property
+    def chunk_duration(self) -> float:
+        """ The duration of the audio data chunk in seconds. """
+        return self.interface.chunk / self.interface.rate
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -148,6 +195,8 @@ class Output():
     time_offset: `float`
         The time offset in seconds between the local time on the remote audio
         output player and the audio streamer for synchronizing the audio playback stream.
+    playback_timing_tolerance: `float`
+        The tolerance in seconds for determining on-time packets.
     """
 
     def __init__(
@@ -156,7 +205,8 @@ class Output():
         interface: struct_.audio.Interface,
         device: struct_.audio.Device,
         buffer_size: int = 5,
-        time_offset: float = 0.0
+        time_offset: float = 0.0,
+        playback_timing_tolerance: float = 0.005,
     ):
         """ Initializes an instance of an audio device output.
 
@@ -173,6 +223,8 @@ class Output():
         time_offset: `float`
             The time offset in seconds between the local time on the remote audio
                 output player and the audio streamer for synchronizing the audio playback stream.
+        playback_timing_tolerance: `float`
+            The tolerance in seconds for determining on-time packets.
         """
 
         # Logging
@@ -189,12 +241,15 @@ class Output():
             frames_per_buffer=interface.chunk,
             output=True,
             output_device_index=device.index,
+            start=False,
             stream_callback=self.audio_playback_callback
         )
+        self.stream_start_time: Union[float, None] = None
 
         # Initialize the audio buffer and time offset
         self.buffer: asyncio.Queue = asyncio.Queue(buffer_size)
         self.time_offset: float = time_offset
+        self.playback_timing_tolerance: float = playback_timing_tolerance
 
     @property
     def chunk_length(self) -> int:
@@ -206,14 +261,23 @@ class Output():
         )
 
     @property
+    def frame_size(self) -> int:
+        """ The number of bytes in a single frame of audio data. """
+        return self.interface.channels * self.interface.bit_rate // 8
+
+    @property
+    def bytes_per_second(self) -> int:
+        """ The number of bytes in a second of audio data. """
+        return self.interface.rate * self.frame_size
+
+    @property
     def chunk_duration(self) -> float:
         """ The duration of the audio data chunk in seconds. """
         return self.interface.chunk / self.interface.rate
 
-    @property
-    def silent_chunk(self) -> bytes:
+    def silent_chunk(self, length: int) -> bytes:
         """ A silent audio data chunk. """
-        return b'\x00' * self.chunk_length
+        return b'\x00' * length
 
     def to_dict(self):
         """ Returns the `audera.struct.audio.Input` object as a `dict`. """
@@ -293,6 +357,7 @@ class Output():
                 frames_per_buffer=self.interface.chunk,
                 output=True,
                 output_device_index=self.device.index,
+                start=False,
                 stream_callback=self.audio_playback_callback
             )
 
@@ -322,12 +387,31 @@ class Output():
             The status of the audio stream.
         """
 
-        # Calculate the digital-to-analog converter (dac) offset
-        current_time = time.time()
-        dac_offset = current_time - time_info['current_time']
+        # Get the next audio stream packet from the buffer queue
+        try:
+            packet = self.buffer.get_nowait()
 
-        # Convert the digital-to-analog converter output time to local-time
-        dac_playback_time = time_info['output_buffer_dac_time'] + dac_offset
+            # Parse the audio data from the packet
+            chunk = packet[12:-12]
+
+            # Debug
+            # self.logger.info(
+            #     'Streaming audio stream packet with playback time %.7f [sec.].' % (
+            #         struct.unpack("d", packet[4:12])[0]
+            #     )
+            # )
+
+        # Create a silent audio stream chunk when the buffer queue is empty
+        except asyncio.QueueEmpty:
+            chunk = self.silent_chunk(length=self.chunk_length)
+
+        # Return the audio stream chunk
+        return (chunk, pyaudio.paContinue)
+
+    def synchronize(self):
+        """ Synchronizes the startup of the playback stream with the playback time of the
+        next early or on-time packet from the buffer.
+        """
 
         # Discard invalid packets
         while not self.buffer.empty():
@@ -335,9 +419,9 @@ class Output():
             # Peak at the next audio stream packet from the buffer queue
             next_packet = self.buffer._queue[0]
 
-            # Peak at the playback time and length of the next packet
-            playback_time = struct.unpack("d", next_packet[4:12])[0]
+            # Peak at the length of the next packet and the playback time
             length = struct.unpack(">I", next_packet[:4])[0]
+            playback_time = struct.unpack("d", next_packet[4:12])[0]
 
             # Discard incomplete packets
             if length != self.chunk_length:
@@ -356,14 +440,15 @@ class Output():
 
             # Calculate the target playback time in the player local time
             target_playback_time = playback_time - self.time_offset
+            time_difference = target_playback_time - time.time()
 
             # Discard late packets
-            if target_playback_time < dac_playback_time:
+            if time_difference < -self.playback_timing_tolerance:
 
                 # Logging
                 self.logger.warning(
                     'Late packet %.7f [sec.] with playback time %.7f [sec.].' % (
-                        target_playback_time - dac_playback_time,
+                        time_difference,
                         playback_time
                     )
                 )
@@ -373,28 +458,81 @@ class Output():
 
                 continue
 
+            # Discard early packets
+            # if time_difference > self.playback_timing_tolerance:
+
+            #     # Logging
+            #     self.logger.warning(
+            #         'Early packet %.7f [sec.] with playback time %.7f [sec.].' % (
+            #             time_difference,
+            #             playback_time
+            #         )
+            #     )
+            #     # Remove the late packet from the buffer queue
+            #     _ = self.buffer.get_nowait()
+
+            #     continue
+
             # Exit the loop only when a valid packet is available
             break
 
-        # Get the next audio stream packet from the buffer queue
-        try:
-            packet = self.buffer.get_nowait()
+        # Sleep until the target playback time
+        target_playback_clock_time = time.monotonic() + time_difference
+        while True:
+            remaining = target_playback_clock_time - time.monotonic()
 
-            # Parse the playback time and audio data from the packet
-            playback_time = struct.unpack("d", packet[4:12])[0]
-            chunk = packet[12:-12]
+            if (
+                remaining < self.playback_timing_tolerance
+                and remaining > -self.playback_timing_tolerance
+            ):
+                break
 
-        # Create a silent audio stream chunk when the buffer queue is empty
-        except asyncio.QueueEmpty:
-            chunk = self.silent_chunk
+            if remaining > 0.1:
+                time.sleep(
+                    target_playback_clock_time - time.monotonic() - (2 * self.playback_timing_tolerance)
+                )
+            else:
+                time.sleep(
+                    max(
+                        min(
+                            target_playback_clock_time - time.monotonic(),
+                            0.001
+                        ),
+                        0
+                    )
+                )
 
-        # Return the audio stream chunk
-        return (chunk, pyaudio.paContinue)
+        # Logging
+        self.logger.info(
+            "".join([
+                "The synchronized audio playback stream was opened at %.7f [sec.]" % (
+                    playback_time
+                ),
+                " within %.7f [sec.] of the target playback time." % (
+                    target_playback_clock_time - time.monotonic()
+                )
+            ])
+        )
 
-    def play(self):
+    def start(self):
         """ Starts the audio playback stream. """
+        self.synchronize()
+
         if not self.stream.is_active():
             self.stream.start_stream()
+
+            # Retain the start time of the audio playback stream
+            self.stream_start_time = time.time()
+
+    def stop(self):
+        """ Stops the audio playback stream. """
+        if self.stream.is_active():
+            self.stream.stop_stream()
+
+    def restart(self):
+        """ Restarts the audio playback stream. """
+        self.stop()
+        self.start()
 
     def clear_buffer(self):
         """ Clears any / all unplayed audio stream packets from the buffer. """
@@ -404,13 +542,8 @@ class Output():
             except asyncio.QueueEmpty:
                 break
 
-    def stop(self):
-        """ Stops the audio playback stream. """
-
-        # Stop the audio stream
-        if self.stream.is_active():
-            self.stream.stop_stream()
-
-        # Close the audio services
+    def close(self):
+        """ Closes the audio playback stream. """
+        self.stop()
         self.stream.close()
         self.port.terminate()
