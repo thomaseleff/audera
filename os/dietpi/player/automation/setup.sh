@@ -61,7 +61,7 @@ apt-get install -y \
     dnsmasq \
     alsa-utils \
     ffmpeg \
-    shairport-sync \
+    shairport-sync-airplay2 \
     git \
     python3.11 \
     python3-venv \
