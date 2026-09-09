@@ -79,14 +79,15 @@ def render_camilladsp(playback_format: Literal['S16LE', 'S32LE'] = 'S32LE', play
     return f"""---
 devices:
   samplerate: 48000
-  chunksize: 1024
-  
+  # 2048: larger chunk reduces audio dropouts from playback underruns.
+  chunksize: 2048
+
   # DRIFT: Enables monitoring the buffer level to sync Capture and Playback clocks.
   enable_rate_adjust: true
   
-  # LATENCY STABILITY: Desired number of samples in the playback buffer. 
-  # Set to equal chunksize for a balance of stability and low "blind" latency.
-  target_level: 1024
+  # LATENCY STABILITY: Desired number of samples in the playback buffer.
+  # 2x chunksize: headroom against playback underruns; equal-to-chunksize is too tight.
+  target_level: 4096
   
   # REACTION SPEED: How often (in seconds) to calculate the correction ratio.
   # 5s is responsive enough for network streams without causing audible pitch "wobble."
