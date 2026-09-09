@@ -105,7 +105,9 @@ class AccessPoint:
 
         finally:
             # Restart NetworkManager unconditionally. This is unguarded so a failed restart surfaces.
-            system.systemctl('restart', 'NetworkManager')
+            # The restart blocks until NM is up, which exceeds the default 15s bound on a Pi Zero W
+            # (armv6) while the wifi driver loads, so give it explicit headroom.
+            system.systemctl('restart', 'NetworkManager', timeout=45)
 
         # Add the access point connection
         if not self.connection_exists():

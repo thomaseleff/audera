@@ -62,11 +62,21 @@ install_uv() {
     fi
 }
 
-# Installs the audera CLI from the given git repo/branch
+# Installs the audera CLI from the given git repo/branch.
+#
+# piwheels ships prebuilt ARM wheels (incl. armv6l) for the Rust deps that PyPI has
+# only as sdists — pydantic-core, orjson, watchfiles — so uv downloads them instead of
+# cargo-building on-device. `unsafe-best-match` is uv's scary name for pip-normal
+# behaviour: consider PyPI + piwheels together and pick the best wheel, rather than
+# stopping at the first index (PyPI, sdist-only). No-op off ARM; dev machines are
+# unaffected since this lives in the device installer, not pyproject.
 install_audera_cli() {
     local repo_url="$1"
     local branch="$2"
-    UV_TOOL_BIN_DIR=/usr/local/bin uv tool install --reinstall "git+${repo_url}@${branch}"
+    UV_TOOL_BIN_DIR=/usr/local/bin uv tool install --reinstall \
+        --index-strategy unsafe-best-match \
+        --extra-index-url https://www.piwheels.org/simple \
+        "git+${repo_url}@${branch}"
     export PATH="/usr/local/bin:$PATH"
 }
 
