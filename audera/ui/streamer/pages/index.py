@@ -1057,7 +1057,9 @@ def _build_player_card(
                     ui.switch(value=not client.muted, on_change=lambda e: _on_enabled_change(page, client, e.value)).mark(
                         f'player-toggle-{client.id}'
                     )
-                # A disabled player is grayed out to reinforce the "disabled" state.
+                # A disabled player's name is grayed out to reinforce the "disabled" state; its
+                # controls stay live since muting is an audio-output decision, not a configuration
+                # lock — the player still needs to be configurable for when it's re-enabled.
                 name_label = ui.label(client.name).classes('font-medium')
                 if minimized:
                     name_label.classes('text-gray-400')
@@ -1077,29 +1079,28 @@ def _build_player_card(
                 # `Element.mark()` splits on whitespace while `ElementFilter` matches any one
                 # marker.
                 if by_stream:
-                    _build_move_button(page, client, assignment, status, minimized)
-                dsp_btn = (
+                    _build_move_button(page, client, assignment, status)
+                # DSP and settings stay live on a disabled player: muting is an audio-output
+                # decision, not a configuration lock, and the player still needs to be
+                # configurable for when it's re-enabled.
+                (
                     ui.button(on_click=lambda: ui.navigate.to(f'/player/{client.id}/dsp'))
                     .props('icon=sym_o_airwave flat dense round size=sm')
                     .mark(f'player-dsp player-dsp-{client.id}')
                 )
-                # A disabled player has no live pipeline to edit, so gray out its DSP button too.
-                if minimized:
-                    dsp_btn.set_enabled(False)
-                settings_btn = (
+                (
                     ui.button(on_click=lambda: _open_settings_dialog(page, client))
                     .props('icon=settings flat dense round size=sm')
                     .mark(f'player-settings player-settings-{client.id}')
                 )
-                # Disable the settings button for a disabled player, matching the intent of "disable".
-                if minimized:
-                    settings_btn.set_enabled(False)
+
+        # Stream reassignment stays available on a disabled card; only the volume slider row
+        # (meaningless for a muted player) is skipped below.
+        if not by_stream:
+            _build_stream_chip(page, client, assignment, status)
 
         if minimized:
             return
-
-        if not by_stream:
-            _build_stream_chip(page, client, assignment, status)
 
         with ui.row(wrap=False).classes('items-center gap-4 w-full'):
             slider = _build_volume_controls(page, client.id, volume, client.host)
@@ -1113,8 +1114,8 @@ def _build_player_card(
 def _build_stream_chip(page: 'Page', client: Player, assignment: _Assignment, status: dict[str, str]) -> None:
     """Renders the `Stream ( AirPlay 2 ⌄ )` row, the by-player grouping's assignment affordance.
 
-    A body row, below the `minimized` short-circuit, so it drops along with the volume slider on a
-    player the operator switched off.
+    Rendered unconditionally (unlike the volume slider row below it), so stream reassignment
+    stays available on a player the operator switched off.
 
     The chip opens the same menu the by-stream layout opens rather than a `ui.select` of its own,
     since a select over a `dict[id, label]` cannot grey a single option: it either offers a dead
@@ -1188,13 +1189,13 @@ def _build_move_button(
     client: Player,
     assignment: _Assignment,
     status: dict[str, str],
-    minimized: bool,
 ) -> None:
     """Renders the move button, the by-stream grouping's assignment affordance.
 
-    A header-row button, beside its DSP and settings neighbours, so a `minimized` card keeps it
-    disabled rather than dropping it as the by-player layout drops its body-row chip: a switched-off
-    player still appears under its stream header.
+    A header-row button, beside its DSP and settings neighbours; a switched-off player still
+    appears under its stream header and keeps its move button live, since muting is an
+    audio-output decision, not a configuration lock. It is disabled only on `_move_refusal`'s
+    grounds (destination validity), never on the player's disabled state.
 
     Parameters
     ----------
@@ -1206,17 +1207,12 @@ def _build_move_button(
         The client's stream assignment, from `_assignment`.
     status: `dict[str, str]`
         Snapserver's status word per stream id, from `_stream_status`.
-    minimized: `bool`
-        Whether the card is the disabled-mode minimized variant.
     """
     with ui.button().props('icon=swap_horiz flat dense round size=sm').mark(f'player-move player-move-{client.id}') as move_btn:
         # By stream a card's position is its assignment, so a move that did not re-lay-out would
         # leave it under the wrong header for up to 10 s.
         _build_move_menu(page, client, assignment, status, lambda id: _on_stream_change(page, client, id, refresh=True))
 
-    if minimized:
-        move_btn.set_enabled(False)
-        return
     refusal = _move_refusal(client, _move_destinations(assignment), status)
     if refusal:
         move_btn.set_enabled(False)
