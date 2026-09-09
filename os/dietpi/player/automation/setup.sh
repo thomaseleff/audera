@@ -91,6 +91,17 @@ echo ">>> Installing uv"
 install_uv
 echo -e "[  ${GREEN}OK${RESET}  ] uv installed successfully"
 
+# Install a Rust toolchain on armv6 — pydantic-core / orjson / watchfiles ship no armv6
+#   wheels, so uv cargo-builds them from source and needs a compiler on PATH.
+if [ "$(uname -m)" = "armv6l" ]; then
+    echo
+    echo ">>> Installing Rust toolchain (armv6 has no prebuilt wheels)"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+    . "$HOME/.cargo/env"
+    export CARGO_BUILD_JOBS=1   # ponytail: 512MB RAM, single core — parallel cargo OOMs
+    echo -e "[  ${GREEN}OK${RESET}  ] Rust toolchain installed"
+fi
+
 # Install audera CLI
 echo
 echo ">>> Installing audera"

@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @platform.requires('dietpi')
-def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
+def systemctl(*args: str, check: bool = True, timeout: float = TIMEOUT) -> subprocess.CompletedProcess:
     """Runs `systemctl` with `args` and returns the completed process.
 
     Output is always captured, since `is_active()` reads `stdout`.
@@ -26,13 +26,17 @@ def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
         The `systemctl` arguments, e.g. `'restart', 'snapserver'`.
     check: `bool`
         Whether a non-zero exit status raises `subprocess.CalledProcessError`.
+    timeout: `float`
+        Seconds before the call is treated as hung. Defaults to `TIMEOUT`; raise it for a verb
+        that legitimately runs longer on slow hardware, e.g. a synchronous `NetworkManager`
+        restart on a Pi Zero W (armv6), which waits for the wifi driver to load.
     """
     try:
         return subprocess.run(
             ['systemctl', *args],
             capture_output=True,
             text=True,
-            timeout=TIMEOUT,
+            timeout=timeout,
             check=check,
         )
     except subprocess.CalledProcessError as exc:
