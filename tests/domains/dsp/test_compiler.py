@@ -1,4 +1,4 @@
-from audera.domains.dsp import compile_pipeline
+from audera.domains.dsp import apply_pipeline, compile_pipeline
 from audera.domains.dsp.compiler import _PEQ_PREFIX, _PREAMP_KEY
 from audera.models.dsp import Band, DSPConfig
 
@@ -130,3 +130,35 @@ def test_empty_base_config_compiles_cleanly():
     compiled = compile_pipeline(_empty_config(), config)
     assert compiled['filters'] == {_PREAMP_KEY: {'type': 'Gain', 'parameters': {'gain': 0.0}}}
     assert compiled['pipeline'] == [{'type': 'Filter', 'channels': [0, 1], 'names': [_PREAMP_KEY], 'bypassed': False}]
+
+
+class _FakeCamillaClient:
+    """Records calls in order; no I/O. `get_config` returns the same dict every time."""
+
+    def __init__(self, current: dict):
+        self._current = current
+        self.calls: list[str] = []
+        self.validated: dict | None = None
+        self.applied: dict | None = None
+
+    def get_config(self) -> dict:
+        self.calls.append('get_config')
+        return self._current
+
+    def validate_config(self, config: dict) -> None:
+        self.calls.append('validate_config')
+        self.validated = config
+
+    def set_config(self, config: dict) -> None:
+        self.calls.append('set_config')
+        self.applied = config
+
+
+def test_apply_pipeline_compiles_validates_and_sets_in_order():
+    config = DSPConfig(player_id='x', bands=[Band(id='b1', type='Peaking', freq=1000.0, gain=3.0)])
+    client = _FakeCamillaClient(_empty_config())
+    result = apply_pipeline(client, config)  # ty: ignore[invalid-argument-type]
+    assert client.calls == ['get_config', 'validate_config', 'set_config']
+    assert client.validated == result
+    assert client.applied == result
+    assert _PEQ_PREFIX + 'b1' in result['filters']

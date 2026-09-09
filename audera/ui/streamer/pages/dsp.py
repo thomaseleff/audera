@@ -9,7 +9,7 @@ from nicegui import ui
 import audera
 from audera.dal import dsp as dsp_dal
 from audera.dal import presets as presets_dal
-from audera.domains.dsp import auto_preamp_db, clone_bands, compile_pipeline, format_rew, loudness_preset, parse_rew
+from audera.domains.dsp import apply_pipeline, auto_preamp_db, clone_bands, format_rew, loudness_preset, parse_rew
 from audera.errors import CommandError
 from audera.models.dsp import PASS_TYPES, Band, DSPConfig, Preset
 from audera.ui import components, features
@@ -326,12 +326,6 @@ async def render(page: 'Page', player_id: str) -> None:
         _band_table.refresh()
         _mark_changed()
 
-    def _save_dsp(camilla_client, staged):
-        current = camilla_client.get_config()
-        compiled = compile_pipeline(current, staged)
-        camilla_client.validate_config(compiled)
-        camilla_client.set_config(compiled)
-
     async def _on_save() -> None:
         """Compiles → validates → pushes the live pipeline, then persists the config.
 
@@ -344,7 +338,7 @@ async def render(page: 'Page', player_id: str) -> None:
         """
         camilla = _camilladsp(live.host)
         try:
-            await commands.get().submit(_save_dsp, camilla, state['staged'])
+            await commands.get().submit(apply_pipeline, camilla, state['staged'])
         except CommandError as exc:
             ui.notify(f'Save failed: {exc}', type='negative', position='top-right')
             return

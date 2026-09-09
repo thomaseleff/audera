@@ -2,6 +2,7 @@
 
 import copy
 
+from audera.clients import CamillaDSPClient
 from audera.models.dsp import PASS_TYPES, Band, DSPConfig
 
 _MANAGED_PREFIX = 'audera_'
@@ -74,4 +75,24 @@ def compile_pipeline(current_config: dict, config: DSPConfig) -> dict:
 
     compiled['filters'] = filters
     compiled['pipeline'] = pipeline
+    return compiled
+
+
+def apply_pipeline(client: CamillaDSPClient, config: DSPConfig) -> dict:
+    """Compiles `config` against the daemon's current pipeline and pushes it live.
+
+    Shared by the DSP editor's Save action and the broker's reconnect resync, so the two
+    apply paths can never drift.
+
+    Parameters
+    ----------
+    client: `audera.clients.CamillaDSPClient`
+        A CamillaDSP client bound to the target player's host.
+    config: `audera.models.dsp.DSPConfig`
+        An instance of an `audera.models.dsp.DSPConfig` object.
+    """
+    current = client.get_config()
+    compiled = compile_pipeline(current, config)
+    client.validate_config(compiled)
+    client.set_config(compiled)
     return compiled

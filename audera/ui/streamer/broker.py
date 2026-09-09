@@ -22,8 +22,11 @@ import websockets.asyncio.client
 import audera
 from audera.clients import CamillaDSPClient, SnapserverClient
 from audera.clients.snapserver import groups_from_status, players_from_status, stream_status_from_status
+from audera.dal import dsp as dsp_dal
 from audera.dal import volume as volume_dal
+from audera.domains.dsp import apply_pipeline
 from audera.models.player import Group, Player
+from audera.ui.streamer import commands
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +182,28 @@ class EventBroker:
                 return g
         return None
 
+    async def _resync_dsp(self, player: Player) -> None:
+        """Re-pushes a player's saved DSP pipeline after it reconnects.
+
+        A re-provisioned player's daemon re-renders `/etc/camilladsp/config.yml` with an empty
+        pipeline (ADR 003 decision 3), wiping any previously-pushed `audera_`-managed filters; the
+        saved config is otherwise only re-applied when someone opens the DSP page and hits Save.
+        The read and apply run in one queued command so the config can't be captured stale ahead of
+        an in-flight Save's persist, and `coalesce_key` collapses a flapping client's repeated
+        reconnects into a single apply. Failures are logged and swallowed, matching `reseed()`'s
+        pattern: a background resync must not crash the reader loop or block other players.
+        """
+
+        def _resync() -> None:
+            if not dsp_dal.exists(player.id):
+                return
+            apply_pipeline(CamillaDSPClient(host=player.host), dsp_dal.get(player.id))
+
+        try:
+            await commands.get().submit(_resync, coalesce_key=('dsp-resync', player.id))
+        except Exception:
+            logger.warning('broker DSP resync failed for player %s', player.id, exc_info=True)
+
     async def _handle_notification(self, method: str, params: dict) -> None:
         if method == 'Client.OnVolumeChanged':
             client_id = params.get('id', '')
@@ -193,6 +218,10 @@ class EventBroker:
 
         elif method == 'Client.OnConnect':
             await self._reseed_via_short_lived()
+            client_data = params.get('client', params)
+            p = self._find_player(client_data.get('id', ''))
+            if p is not None:
+                await self._resync_dsp(p)
 
         elif method == 'Client.OnDisconnect':
             client_data = params.get('client', params)
