@@ -1620,14 +1620,33 @@ async def test_players_tab_stream_caption_names_the_blast_radius(
     assert _only(user, ui.label, 'player-stream-label-abc123').text == expected
 
 
-async def test_players_tab_minimized_card_hides_the_stream_chip(audera_home, mock_snapserver_with_muted_client, user: User):
+async def test_players_tab_minimized_card_keeps_the_stream_chip_but_hides_the_slider(
+    audera_home, mock_snapserver_with_muted_client, user: User
+):
     _seed_grouping(features.FF_GROUPING_BY_PLAYER, **{features.PLAYER_SELECTION_KEY: features.FF_DISABLED_VS_MUTE})
     Page().load()
     await user.open('/')
-    # A body row, dropped along with the volume slider: a player the operator switched off
-    # exposes no assignment control.
+    # Muting is an audio-output decision, not a configuration lock: stream reassignment stays
+    # available on a disabled card, but the volume slider (meaningless for a muted player) is gone.
     await user.should_see(marker='player-card-abc123')
-    assert _elements(user, marker='player-stream-abc123') == []
+    await user.should_see(marker='player-stream-abc123')
+    assert _elements(user, kind=ui.slider) == []
+
+
+async def test_players_tab_minimized_card_keeps_dsp_and_settings_enabled(
+    audera_home, mock_snapserver_with_muted_client, user: User
+):
+    settings_dal.create(
+        Settings(
+            plexamp_host='localhost',
+            snapserver_host='localhost',
+            features={features.PLAYER_SELECTION_KEY: features.FF_DISABLED_VS_MUTE},
+        )
+    )
+    Page().load()
+    await user.open('/')
+    assert _only(user, ui.button, 'player-dsp-abc123').enabled
+    assert _only(user, ui.button, 'player-settings-abc123').enabled
 
 
 async def test_players_tab_reads_from_hub_cache_not_snapserver(

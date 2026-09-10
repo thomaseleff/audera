@@ -2,7 +2,9 @@ import pytest
 import websockets.sync.client
 
 from audera.clients import CamillaDSPClient
+from audera.domains.dsp import compile_pipeline
 from audera.errors import ServiceError, Unreachable
+from audera.models.dsp import Band, DSPConfig
 
 
 def test_call_reads_with_a_deadline_and_maps_timeout(monkeypatch):
@@ -132,6 +134,27 @@ def test_validate_config_invalid_raises(client, overrides):
     config = {**client.get_config(), **overrides}
     with pytest.raises(ServiceError):
         client.validate_config(config)
+
+
+def test_validate_and_set_mono_balance_mixer(client):
+    """The compiler's `Mixer`/balance schema, unverified against any repo precedent, must be
+    accepted by the real daemon — a shape mismatch here would only surface as a live 400 on Save.
+    """
+    config = DSPConfig(
+        player_id='x',
+        mono=True,
+        stereo_balance=0.5,
+        preamp_db=-3.0,
+        bands=[Band(id='b1', type='Peaking', freq=1000.0, gain=3.0)],
+    )
+    # Start from a clean pipeline — other tests in this module leave foreign filters/steps on
+    # the shared daemon, and a Mixer step is only first among *managed* steps, not absolutely.
+    current = {**client.get_config(), 'filters': {}, 'mixers': {}, 'pipeline': []}
+    compiled = compile_pipeline(current, config)
+    assert client.validate_config(compiled) is None
+    client.set_config(compiled)
+    result = client.get_config()
+    assert result['pipeline'][0]['type'] == 'Mixer'
 
 
 def test_get_clipped_samples(client):

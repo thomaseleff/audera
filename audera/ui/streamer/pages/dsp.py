@@ -9,7 +9,7 @@ from nicegui import ui
 import audera
 from audera.dal import dsp as dsp_dal
 from audera.dal import presets as presets_dal
-from audera.domains.dsp import auto_preamp_db, clone_bands, compile_pipeline, format_rew, loudness_preset, parse_rew
+from audera.domains.dsp import apply_pipeline, auto_preamp_db, clone_bands, format_rew, loudness_preset, parse_rew
 from audera.errors import CommandError
 from audera.models.dsp import PASS_TYPES, Band, DSPConfig, Preset
 from audera.ui import components, features
@@ -120,6 +120,32 @@ async def render(page: 'Page', player_id: str) -> None:
     def _on_q(band: Band, value) -> None:
         if value is not None:
             band.q = float(value)
+        _mark_changed()
+
+    def _mixer_summary() -> str:
+        """One-line summary shown in the collapsed Mixer expander's caption."""
+        mode = 'Mono' if state['staged'].mono else 'Stereo'
+        bal = state['staged'].stereo_balance
+        # Positive balance favours the right channel (see `_balance_gain_db`); phrase it as a side
+        # rather than a signed number so it reads the same whether or not the expander is open.
+        where = 'Centered' if bal == 0 else f'{abs(bal) * 100:.0f}% {"Right" if bal > 0 else "Left"}'
+        return f'{mode} · {where}'
+
+    def _refresh_mixer() -> None:
+        """Repaints the inline balance readout and the expander caption from staged state."""
+        bal = state['staged'].stereo_balance
+        balance_value.set_text('0%' if bal == 0 else f'{bal * 100:+.0f}%')
+        mixer_expander.props(f'caption="{_mixer_summary()}"')
+
+    def _on_mono(value: bool) -> None:
+        state['staged'].mono = bool(value)
+        _refresh_mixer()
+        _mark_changed()
+
+    def _on_stereo_balance(value) -> None:
+        if value is not None:
+            state['staged'].stereo_balance = float(value)
+        _refresh_mixer()
         _mark_changed()
 
     def _add_band() -> None:
@@ -323,14 +349,11 @@ async def render(page: 'Page', player_id: str) -> None:
     def _on_reset() -> None:
         state['staged'] = state['saved'].model_copy(deep=True)
         preamp_field.value = state['staged'].preamp_db
+        mono_cb.value = state['staged'].mono
+        balance_slider.value = state['staged'].stereo_balance
+        _refresh_mixer()
         _band_table.refresh()
         _mark_changed()
-
-    def _save_dsp(camilla_client, staged):
-        current = camilla_client.get_config()
-        compiled = compile_pipeline(current, staged)
-        camilla_client.validate_config(compiled)
-        camilla_client.set_config(compiled)
 
     async def _on_save() -> None:
         """Compiles → validates → pushes the live pipeline, then persists the config.
@@ -344,7 +367,7 @@ async def render(page: 'Page', player_id: str) -> None:
         """
         camilla = _camilladsp(live.host)
         try:
-            await commands.get().submit(_save_dsp, camilla, state['staged'])
+            await commands.get().submit(apply_pipeline, camilla, state['staged'])
         except CommandError as exc:
             ui.notify(f'Save failed: {exc}', type='negative', position='top-right')
             return
@@ -541,6 +564,34 @@ async def render(page: 'Page', player_id: str) -> None:
             ui.space()
             ui.button('Reset', on_click=_on_reset).props('flat dense')
             ui.button('Save', on_click=_on_save).props('dense')
+
+        # Mixer controls — mono downmix and L/R balance — live in a collapsed expander so they stay
+        # out of the way until needed; both compile into the pipeline on Save exactly like bands.
+        # The caption summarizes the staged mode + balance while collapsed. Balance stays enabled in
+        # mono: it trims the two physical output channels downstream of the mono sum (see the compiler),
+        # so it still shifts level between a stereo amp's two mono speakers.
+        mixer_expander = ui.expansion('Mixer', caption=_mixer_summary()).classes('w-full border rounded').mark('dsp-mixer')
+        with mixer_expander:
+            with ui.column().classes('w-full gap-3 pb-2'):
+                mono_cb = ui.checkbox('Mono', value=state['staged'].mono, on_change=lambda e: _on_mono(e.value)).mark('dsp-mono')
+                with ui.row(wrap=False).classes('items-center gap-2 w-full'):
+                    ui.label('Balance').classes('text-sm text-gray-500 w-16 shrink-0')
+                    ui.label('L').classes('text-xs text-gray-400 shrink-0')
+                    balance_slider = (
+                        ui.slider(
+                            min=-1.0,
+                            max=1.0,
+                            step=0.01,
+                            value=state['staged'].stereo_balance,
+                            on_change=lambda e: _on_stereo_balance(e.value),
+                        )
+                        .classes('grow')
+                        .mark('dsp-stereo-balance')
+                    )
+                    ui.label('R').classes('text-xs text-gray-400 shrink-0')
+                    balance_value = ui.label(
+                        '0%' if state['staged'].stereo_balance == 0 else f'{state["staged"].stereo_balance * 100:+.0f}%'
+                    ).classes('w-12 text-right text-sm text-gray-600 shrink-0')
 
         # Persistent handle + empty-state tip, both toggled by the forward-closure
         # `_mark_changed`: the chart shows only once a band exists, the tip otherwise.

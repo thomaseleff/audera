@@ -59,12 +59,18 @@ class DSPConfig(BaseModel):
         The parametric-EQ bands (source of truth).
     enabled: `bool`
         Whether the DSP configuration is active.
+    mono: `bool`
+        Whether the two channels are downmixed to mono before EQ.
+    stereo_balance: `float`
+        The L/R balance, from -1.0 (full left) to 1.0 (full right).
     """
 
     player_id: str
     preamp_db: float = 0.0
     bands: list[Band] = Field(default_factory=list)
     enabled: bool = True
+    mono: bool = False
+    stereo_balance: float = Field(0.0, ge=-1.0, le=1.0)
 
 
 class Preset(BaseModel):

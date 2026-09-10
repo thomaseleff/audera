@@ -19,6 +19,6 @@ def test_dsp_config_legacy_dict_drops_retired_keys():
         'enabled': True,
     }
     result = DSPConfig.model_validate(legacy).model_dump()
-    assert set(result.keys()) == {'player_id', 'preamp_db', 'bands', 'enabled'}
+    assert set(result.keys()) == {'player_id', 'preamp_db', 'bands', 'enabled', 'mono', 'stereo_balance'}
     for retired in ('id', 'dsp_id', 'pipeline', 'loudness_enabled', 'loudness_reference_level', 'volume'):
         assert retired not in result

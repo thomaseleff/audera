@@ -6,7 +6,10 @@ import time
 import pytest
 
 from audera.clients import CamillaDSPClient, SnapserverClient
+from audera.dal import dsp as dsp_dal
 from audera.dal import volume as volume_dal
+from audera.models.dsp import Band, DSPConfig
+from audera.ui.streamer import commands
 from audera.ui.streamer.broker import EventBroker
 
 
@@ -89,6 +92,42 @@ async def test_notification_name_change(broker_instance, snap_client):
     await asyncio.to_thread(snap_client.set_client_name, client_id, 'Test Name')
     await _poll(lambda: broker_instance.cache.clients[0].name == 'Test Name')
     assert broker_instance.cache.clients[0].name == 'Test Name'
+
+
+async def test_client_reconnect_reapplies_saved_dsp_pipeline(audera_home, broker_instance, monkeypatch):
+    """`Client.OnConnect` re-pushes a saved, enabled DSP config onto the reconnecting player.
+
+    Regression: a re-provisioned player's daemon boots with an empty pipeline (ADR 003 decision 3),
+    wiping any previously-pushed filters; without a reconnect resync the saved config was only
+    re-applied when someone opened the DSP page and hit Save.
+    """
+    client_id = broker_instance.cache.clients[0].id
+    dsp_dal.save(DSPConfig(player_id=client_id, preamp_db=-3.0, bands=[Band(id='b1', freq=1000.0, gain=3.0)]))
+
+    calls: list[str] = []
+    applied: dict = {}
+
+    monkeypatch.setattr(CamillaDSPClient, 'get_config', lambda self: {'filters': {}, 'pipeline': []})
+
+    def _validate_config(self, config):
+        calls.append('validate_config')
+
+    def _set_config(self, config):
+        calls.append('set_config')
+        applied.update(config)
+
+    monkeypatch.setattr(CamillaDSPClient, 'validate_config', _validate_config)
+    monkeypatch.setattr(CamillaDSPClient, 'set_config', _set_config)
+
+    commands.start()
+    try:
+        await broker_instance._handle_notification('Client.OnConnect', {'client': {'id': client_id}})
+        await _poll(lambda: calls == ['validate_config', 'set_config'])
+    finally:
+        await commands.stop()
+
+    assert calls == ['validate_config', 'set_config']
+    assert any(name.startswith('audera_peq_') for name in applied.get('filters', {}))
 
 
 def _bare_broker() -> EventBroker:
