@@ -38,7 +38,7 @@ If the ALSA loopback adjustment is insufficient (symptom: persistent clicks or p
 
 ### 3. DSP is IIR-only, compiled and pushed at runtime
 
-The rendered config boots with an empty pipeline (`filters: {}`, `pipeline: []`). The DSP editor (`audera/domains/dsp/`) then compiles a parametric EQ — a `Gain` pre-amp plus one `Biquad` per band — and pushes it to the running daemon over the WebSocket (`SetConfigJson`), never by rewriting the file. Bands are the source of truth; the pipeline is a derived artifact. The `domains/dsp/` docstrings own the compile-and-apply flow and the auto-protected pre-amp headroom.
+The rendered config boots with an empty pipeline (`filters: {}`, `pipeline: []`). The DSP editor (`audera/domains/dsp/`) then compiles a parametric EQ — an optional mono downmix `Mixer`, L/R balance `Gain` filters, a `Gain` pre-amp, and one `Biquad` per band — and pushes it to the running daemon over the WebSocket (`SetConfigJson`), never by rewriting the file. Bands are the source of truth; the pipeline is a derived artifact. The `domains/dsp/` docstrings own the compile-and-apply flow and the auto-protected pre-amp headroom.
 
 IIR biquads (PEQ, shelving, high/low-pass) are near-zero CPU at 48 kHz. FIR convolution is deliberately not implemented: linear-phase room correction would exceed the RPi Zero 2 W's real-time budget.
 
